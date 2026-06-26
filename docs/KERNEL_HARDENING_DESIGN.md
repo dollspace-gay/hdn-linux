@@ -951,12 +951,14 @@ can declare `object PROFILE deny-write path PATH`,
 	`object PROFILE deny-truncate path PATH`,
 	`object PROFILE deny-rename path PATH`,
 	`object PROFILE deny-unix-connect path PATH`,
-	`object PROFILE deny-unix-bind path PATH`, or recursive
+	`object PROFILE deny-unix-bind path PATH`,
+	`object PROFILE deny-unix-listen path PATH`,
+	`object PROFILE deny-unix-accept path PATH`, or recursive
 	`object PROFILE OP tree DIRECTORY` rules, or equivalent
 	`object PROFILE OP inode MAJOR MINOR INO` rules for the same object
 	operations. Path and tree declarations are resolved to file
 	or directory identity when the signed policy is staged, and VFS
-	read/write/delete/create/creat/mkdir/mknod/symlink/unlink/rmdir/exec/link/attr/chmod/chown/utime/xattr/setxattr/removexattr/access/stat/list/find/ioctl/lock/watch/receive/fcntl/chdir/mount/umount/truncate/rename/unix-connect/unix-bind paths check compiled identity under RCU.
+	read/write/delete/create/creat/mkdir/mknod/symlink/unlink/rmdir/exec/link/attr/chmod/chown/utime/xattr/setxattr/removexattr/access/stat/list/find/ioctl/lock/watch/receive/fcntl/chdir/mount/umount/truncate/rename/unix-connect/unix-bind/unix-listen/unix-accept paths check compiled identity under RCU.
 Tree declarations must resolve to directories and match that directory plus
 descendants by dentry ancestry. This
 slice covers regular-file write opens, `write(2)`, `writev(2)`,
@@ -1005,6 +1007,8 @@ opened before policy commit. Pure lookup-style discovery is covered by
 	filesystem-backed AF_UNIX pathname socket connect attempts, and
 	`deny-unix-bind` covers filesystem-backed AF_UNIX pathname socket bind
 	attempts by parent directory identity before the socket node is created.
+	`deny-unix-listen` and `deny-unix-accept` cover filesystem-backed
+	AF_UNIX listener operations by bound socket identity.
 	It is still a compact
 	object-policy base, not a full RBAC object language.
 
@@ -1348,7 +1352,7 @@ fs/namespace.c, fs/fsopen.c, fs/super.c:
   bypasses
 
 fs/namei.c, fs/open.c, fs/read_write.c, fs/attr.c, fs/xattr.c, fs/stat.c, fs/readdir.c, fs/fhandle.c, fs/namespace.c, net/unix/af_unix.c, security/security.c:
-  enforce signed object read/write/delete/create/creat/mkdir/mknod/symlink/unlink/rmdir/exec/link/attr/chmod/chown/utime/xattr/setxattr/removexattr/access/stat/list/find/ioctl/lock/watch/receive/fcntl/chdir/mount/umount/truncate/rename/unix-connect/unix-bind
+  enforce signed object read/write/delete/create/creat/mkdir/mknod/symlink/unlink/rmdir/exec/link/attr/chmod/chown/utime/xattr/setxattr/removexattr/access/stat/list/find/ioctl/lock/watch/receive/fcntl/chdir/mount/umount/truncate/rename/unix-connect/unix-bind/unix-listen/unix-accept
   denial and append-only rules by compiled identity
 
 tools/hardening/hdn-rofs-apply:
@@ -1831,7 +1835,7 @@ Core oracle groups:
 - unsigned user binary gets user profile
 - compiler roles expand inherited reusable grants into sealed profiles
 - UID/GID subject rules select account profiles
-- signed object read/write/delete/create/creat/mkdir/mknod/symlink/unlink/rmdir/exec/link/attr/chmod/chown/utime/xattr/setxattr/removexattr/access/stat/list/find/ioctl/lock/watch/receive/fcntl/chdir/mount/umount/truncate/rename/unix-connect/unix-bind, append-only, and recursive tree rules constrain protected file, executable, metadata, extended-attribute, directory-entry, fd-passing, descriptor-control, working-directory, mount topology, size/extent mutation, move access, and filesystem socket IPC by resolved identity
+- signed object read/write/delete/create/creat/mkdir/mknod/symlink/unlink/rmdir/exec/link/attr/chmod/chown/utime/xattr/setxattr/removexattr/access/stat/list/find/ioctl/lock/watch/receive/fcntl/chdir/mount/umount/truncate/rename/unix-connect/unix-bind/unix-listen/unix-accept, append-only, and recursive tree rules constrain protected file, executable, metadata, extended-attribute, directory-entry, fd-passing, descriptor-control, working-directory, mount topology, size/extent mutation, move access, and filesystem socket IPC by resolved identity
 - script inherits correct interpreter-chain profile
 - non-root TPE denies execution from unsafe executable directories
 - setuid transition gets privileged profile only when valid
