@@ -41,7 +41,8 @@ log disclosure cannot be re-enabled by a later sysctl write. Legacy TIOCSTI is
 forced off, line-discipline autoload is disabled, and neither TTY sysctl can be
 turned back on while TTY injection hardening is active. Yama is now part of the
 baseline and `kernel.yama.ptrace_scope` cannot be lowered below relational
-mode.
+mode. Setuid coredumps are locked off through `fs.suid_dumpable=0`, so
+privileged-helper core modes cannot be globally enabled after boot.
 
 The largest remaining gaps are richer RBAC/userspace integration, full desktop
 and recovery UI around the admin broker, distro package/update wiring, deeper
@@ -71,16 +72,16 @@ The hardening smoke suite in the development tree is run under QEMU. Latest
 local result before this publication checkpoint:
 
 ```text
-QEMU hardening smoke: 773/773 pass
+QEMU hardening smoke: 775/775 pass
 ```
 
 Patch artifact at this checkpoint:
 
 ```text
 patch: patches/hdn-linux-7.0.12.patch
-lines: 56,390
-bytes: 1,652,928
-sha256: e5cd8ae9f81aa0be0fcbf75ea2b68d0438be72da4cef7251b08ad01b8fcf9384
+lines: 56,433
+bytes: 1,654,140
+sha256: b45ff2fedf05da79636db2ae51958da2dd0a91e8a19f87b57b63475243af6c48
 ```
 
 ## Development Rule

@@ -1647,6 +1647,8 @@ Core oracle groups:
   below that floor while the exploit-mitigation baseline is enabled
 - `kernel.yama.ptrace_scope` starts at relational mode and cannot be lowered
   below that floor while the exploit-mitigation baseline is enabled
+- `fs.suid_dumpable` starts disabled and cannot be raised while the
+  exploit-mitigation baseline is enabled
 - `dev.tty.legacy_tiocsti` and `dev.tty.ldisc_autoload` are forced off while
   TTY injection hardening is enabled and cannot be re-enabled through sysctl
 - failed fork attempts emit a named `FORK_FAILED` audit reason and preserve the

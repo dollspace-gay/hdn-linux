@@ -815,8 +815,16 @@ diff -urN linux-7.0.12/fs/debugfs/file.c linux-7.0.12-hdn/fs/debugfs/file.c
  		return -EIO;
 diff -urN linux-7.0.12/fs/exec.c linux-7.0.12-hdn/fs/exec.c
 --- linux-7.0.12/fs/exec.c	2026-06-09 05:32:51.000000000 -0500
-+++ linux-7.0.12-hdn/fs/exec.c	2026-06-22 19:15:59.328765544 -0500
-@@ -50,6 +50,7 @@
++++ linux-7.0.12-hdn/fs/exec.c	2026-06-26 14:58:26.121704566 -0500
+@@ -29,6 +29,7 @@
+ #include <linux/fdtable.h>
+ #include <linux/mm.h>
+ #include <linux/stat.h>
++#include <linux/kconfig.h>
+ #include <linux/fcntl.h>
+ #include <linux/swap.h>
+ #include <linux/string.h>
+@@ -50,6 +51,7 @@
  #include <linux/module.h>
  #include <linux/namei.h>
  #include <linux/mount.h>
@@ -824,7 +832,7 @@ diff -urN linux-7.0.12/fs/exec.c linux-7.0.12-hdn/fs/exec.c
  #include <linux/security.h>
  #include <linux/syscalls.h>
  #include <linux/tsacct_kern.h>
-@@ -1098,6 +1099,10 @@
+@@ -1098,6 +1100,10 @@
  	if (retval)
  		return retval;
  
@@ -835,7 +843,7 @@ diff -urN linux-7.0.12/fs/exec.c linux-7.0.12-hdn/fs/exec.c
  	/*
  	 * This tracepoint marks the point before flushing the old exec where
  	 * the current task is still unchanged, but errors are fatal (point of
-@@ -1269,6 +1274,7 @@
+@@ -1269,6 +1275,7 @@
  	 * credentials; any time after this it may be unlocked.
  	 */
  	security_bprm_committed_creds(bprm);
@@ -843,7 +851,7 @@ diff -urN linux-7.0.12/fs/exec.c linux-7.0.12-hdn/fs/exec.c
  
  	/* Pass the opened binary to the interpreter. */
  	if (bprm->have_execfd) {
-@@ -1409,6 +1415,7 @@
+@@ -1409,6 +1416,7 @@
  	}
  
  	bprm->file = file;
@@ -851,7 +859,7 @@ diff -urN linux-7.0.12/fs/exec.c linux-7.0.12-hdn/fs/exec.c
  
  	if (fd == AT_FDCWD || filename->name[0] == '/') {
  		bprm->filename = filename->name;
-@@ -1702,6 +1709,7 @@
+@@ -1702,6 +1710,7 @@
  		exec = bprm->file;
  		bprm->file = bprm->interpreter;
  		bprm->interpreter = NULL;
@@ -859,6 +867,18 @@ diff -urN linux-7.0.12/fs/exec.c linux-7.0.12-hdn/fs/exec.c
  
  		exe_file_allow_write_access(exec);
  		if (unlikely(bprm->have_execfd)) {
+@@ -1990,7 +1999,11 @@
+ 		.mode		= 0644,
+ 		.proc_handler	= proc_dointvec_minmax_coredump,
+ 		.extra1		= SYSCTL_ZERO,
++#if IS_ENABLED(CONFIG_SECURITY_HARDENING_EXPLOIT_MITIGATIONS)
++		.extra2		= SYSCTL_ZERO,
++#else
+ 		.extra2		= SYSCTL_TWO,
++#endif
+ 	},
+ };
+ 
 diff -urN linux-7.0.12/fs/fcntl.c linux-7.0.12-hdn/fs/fcntl.c
 --- linux-7.0.12/fs/fcntl.c	2026-06-09 05:32:51.000000000 -0500
 +++ linux-7.0.12-hdn/fs/fcntl.c	2026-06-25 06:08:36.173382958 -0500
@@ -9300,8 +9320,8 @@ diff -urN linux-7.0.12/security/commoncap.c linux-7.0.12-hdn/security/commoncap.
  }
 diff -urN linux-7.0.12/security/hardening/Kconfig linux-7.0.12-hdn/security/hardening/Kconfig
 --- linux-7.0.12/security/hardening/Kconfig	1969-12-31 18:00:00.000000000 -0600
-+++ linux-7.0.12-hdn/security/hardening/Kconfig	2026-06-26 14:51:28.733765262 -0500
-@@ -0,0 +1,587 @@
++++ linux-7.0.12-hdn/security/hardening/Kconfig	2026-06-26 14:59:06.357693428 -0500
+@@ -0,0 +1,588 @@
 +# SPDX-License-Identifier: GPL-2.0-only
 +menuconfig SECURITY_HARDENING
 +	bool "Hardening contract layer"
@@ -9880,8 +9900,9 @@ diff -urN linux-7.0.12/security/hardening/Kconfig linux-7.0.12-hdn/security/hard
 +	  caches, vmapped kernel stacks, kernel stack offset randomization,
 +	  strong stack protector, structure layout randomization, strict kernel
 +	  and module W^X, locked Yama relational ptrace scope, locked dmesg
-+	  restriction, kernel pointer/symbol disclosure restriction, and kCFI
-+	  when the selected architecture and compiler support them.
++	  restriction, locked setuid coredump suppression, kernel
++	  pointer/symbol disclosure restriction, and kCFI when the selected
++	  architecture and compiler support them.
 +
 +	  This is intentionally a build-time default layer rather than a policy
 +	  prompt. Product policy can decide who may perform dangerous actions;
@@ -17426,8 +17447,8 @@ diff -urN linux-7.0.12/tools/hardening/Makefile linux-7.0.12-hdn/tools/hardening
 +.PHONY: all clean
 diff -urN linux-7.0.12/tools/hardening/README.rst linux-7.0.12-hdn/tools/hardening/README.rst
 --- linux-7.0.12/tools/hardening/README.rst	1969-12-31 18:00:00.000000000 -0600
-+++ linux-7.0.12-hdn/tools/hardening/README.rst	2026-06-26 14:52:39.813750949 -0500
-@@ -0,0 +1,1278 @@
++++ linux-7.0.12-hdn/tools/hardening/README.rst	2026-06-26 14:59:28.565693108 -0500
+@@ -0,0 +1,1281 @@
 +.. SPDX-License-Identifier: GPL-2.0-only
 +
 +Linux Hardening Policy Tools
@@ -18570,11 +18591,14 @@ diff -urN linux-7.0.12/tools/hardening/README.rst linux-7.0.12-hdn/tools/hardeni
 +Privileged exec lineage is tracked across later execs in the process mm. When
 +``fs.suid_dumpable`` is disabled, a descendant of a privileged helper that
 +becomes dumpable again is still denied ``SIGXCPU``/``SIGXFSZ`` coredumps before
-+core-file creation. The denial emits a ``COREDUMP`` event with
++core-file creation. The exploit-mitigation baseline keeps
++``fs.suid_dumpable`` locked at ``0`` so setuid-core modes cannot be enabled
++globally after boot. The denial emits a ``COREDUMP`` event with
 +``HDN_REASON_PRIVILEGED_DESCENDANT_COREDUMP`` and the signal number in
 +``object``. The QEMU smoke suite proves this by entering a setuid-root helper,
 +dropping back to an unprivileged uid, execing a normal binary, forcing
-+dumpability, and verifying the ``SIGXFSZ`` core is blocked.
++dumpability, verifying the ``SIGXFSZ`` core is blocked, and proving the
++``fs.suid_dumpable`` sysctl value cannot be raised.
 +
 +``securityfs/hardening/events`` exposes one text record per hardening event.
 +Each record includes ``event_id``, ``authority``, ``transition``, ``action``,
@@ -32376,8 +32400,8 @@ diff -urN linux-7.0.12/tools/testing/selftests/hardening/hdn_elfnote_jit.c linux
 +}
 diff -urN linux-7.0.12/tools/testing/selftests/hardening/hdn_smoke.c linux-7.0.12-hdn/tools/testing/selftests/hardening/hdn_smoke.c
 --- linux-7.0.12/tools/testing/selftests/hardening/hdn_smoke.c	1969-12-31 18:00:00.000000000 -0600
-+++ linux-7.0.12-hdn/tools/testing/selftests/hardening/hdn_smoke.c	2026-06-26 14:52:02.093760758 -0500
-@@ -0,0 +1,22472 @@
++++ linux-7.0.12-hdn/tools/testing/selftests/hardening/hdn_smoke.c	2026-06-26 14:58:50.693700553 -0500
+@@ -0,0 +1,22491 @@
 +// SPDX-License-Identifier: GPL-2.0-only
 +
 +#define _GNU_SOURCE
@@ -54036,6 +54060,21 @@ diff -urN linux-7.0.12/tools/testing/selftests/hardening/hdn_smoke.c linux-7.0.1
 +	return 0;
 +}
 +
++static int suid_dumpable_sysctl_locked(void)
++{
++	int ret;
++
++	ret = write_text_file(HDN_SUID_DUMPABLE, "2\n");
++	if (!ret) {
++		(void)write_text_file(HDN_SUID_DUMPABLE, "0\n");
++		return 1;
++	}
++	if (ret == -ENOENT)
++		return KSFT_SKIP;
++
++	return ret == -EINVAL || errno_is_denial(-ret) ? 0 : 2;
++}
++
 +static int kptr_restrict_sysctl_locked(void)
 +{
 +	int ret;
@@ -54520,7 +54559,7 @@ diff -urN linux-7.0.12/tools/testing/selftests/hardening/hdn_smoke.c linux-7.0.1
 +	if (access(HDN_STATUS, R_OK))
 +		ksft_exit_skip("hardening securityfs status not present\n");
 +
-+	ksft_set_plan(773);
++	ksft_set_plan(775);
 +	test_securityfs_status();
 +	test_symbol_test_module_load();
 +	test_securityfs_status_contains("abi_version: 77",
@@ -54575,6 +54614,10 @@ diff -urN linux-7.0.12/tools/testing/selftests/hardening/hdn_smoke.c linux-7.0.1
 +					"hardening status reports proc memmap redaction");
 +	test_securityfs_status_contains("mitigation_privexec_arg_stack_limits: 1",
 +					"hardening status reports privileged exec argument and stack limits");
++	test_int_file_equals(HDN_SUID_DUMPABLE, 0,
++			     "setuid coredump sysctl is locked disabled");
++	report_child_result(suid_dumpable_sysctl_locked(),
++			    "setuid coredump sysctl cannot be enabled");
 +	test_securityfs_status_contains("mitigation_memfd_noexec: 1",
 +					"hardening status reports enforced memfd noexec");
 +	test_securityfs_status_contains("mitigation_kernel_symbol_lookup_gate: 1",
@@ -55193,7 +55236,7 @@ diff -urN linux-7.0.12/tools/testing/selftests/hardening/role.policy linux-7.0.1
 +use-role 2 desktop-admin
 diff -urN linux-7.0.12/tools/testing/selftests/hardening/run-qemu-smoke.sh linux-7.0.12-hdn/tools/testing/selftests/hardening/run-qemu-smoke.sh
 --- linux-7.0.12/tools/testing/selftests/hardening/run-qemu-smoke.sh	1969-12-31 18:00:00.000000000 -0600
-+++ linux-7.0.12-hdn/tools/testing/selftests/hardening/run-qemu-smoke.sh	2026-06-26 14:52:10.557758552 -0500
++++ linux-7.0.12-hdn/tools/testing/selftests/hardening/run-qemu-smoke.sh	2026-06-26 14:58:57.501695780 -0500
 @@ -0,0 +1,1017 @@
 +#!/bin/sh
 +# SPDX-License-Identifier: GPL-2.0
@@ -55228,7 +55271,7 @@ diff -urN linux-7.0.12/tools/testing/selftests/hardening/run-qemu-smoke.sh linux
 +QEMU_MEMORY=${QEMU_MEMORY:-1024M}
 +QEMU_SMP=${QEMU_SMP:-2}
 +QEMU_MACHINE=${QEMU_MACHINE:-q35,accel=tcg}
-+HDN_SMOKE_EXPECTED_PASS=${HDN_SMOKE_EXPECTED_PASS:-773}
++HDN_SMOKE_EXPECTED_PASS=${HDN_SMOKE_EXPECTED_PASS:-775}
 +WORK=${HDN_QEMU_WORK:-"${TMPDIR:-/tmp}/hdn-qemu-smoke.$$"}
 +LOG=${HDN_QEMU_LOG:-"$WORK/qemu.log"}
 +QMP=${HDN_QEMU_QMP:-"$WORK/qmp.sock"}
