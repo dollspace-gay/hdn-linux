@@ -1,4 +1,4 @@
-diff -urN linux-7.0.12/Documentation/fault-injection/fault-injection.rst linux-7.0.12-hdn/Documentation/fault-injection/fault-injection.rst
+diff -ruN linux-7.0.12/Documentation/fault-injection/fault-injection.rst linux-7.0.12-hdn/Documentation/fault-injection/fault-injection.rst
 --- linux-7.0.12/Documentation/fault-injection/fault-injection.rst	2026-06-09 05:32:51.000000000 -0500
 +++ linux-7.0.12-hdn/Documentation/fault-injection/fault-injection.rst	2026-06-26 12:49:37.110415046 -0500
 @@ -234,6 +234,10 @@
@@ -25,7 +25,7 @@ diff -urN linux-7.0.12/Documentation/fault-injection/fault-injection.rst linux-7
  - /sys/kernel/debug/fail_skb_realloc/devname:
  
          Specifies the network interface on which to force SKB reallocation.  If
-diff -urN linux-7.0.12/arch/Kconfig linux-7.0.12-hdn/arch/Kconfig
+diff -ruN linux-7.0.12/arch/Kconfig linux-7.0.12-hdn/arch/Kconfig
 --- linux-7.0.12/arch/Kconfig	2026-06-09 05:32:51.000000000 -0500
 +++ linux-7.0.12-hdn/arch/Kconfig	2026-06-22 21:35:28.090730553 -0500
 @@ -923,6 +923,7 @@
@@ -44,7 +44,7 @@ diff -urN linux-7.0.12/arch/Kconfig linux-7.0.12-hdn/arch/Kconfig
  	help
  	  Kernel stack offset randomization is controlled by kernel boot param
  	  "randomize_kstack_offset=on/off", and this config chooses the default
-diff -urN linux-7.0.12/arch/x86/kernel/cpuid.c linux-7.0.12-hdn/arch/x86/kernel/cpuid.c
+diff -ruN linux-7.0.12/arch/x86/kernel/cpuid.c linux-7.0.12-hdn/arch/x86/kernel/cpuid.c
 --- linux-7.0.12/arch/x86/kernel/cpuid.c	2026-06-09 05:32:51.000000000 -0500
 +++ linux-7.0.12-hdn/arch/x86/kernel/cpuid.c	2026-06-26 00:37:03.112075879 -0500
 @@ -33,6 +33,7 @@
@@ -68,7 +68,7 @@ diff -urN linux-7.0.12/arch/x86/kernel/cpuid.c linux-7.0.12-hdn/arch/x86/kernel/
  
  	cpu = iminor(file_inode(file));
  	if (cpu >= nr_cpu_ids || !cpu_online(cpu))
-diff -urN linux-7.0.12/arch/x86/kernel/ioport.c linux-7.0.12-hdn/arch/x86/kernel/ioport.c
+diff -ruN linux-7.0.12/arch/x86/kernel/ioport.c linux-7.0.12-hdn/arch/x86/kernel/ioport.c
 --- linux-7.0.12/arch/x86/kernel/ioport.c	2026-06-09 05:32:51.000000000 -0500
 +++ linux-7.0.12-hdn/arch/x86/kernel/ioport.c	2026-06-22 18:24:58.409509259 -0500
 @@ -4,6 +4,7 @@
@@ -99,7 +99,7 @@ diff -urN linux-7.0.12/arch/x86/kernel/ioport.c linux-7.0.12-hdn/arch/x86/kernel
  	}
  
  	t->iopl_emul = level;
-diff -urN linux-7.0.12/arch/x86/kernel/msr.c linux-7.0.12-hdn/arch/x86/kernel/msr.c
+diff -ruN linux-7.0.12/arch/x86/kernel/msr.c linux-7.0.12-hdn/arch/x86/kernel/msr.c
 --- linux-7.0.12/arch/x86/kernel/msr.c	2026-06-09 05:32:51.000000000 -0500
 +++ linux-7.0.12-hdn/arch/x86/kernel/msr.c	2026-06-26 00:37:03.112075879 -0500
 @@ -32,6 +32,7 @@
@@ -127,7 +127,7 @@ diff -urN linux-7.0.12/arch/x86/kernel/msr.c linux-7.0.12-hdn/arch/x86/kernel/ms
  	if (cpu >= nr_cpu_ids || !cpu_online(cpu))
  		return -ENXIO;	/* No such CPU */
  
-diff -urN linux-7.0.12/arch/x86/kernel/sys_x86_64.c linux-7.0.12-hdn/arch/x86/kernel/sys_x86_64.c
+diff -ruN linux-7.0.12/arch/x86/kernel/sys_x86_64.c linux-7.0.12-hdn/arch/x86/kernel/sys_x86_64.c
 --- linux-7.0.12/arch/x86/kernel/sys_x86_64.c	2026-06-09 05:32:51.000000000 -0500
 +++ linux-7.0.12-hdn/arch/x86/kernel/sys_x86_64.c	2026-06-25 13:56:50.894255640 -0500
 @@ -131,6 +131,8 @@
@@ -164,7 +164,7 @@ diff -urN linux-7.0.12/arch/x86/kernel/sys_x86_64.c linux-7.0.12-hdn/arch/x86/ke
  	if (!(filp && is_file_hugepages(filp))) {
  		info.start_gap = stack_guard_placement(vm_flags);
  		info.align_offset = pgoff << PAGE_SHIFT;
-diff -urN linux-7.0.12/arch/x86/kernel/vm86_32.c linux-7.0.12-hdn/arch/x86/kernel/vm86_32.c
+diff -ruN linux-7.0.12/arch/x86/kernel/vm86_32.c linux-7.0.12-hdn/arch/x86/kernel/vm86_32.c
 --- linux-7.0.12/arch/x86/kernel/vm86_32.c	2026-06-09 05:32:51.000000000 -0500
 +++ linux-7.0.12-hdn/arch/x86/kernel/vm86_32.c	2026-06-26 11:58:06.454688685 -0500
 @@ -33,6 +33,7 @@
@@ -234,7 +234,7 @@ diff -urN linux-7.0.12/arch/x86/kernel/vm86_32.c linux-7.0.12-hdn/arch/x86/kerne
  	return -EINVAL;
  }
 -
-diff -urN linux-7.0.12/arch/x86/mm/fault.c linux-7.0.12-hdn/arch/x86/mm/fault.c
+diff -ruN linux-7.0.12/arch/x86/mm/fault.c linux-7.0.12-hdn/arch/x86/mm/fault.c
 --- linux-7.0.12/arch/x86/mm/fault.c	2026-06-09 05:32:51.000000000 -0500
 +++ linux-7.0.12-hdn/arch/x86/mm/fault.c	2026-06-26 10:10:51.871293140 -0500
 @@ -19,6 +19,7 @@
@@ -264,7 +264,7 @@ diff -urN linux-7.0.12/arch/x86/mm/fault.c linux-7.0.12-hdn/arch/x86/mm/fault.c
  	/* Are we prepared to handle this kernel fault? */
  	if (fixup_exception(regs, X86_TRAP_PF, error_code, address))
  		return;
-diff -urN linux-7.0.12/block/fops.c linux-7.0.12-hdn/block/fops.c
+diff -ruN linux-7.0.12/block/fops.c linux-7.0.12-hdn/block/fops.c
 --- linux-7.0.12/block/fops.c	2026-06-09 05:32:51.000000000 -0500
 +++ linux-7.0.12-hdn/block/fops.c	2026-06-25 07:44:28.373290494 -0500
 @@ -14,6 +14,7 @@
@@ -288,7 +288,7 @@ diff -urN linux-7.0.12/block/fops.c linux-7.0.12-hdn/block/fops.c
  	if (bdev_can_atomic_write(bdev))
  		filp->f_mode |= FMODE_CAN_ATOMIC_WRITE;
  	if (blk_get_integrity(bdev->bd_disk))
-diff -urN linux-7.0.12/block/ioctl.c linux-7.0.12-hdn/block/ioctl.c
+diff -ruN linux-7.0.12/block/ioctl.c linux-7.0.12-hdn/block/ioctl.c
 --- linux-7.0.12/block/ioctl.c	2026-06-09 05:32:51.000000000 -0500
 +++ linux-7.0.12-hdn/block/ioctl.c	2026-06-25 13:26:18.579185090 -0500
 @@ -8,6 +8,7 @@
@@ -460,7 +460,7 @@ diff -urN linux-7.0.12/block/ioctl.c linux-7.0.12-hdn/block/ioctl.c
  		return blkdev_cmd_discard(cmd, bdev, bic->start, bic->len,
  					  bic->nowait);
  	}
-diff -urN linux-7.0.12/drivers/base/firmware_loader/main.c linux-7.0.12-hdn/drivers/base/firmware_loader/main.c
+diff -ruN linux-7.0.12/drivers/base/firmware_loader/main.c linux-7.0.12-hdn/drivers/base/firmware_loader/main.c
 --- linux-7.0.12/drivers/base/firmware_loader/main.c	2026-06-09 05:32:51.000000000 -0500
 +++ linux-7.0.12-hdn/drivers/base/firmware_loader/main.c	2026-06-22 20:13:34.491922444 -0500
 @@ -35,6 +35,7 @@
@@ -482,7 +482,7 @@ diff -urN linux-7.0.12/drivers/base/firmware_loader/main.c linux-7.0.12-hdn/driv
  	/* Already populated data member means we're loading into a buffer */
  	if (!decompress && fw_priv->data) {
  		buffer = fw_priv->data;
-diff -urN linux-7.0.12/drivers/char/mem.c linux-7.0.12-hdn/drivers/char/mem.c
+diff -ruN linux-7.0.12/drivers/char/mem.c linux-7.0.12-hdn/drivers/char/mem.c
 --- linux-7.0.12/drivers/char/mem.c	2026-06-09 05:32:51.000000000 -0500
 +++ linux-7.0.12-hdn/drivers/char/mem.c	2026-06-25 03:24:42.360548728 -0500
 @@ -30,6 +30,7 @@
@@ -505,7 +505,7 @@ diff -urN linux-7.0.12/drivers/char/mem.c linux-7.0.12-hdn/drivers/char/mem.c
  	if (iminor(inode) != DEVMEM_MINOR)
  		return 0;
  
-diff -urN linux-7.0.12/drivers/tty/tty_io.c linux-7.0.12-hdn/drivers/tty/tty_io.c
+diff -ruN linux-7.0.12/drivers/tty/tty_io.c linux-7.0.12-hdn/drivers/tty/tty_io.c
 --- linux-7.0.12/drivers/tty/tty_io.c	2026-06-09 05:32:51.000000000 -0500
 +++ linux-7.0.12-hdn/drivers/tty/tty_io.c	2026-06-26 14:45:21.101786405 -0500
 @@ -102,6 +102,7 @@
@@ -577,7 +577,7 @@ diff -urN linux-7.0.12/drivers/tty/tty_io.c linux-7.0.12-hdn/drivers/tty/tty_io.
  		.extra1		= SYSCTL_ZERO,
  		.extra2		= SYSCTL_ONE,
  	},
-diff -urN linux-7.0.12/drivers/tty/tty_ldisc.c linux-7.0.12-hdn/drivers/tty/tty_ldisc.c
+diff -ruN linux-7.0.12/drivers/tty/tty_ldisc.c linux-7.0.12-hdn/drivers/tty/tty_ldisc.c
 --- linux-7.0.12/drivers/tty/tty_ldisc.c	2026-06-09 05:32:51.000000000 -0500
 +++ linux-7.0.12-hdn/drivers/tty/tty_ldisc.c	2026-06-26 14:45:11.337787354 -0500
 @@ -116,7 +116,8 @@
@@ -590,7 +590,7 @@ diff -urN linux-7.0.12/drivers/tty/tty_ldisc.c linux-7.0.12-hdn/drivers/tty/tty_
  
  /**
   * tty_ldisc_get	-	take a reference to an ldisc
-diff -urN linux-7.0.12/drivers/tty/vt/vt_ioctl.c linux-7.0.12-hdn/drivers/tty/vt/vt_ioctl.c
+diff -ruN linux-7.0.12/drivers/tty/vt/vt_ioctl.c linux-7.0.12-hdn/drivers/tty/vt/vt_ioctl.c
 --- linux-7.0.12/drivers/tty/vt/vt_ioctl.c	2026-06-09 05:32:51.000000000 -0500
 +++ linux-7.0.12-hdn/drivers/tty/vt/vt_ioctl.c	2026-06-25 04:54:00.326051435 -0500
 @@ -33,6 +33,7 @@
@@ -611,7 +611,7 @@ diff -urN linux-7.0.12/drivers/tty/vt/vt_ioctl.c linux-7.0.12-hdn/drivers/tty/vt
  		return tioclinux(tty, arg);
  	case VT_SETMODE:
  	{
-diff -urN linux-7.0.12/drivers/usb/core/hub.c linux-7.0.12-hdn/drivers/usb/core/hub.c
+diff -ruN linux-7.0.12/drivers/usb/core/hub.c linux-7.0.12-hdn/drivers/usb/core/hub.c
 --- linux-7.0.12/drivers/usb/core/hub.c	2026-06-09 05:32:51.000000000 -0500
 +++ linux-7.0.12-hdn/drivers/usb/core/hub.c	2026-06-25 06:16:28.507440354 -0500
 @@ -22,6 +22,7 @@
@@ -634,7 +634,7 @@ diff -urN linux-7.0.12/drivers/usb/core/hub.c linux-7.0.12-hdn/drivers/usb/core/
  	if (hub_is_superspeed(hub->hdev))
  		unit_load = 150;
  	else
-diff -urN linux-7.0.12/drivers/usb/mon/mon_bin.c linux-7.0.12-hdn/drivers/usb/mon/mon_bin.c
+diff -ruN linux-7.0.12/drivers/usb/mon/mon_bin.c linux-7.0.12-hdn/drivers/usb/mon/mon_bin.c
 --- linux-7.0.12/drivers/usb/mon/mon_bin.c	2026-06-09 05:32:51.000000000 -0500
 +++ linux-7.0.12-hdn/drivers/usb/mon/mon_bin.c	2026-06-26 14:00:18.562044428 -0500
 @@ -17,6 +17,7 @@
@@ -655,7 +655,7 @@ diff -urN linux-7.0.12/drivers/usb/mon/mon_bin.c linux-7.0.12-hdn/drivers/usb/mo
  
  	rp = kzalloc_obj(struct mon_reader_bin);
  	if (rp == NULL) {
-diff -urN linux-7.0.12/drivers/usb/mon/mon_text.c linux-7.0.12-hdn/drivers/usb/mon/mon_text.c
+diff -ruN linux-7.0.12/drivers/usb/mon/mon_text.c linux-7.0.12-hdn/drivers/usb/mon/mon_text.c
 --- linux-7.0.12/drivers/usb/mon/mon_text.c	2026-06-09 05:32:51.000000000 -0500
 +++ linux-7.0.12-hdn/drivers/usb/mon/mon_text.c	2026-06-26 14:00:12.798044867 -0500
 @@ -15,6 +15,7 @@
@@ -676,7 +676,7 @@ diff -urN linux-7.0.12/drivers/usb/mon/mon_text.c linux-7.0.12-hdn/drivers/usb/m
  
  	rp = kzalloc_obj(struct mon_reader_text);
  	if (rp == NULL) {
-diff -urN linux-7.0.12/fs/aio.c linux-7.0.12-hdn/fs/aio.c
+diff -ruN linux-7.0.12/fs/aio.c linux-7.0.12-hdn/fs/aio.c
 --- linux-7.0.12/fs/aio.c	2026-06-09 05:32:51.000000000 -0500
 +++ linux-7.0.12-hdn/fs/aio.c	2026-06-26 05:08:01.214608553 -0500
 @@ -25,6 +25,7 @@
@@ -697,7 +697,7 @@ diff -urN linux-7.0.12/fs/aio.c linux-7.0.12-hdn/fs/aio.c
  	if (!ret) {
  		if (S_ISREG(file_inode(file)->i_mode))
  			kiocb_start_write(req);
-diff -urN linux-7.0.12/fs/attr.c linux-7.0.12-hdn/fs/attr.c
+diff -ruN linux-7.0.12/fs/attr.c linux-7.0.12-hdn/fs/attr.c
 --- linux-7.0.12/fs/attr.c	2026-06-09 05:32:51.000000000 -0500
 +++ linux-7.0.12-hdn/fs/attr.c	2026-06-25 22:06:50.054513162 -0500
 @@ -13,6 +13,7 @@
@@ -727,7 +727,7 @@ diff -urN linux-7.0.12/fs/attr.c linux-7.0.12-hdn/fs/attr.c
  	if ((ia_valid & ATTR_MODE)) {
  		/*
  		 * Don't allow changing the mode of symlinks:
-diff -urN linux-7.0.12/fs/btrfs/ioctl.c linux-7.0.12-hdn/fs/btrfs/ioctl.c
+diff -ruN linux-7.0.12/fs/btrfs/ioctl.c linux-7.0.12-hdn/fs/btrfs/ioctl.c
 --- linux-7.0.12/fs/btrfs/ioctl.c	2026-06-09 05:32:51.000000000 -0500
 +++ linux-7.0.12-hdn/fs/btrfs/ioctl.c	2026-06-26 05:08:39.614605356 -0500
 @@ -8,6 +8,7 @@
@@ -758,7 +758,7 @@ diff -urN linux-7.0.12/fs/btrfs/ioctl.c linux-7.0.12-hdn/fs/btrfs/ioctl.c
  
  	init_sync_kiocb(&kiocb, file);
  	ret = kiocb_set_rw_flags(&kiocb, 0, WRITE);
-diff -urN linux-7.0.12/fs/coredump.c linux-7.0.12-hdn/fs/coredump.c
+diff -ruN linux-7.0.12/fs/coredump.c linux-7.0.12-hdn/fs/coredump.c
 --- linux-7.0.12/fs/coredump.c	2026-06-09 05:32:51.000000000 -0500
 +++ linux-7.0.12-hdn/fs/coredump.c	2026-06-26 09:21:28.295557849 -0500
 @@ -30,6 +30,7 @@
@@ -790,7 +790,7 @@ diff -urN linux-7.0.12/fs/coredump.c linux-7.0.12-hdn/fs/coredump.c
  
  	CLASS(prepare_creds, cred)();
  	if (!cred)
-diff -urN linux-7.0.12/fs/debugfs/file.c linux-7.0.12-hdn/fs/debugfs/file.c
+diff -ruN linux-7.0.12/fs/debugfs/file.c linux-7.0.12-hdn/fs/debugfs/file.c
 --- linux-7.0.12/fs/debugfs/file.c	2026-06-09 05:32:51.000000000 -0500
 +++ linux-7.0.12-hdn/fs/debugfs/file.c	2026-06-22 19:29:49.604566622 -0500
 @@ -21,6 +21,7 @@
@@ -813,7 +813,7 @@ diff -urN linux-7.0.12/fs/debugfs/file.c linux-7.0.12-hdn/fs/debugfs/file.c
  
  	if (!refcount_inc_not_zero(&fsd->active_users))
  		return -EIO;
-diff -urN linux-7.0.12/fs/exec.c linux-7.0.12-hdn/fs/exec.c
+diff -ruN linux-7.0.12/fs/exec.c linux-7.0.12-hdn/fs/exec.c
 --- linux-7.0.12/fs/exec.c	2026-06-09 05:32:51.000000000 -0500
 +++ linux-7.0.12-hdn/fs/exec.c	2026-06-26 14:58:26.121704566 -0500
 @@ -29,6 +29,7 @@
@@ -879,7 +879,7 @@ diff -urN linux-7.0.12/fs/exec.c linux-7.0.12-hdn/fs/exec.c
  	},
  };
  
-diff -urN linux-7.0.12/fs/fcntl.c linux-7.0.12-hdn/fs/fcntl.c
+diff -ruN linux-7.0.12/fs/fcntl.c linux-7.0.12-hdn/fs/fcntl.c
 --- linux-7.0.12/fs/fcntl.c	2026-06-09 05:32:51.000000000 -0500
 +++ linux-7.0.12-hdn/fs/fcntl.c	2026-06-25 06:08:36.173382958 -0500
 @@ -19,6 +19,7 @@
@@ -910,7 +910,7 @@ diff -urN linux-7.0.12/fs/fcntl.c linux-7.0.12-hdn/fs/fcntl.c
  	rcu_read_unlock();
  
  	return ret;
-diff -urN linux-7.0.12/fs/fhandle.c linux-7.0.12-hdn/fs/fhandle.c
+diff -ruN linux-7.0.12/fs/fhandle.c linux-7.0.12-hdn/fs/fhandle.c
 --- linux-7.0.12/fs/fhandle.c	2026-06-09 05:32:51.000000000 -0500
 +++ linux-7.0.12-hdn/fs/fhandle.c	2026-06-25 22:54:29.653971827 -0500
 @@ -8,6 +8,7 @@
@@ -947,7 +947,7 @@ diff -urN linux-7.0.12/fs/fhandle.c linux-7.0.12-hdn/fs/fhandle.c
  	if (copy_from_user(&f_handle, ufh, sizeof(struct file_handle)))
  		return -EFAULT;
  
-diff -urN linux-7.0.12/fs/file.c linux-7.0.12-hdn/fs/file.c
+diff -ruN linux-7.0.12/fs/file.c linux-7.0.12-hdn/fs/file.c
 --- linux-7.0.12/fs/file.c	2026-06-09 05:32:51.000000000 -0500
 +++ linux-7.0.12-hdn/fs/file.c	2026-06-25 10:12:52.486586283 -0500
 @@ -10,6 +10,7 @@
@@ -1019,7 +1019,7 @@ diff -urN linux-7.0.12/fs/file.c linux-7.0.12-hdn/fs/file.c
  	err = alloc_fd(from, nofile, flags);
  	if (err >= 0) {
  		get_file(file);
-diff -urN linux-7.0.12/fs/fsopen.c linux-7.0.12-hdn/fs/fsopen.c
+diff -ruN linux-7.0.12/fs/fsopen.c linux-7.0.12-hdn/fs/fsopen.c
 --- linux-7.0.12/fs/fsopen.c	2026-06-09 05:32:51.000000000 -0500
 +++ linux-7.0.12-hdn/fs/fsopen.c	2026-06-25 16:32:10.078502057 -0500
 @@ -14,6 +14,7 @@
@@ -1076,7 +1076,7 @@ diff -urN linux-7.0.12/fs/fsopen.c linux-7.0.12-hdn/fs/fsopen.c
  	if (!ns_capable(sb->s_user_ns, CAP_SYS_ADMIN)) {
  		fc->phase = FS_CONTEXT_FAILED;
  		return -EPERM;
-diff -urN linux-7.0.12/fs/kernfs/dir.c linux-7.0.12-hdn/fs/kernfs/dir.c
+diff -ruN linux-7.0.12/fs/kernfs/dir.c linux-7.0.12-hdn/fs/kernfs/dir.c
 --- linux-7.0.12/fs/kernfs/dir.c	2026-06-09 05:32:51.000000000 -0500
 +++ linux-7.0.12-hdn/fs/kernfs/dir.c	2026-06-26 16:21:36.397264237 -0500
 @@ -13,6 +13,7 @@
@@ -1132,7 +1132,7 @@ diff -urN linux-7.0.12/fs/kernfs/dir.c linux-7.0.12-hdn/fs/kernfs/dir.c
  		if (!dir_emit(ctx, name, len, ino, type)) {
  			up_read(&root->kernfs_rwsem);
  			return 0;
-diff -urN linux-7.0.12/fs/locks.c linux-7.0.12-hdn/fs/locks.c
+diff -ruN linux-7.0.12/fs/locks.c linux-7.0.12-hdn/fs/locks.c
 --- linux-7.0.12/fs/locks.c	2026-06-09 05:32:51.000000000 -0500
 +++ linux-7.0.12-hdn/fs/locks.c	2026-06-25 12:10:14.227714686 -0500
 @@ -53,7 +53,9 @@
@@ -1190,7 +1190,7 @@ diff -urN linux-7.0.12/fs/locks.c linux-7.0.12-hdn/fs/locks.c
  
  	/*
  	 * Detect close/fcntl races and recover by zapping all POSIX locks
-diff -urN linux-7.0.12/fs/mount.h linux-7.0.12-hdn/fs/mount.h
+diff -ruN linux-7.0.12/fs/mount.h linux-7.0.12-hdn/fs/mount.h
 --- linux-7.0.12/fs/mount.h	2026-06-09 05:32:51.000000000 -0500
 +++ linux-7.0.12-hdn/fs/mount.h	2026-06-22 19:28:15.016576120 -0500
 @@ -21,6 +21,7 @@
@@ -1201,7 +1201,7 @@ diff -urN linux-7.0.12/fs/mount.h linux-7.0.12-hdn/fs/mount.h
  #ifdef CONFIG_FSNOTIFY
  	__u32			n_fsnotify_mask;
  	struct fsnotify_mark_connector __rcu *n_fsnotify_marks;
-diff -urN linux-7.0.12/fs/namei.c linux-7.0.12-hdn/fs/namei.c
+diff -ruN linux-7.0.12/fs/namei.c linux-7.0.12-hdn/fs/namei.c
 --- linux-7.0.12/fs/namei.c	2026-06-09 05:32:51.000000000 -0500
 +++ linux-7.0.12-hdn/fs/namei.c	2026-06-26 14:24:37.077918199 -0500
 @@ -35,6 +35,7 @@
@@ -1717,7 +1717,7 @@ diff -urN linux-7.0.12/fs/namei.c linux-7.0.12-hdn/fs/namei.c
  	error = security_path_rename(&old_path, rd.old_dentry,
  				     &new_path, rd.new_dentry, flags);
  	if (error)
-diff -urN linux-7.0.12/fs/namespace.c linux-7.0.12-hdn/fs/namespace.c
+diff -ruN linux-7.0.12/fs/namespace.c linux-7.0.12-hdn/fs/namespace.c
 --- linux-7.0.12/fs/namespace.c	2026-06-09 05:32:51.000000000 -0500
 +++ linux-7.0.12-hdn/fs/namespace.c	2026-06-26 07:28:16.781823093 -0500
 @@ -16,6 +16,7 @@
@@ -2106,7 +2106,7 @@ diff -urN linux-7.0.12/fs/namespace.c linux-7.0.12-hdn/fs/namespace.c
  	get_mnt_ns(mnt_ns);
  	old_mnt_ns = nsproxy->mnt_ns;
  	nsproxy->mnt_ns = mnt_ns;
-diff -urN linux-7.0.12/fs/open.c linux-7.0.12-hdn/fs/open.c
+diff -ruN linux-7.0.12/fs/open.c linux-7.0.12-hdn/fs/open.c
 --- linux-7.0.12/fs/open.c	2026-06-09 05:32:51.000000000 -0500
 +++ linux-7.0.12-hdn/fs/open.c	2026-06-26 07:37:28.161761228 -0500
 @@ -29,6 +29,7 @@
@@ -2246,7 +2246,7 @@ diff -urN linux-7.0.12/fs/open.c linux-7.0.12-hdn/fs/open.c
  retry_deleg:
  	error = inode_lock_killable(inode);
  	if (error)
-diff -urN linux-7.0.12/fs/overlayfs/copy_up.c linux-7.0.12-hdn/fs/overlayfs/copy_up.c
+diff -ruN linux-7.0.12/fs/overlayfs/copy_up.c linux-7.0.12-hdn/fs/overlayfs/copy_up.c
 --- linux-7.0.12/fs/overlayfs/copy_up.c	2026-06-09 05:32:51.000000000 -0500
 +++ linux-7.0.12-hdn/fs/overlayfs/copy_up.c	2026-06-26 05:08:16.310607130 -0500
 @@ -9,6 +9,7 @@
@@ -2266,7 +2266,7 @@ diff -urN linux-7.0.12/fs/overlayfs/copy_up.c linux-7.0.12-hdn/fs/overlayfs/copy
  	if (error)
  		goto out_fput;
  
-diff -urN linux-7.0.12/fs/pidfs.c linux-7.0.12-hdn/fs/pidfs.c
+diff -ruN linux-7.0.12/fs/pidfs.c linux-7.0.12-hdn/fs/pidfs.c
 --- linux-7.0.12/fs/pidfs.c	2026-06-09 05:32:51.000000000 -0500
 +++ linux-7.0.12-hdn/fs/pidfs.c	2026-06-26 04:20:36.590868375 -0500
 @@ -14,6 +14,7 @@
@@ -2341,7 +2341,7 @@ diff -urN linux-7.0.12/fs/pidfs.c linux-7.0.12-hdn/fs/pidfs.c
  	if (arg)
  		return -EINVAL;
  
-diff -urN linux-7.0.12/fs/posix_acl.c linux-7.0.12-hdn/fs/posix_acl.c
+diff -ruN linux-7.0.12/fs/posix_acl.c linux-7.0.12-hdn/fs/posix_acl.c
 --- linux-7.0.12/fs/posix_acl.c	2026-06-09 05:32:51.000000000 -0500
 +++ linux-7.0.12-hdn/fs/posix_acl.c	2026-06-26 08:09:52.745600289 -0500
 @@ -15,6 +15,7 @@
@@ -2385,7 +2385,7 @@ diff -urN linux-7.0.12/fs/posix_acl.c linux-7.0.12-hdn/fs/posix_acl.c
  	error = security_inode_remove_acl(idmap, dentry, acl_name);
  	if (error)
  		goto out_inode_unlock;
-diff -urN linux-7.0.12/fs/proc/array.c linux-7.0.12-hdn/fs/proc/array.c
+diff -ruN linux-7.0.12/fs/proc/array.c linux-7.0.12-hdn/fs/proc/array.c
 --- linux-7.0.12/fs/proc/array.c	2026-06-09 05:32:51.000000000 -0500
 +++ linux-7.0.12-hdn/fs/proc/array.c	2026-06-26 10:28:00.055206398 -0500
 @@ -88,6 +88,7 @@
@@ -2454,7 +2454,7 @@ diff -urN linux-7.0.12/fs/proc/array.c linux-7.0.12-hdn/fs/proc/array.c
  		seq_put_decimal_ull(m, " ", mm->start_data);
  		seq_put_decimal_ull(m, " ", mm->end_data);
  		seq_put_decimal_ull(m, " ", mm->start_brk);
-diff -urN linux-7.0.12/fs/proc/base.c linux-7.0.12-hdn/fs/proc/base.c
+diff -ruN linux-7.0.12/fs/proc/base.c linux-7.0.12-hdn/fs/proc/base.c
 --- linux-7.0.12/fs/proc/base.c	2026-06-09 05:32:51.000000000 -0500
 +++ linux-7.0.12-hdn/fs/proc/base.c	2026-06-25 10:02:05.103349645 -0500
 @@ -72,6 +72,7 @@
@@ -2562,7 +2562,7 @@ diff -urN linux-7.0.12/fs/proc/base.c linux-7.0.12-hdn/fs/proc/base.c
  	/* Limit procfs to only ptraceable tasks */
  	if (fs_info->hide_pid == HIDEPID_NOT_PTRACEABLE) {
  		if (!has_pid_permissions(fs_info, task, HIDEPID_NO_ACCESS))
-diff -urN linux-7.0.12/fs/proc/internal.h linux-7.0.12-hdn/fs/proc/internal.h
+diff -ruN linux-7.0.12/fs/proc/internal.h linux-7.0.12-hdn/fs/proc/internal.h
 --- linux-7.0.12/fs/proc/internal.h	2026-06-09 05:32:51.000000000 -0500
 +++ linux-7.0.12-hdn/fs/proc/internal.h	2026-06-26 10:25:26.779223037 -0500
 @@ -394,6 +394,7 @@
@@ -2573,7 +2573,7 @@ diff -urN linux-7.0.12/fs/proc/internal.h linux-7.0.12-hdn/fs/proc/internal.h
  #ifdef CONFIG_NUMA
  	struct mempolicy *task_mempolicy;
  #endif
-diff -urN linux-7.0.12/fs/proc/kcore.c linux-7.0.12-hdn/fs/proc/kcore.c
+diff -ruN linux-7.0.12/fs/proc/kcore.c linux-7.0.12-hdn/fs/proc/kcore.c
 --- linux-7.0.12/fs/proc/kcore.c	2026-06-09 05:32:51.000000000 -0500
 +++ linux-7.0.12-hdn/fs/proc/kcore.c	2026-06-22 19:29:36.528568983 -0500
 @@ -31,6 +31,7 @@
@@ -2597,7 +2597,7 @@ diff -urN linux-7.0.12/fs/proc/kcore.c linux-7.0.12-hdn/fs/proc/kcore.c
  
  	filp->private_data = kmalloc(PAGE_SIZE, GFP_KERNEL);
  	if (!filp->private_data)
-diff -urN linux-7.0.12/fs/proc/proc_sysctl.c linux-7.0.12-hdn/fs/proc/proc_sysctl.c
+diff -ruN linux-7.0.12/fs/proc/proc_sysctl.c linux-7.0.12-hdn/fs/proc/proc_sysctl.c
 --- linux-7.0.12/fs/proc/proc_sysctl.c	2026-06-09 05:32:51.000000000 -0500
 +++ linux-7.0.12-hdn/fs/proc/proc_sysctl.c	2026-06-25 17:33:49.756415247 -0500
 @@ -10,6 +10,7 @@
@@ -2620,7 +2620,7 @@ diff -urN linux-7.0.12/fs/proc/proc_sysctl.c linux-7.0.12-hdn/fs/proc/proc_sysct
  
  	/* if that can happen at all, it should be -EINVAL, not -EISDIR */
  	error = -EINVAL;
-diff -urN linux-7.0.12/fs/proc/task_mmu.c linux-7.0.12-hdn/fs/proc/task_mmu.c
+diff -ruN linux-7.0.12/fs/proc/task_mmu.c linux-7.0.12-hdn/fs/proc/task_mmu.c
 --- linux-7.0.12/fs/proc/task_mmu.c	2026-06-09 05:32:51.000000000 -0500
 +++ linux-7.0.12-hdn/fs/proc/task_mmu.c	2026-06-26 10:30:47.371193206 -0500
 @@ -23,6 +23,7 @@
@@ -2814,7 +2814,7 @@ diff -urN linux-7.0.12/fs/proc/task_mmu.c linux-7.0.12-hdn/fs/proc/task_mmu.c
  
  	if (!md->pages)
  		goto out;
-diff -urN linux-7.0.12/fs/read_write.c linux-7.0.12-hdn/fs/read_write.c
+diff -ruN linux-7.0.12/fs/read_write.c linux-7.0.12-hdn/fs/read_write.c
 --- linux-7.0.12/fs/read_write.c	2026-06-09 05:32:51.000000000 -0500
 +++ linux-7.0.12-hdn/fs/read_write.c	2026-06-26 06:10:11.138266937 -0500
 @@ -12,6 +12,7 @@
@@ -2946,7 +2946,7 @@ diff -urN linux-7.0.12/fs/read_write.c linux-7.0.12-hdn/fs/read_write.c
  			send_sig(SIGXFSZ, current, 0);
  			return -EFBIG;
  		}
-diff -urN linux-7.0.12/fs/readdir.c linux-7.0.12-hdn/fs/readdir.c
+diff -ruN linux-7.0.12/fs/readdir.c linux-7.0.12-hdn/fs/readdir.c
 --- linux-7.0.12/fs/readdir.c	2026-06-09 05:32:51.000000000 -0500
 +++ linux-7.0.12-hdn/fs/readdir.c	2026-06-25 23:10:46.992005441 -0500
 @@ -21,6 +21,7 @@
@@ -3138,7 +3138,7 @@ diff -urN linux-7.0.12/fs/readdir.c linux-7.0.12-hdn/fs/readdir.c
  	if (error >= 0)
  		error = buf.error;
  	if (buf.prev_reclen) {
-diff -urN linux-7.0.12/fs/remap_range.c linux-7.0.12-hdn/fs/remap_range.c
+diff -ruN linux-7.0.12/fs/remap_range.c linux-7.0.12-hdn/fs/remap_range.c
 --- linux-7.0.12/fs/remap_range.c	2026-06-09 05:32:51.000000000 -0500
 +++ linux-7.0.12-hdn/fs/remap_range.c	2026-06-26 05:19:43.302540496 -0500
 @@ -6,6 +6,7 @@
@@ -3189,7 +3189,7 @@ diff -urN linux-7.0.12/fs/remap_range.c linux-7.0.12-hdn/fs/remap_range.c
  	if (!file->f_op->remap_file_range)
  		return -EOPNOTSUPP;
  
-diff -urN linux-7.0.12/fs/splice.c linux-7.0.12-hdn/fs/splice.c
+diff -ruN linux-7.0.12/fs/splice.c linux-7.0.12-hdn/fs/splice.c
 --- linux-7.0.12/fs/splice.c	2026-06-09 05:32:51.000000000 -0500
 +++ linux-7.0.12-hdn/fs/splice.c	2026-06-26 06:16:44.914236976 -0500
 @@ -31,6 +31,7 @@
@@ -3248,7 +3248,7 @@ diff -urN linux-7.0.12/fs/splice.c linux-7.0.12-hdn/fs/splice.c
  		if (in->f_flags & O_NONBLOCK)
  			flags |= SPLICE_F_NONBLOCK;
  
-diff -urN linux-7.0.12/fs/stat.c linux-7.0.12-hdn/fs/stat.c
+diff -ruN linux-7.0.12/fs/stat.c linux-7.0.12-hdn/fs/stat.c
 --- linux-7.0.12/fs/stat.c	2026-06-09 05:32:51.000000000 -0500
 +++ linux-7.0.12-hdn/fs/stat.c	2026-06-25 23:29:14.316441989 -0500
 @@ -10,6 +10,7 @@
@@ -3278,7 +3278,7 @@ diff -urN linux-7.0.12/fs/stat.c linux-7.0.12-hdn/fs/stat.c
  		if (!error) {
  			touch_atime(&path);
  			error = vfs_readlink(path.dentry, buf, bufsiz);
-diff -urN linux-7.0.12/fs/super.c linux-7.0.12-hdn/fs/super.c
+diff -ruN linux-7.0.12/fs/super.c linux-7.0.12-hdn/fs/super.c
 --- linux-7.0.12/fs/super.c	2026-06-09 05:32:51.000000000 -0500
 +++ linux-7.0.12-hdn/fs/super.c	2026-06-25 05:17:23.473493292 -0500
 @@ -37,6 +37,7 @@
@@ -3302,7 +3302,7 @@ diff -urN linux-7.0.12/fs/super.c linux-7.0.12-hdn/fs/super.c
  	if (remount_ro) {
  		if (!hlist_empty(&sb->s_pins)) {
  			super_unlock_excl(sb);
-diff -urN linux-7.0.12/fs/sysfs/file.c linux-7.0.12-hdn/fs/sysfs/file.c
+diff -ruN linux-7.0.12/fs/sysfs/file.c linux-7.0.12-hdn/fs/sysfs/file.c
 --- linux-7.0.12/fs/sysfs/file.c	2026-06-09 05:32:51.000000000 -0500
 +++ linux-7.0.12-hdn/fs/sysfs/file.c	2026-06-26 16:21:36.397264237 -0500
 @@ -16,6 +16,7 @@
@@ -3427,7 +3427,7 @@ diff -urN linux-7.0.12/fs/sysfs/file.c linux-7.0.12-hdn/fs/sysfs/file.c
  
  	return battr->mmap(of->file, kobj, battr, vma);
  }
-diff -urN linux-7.0.12/fs/tracefs/inode.c linux-7.0.12-hdn/fs/tracefs/inode.c
+diff -ruN linux-7.0.12/fs/tracefs/inode.c linux-7.0.12-hdn/fs/tracefs/inode.c
 --- linux-7.0.12/fs/tracefs/inode.c	2026-06-09 05:32:51.000000000 -0500
 +++ linux-7.0.12-hdn/fs/tracefs/inode.c	2026-06-25 08:39:28.906236660 -0500
 @@ -13,6 +13,7 @@
@@ -3455,7 +3455,7 @@ diff -urN linux-7.0.12/fs/tracefs/inode.c linux-7.0.12-hdn/fs/tracefs/inode.c
  	return generic_permission(idmap, inode, mask);
  }
  
-diff -urN linux-7.0.12/fs/userfaultfd.c linux-7.0.12-hdn/fs/userfaultfd.c
+diff -ruN linux-7.0.12/fs/userfaultfd.c linux-7.0.12-hdn/fs/userfaultfd.c
 --- linux-7.0.12/fs/userfaultfd.c	2026-06-09 05:32:51.000000000 -0500
 +++ linux-7.0.12-hdn/fs/userfaultfd.c	2026-06-26 15:07:12.105686607 -0500
 @@ -27,6 +27,7 @@
@@ -3478,7 +3478,7 @@ diff -urN linux-7.0.12/fs/userfaultfd.c linux-7.0.12-hdn/fs/userfaultfd.c
  	},
  };
  #endif
-diff -urN linux-7.0.12/fs/xattr.c linux-7.0.12-hdn/fs/xattr.c
+diff -ruN linux-7.0.12/fs/xattr.c linux-7.0.12-hdn/fs/xattr.c
 --- linux-7.0.12/fs/xattr.c	2026-06-09 05:32:51.000000000 -0500
 +++ linux-7.0.12-hdn/fs/xattr.c	2026-06-26 08:09:47.133600717 -0500
 @@ -12,6 +12,7 @@
@@ -3533,7 +3533,7 @@ diff -urN linux-7.0.12/fs/xattr.c linux-7.0.12-hdn/fs/xattr.c
  	error = security_inode_removexattr(idmap, dentry, name);
  	if (error)
  		goto out;
-diff -urN linux-7.0.12/include/linux/binfmts.h linux-7.0.12-hdn/include/linux/binfmts.h
+diff -ruN linux-7.0.12/include/linux/binfmts.h linux-7.0.12-hdn/include/linux/binfmts.h
 --- linux-7.0.12/include/linux/binfmts.h	2026-06-09 05:32:51.000000000 -0500
 +++ linux-7.0.12-hdn/include/linux/binfmts.h	2026-06-26 09:20:45.483564440 -0500
 @@ -65,6 +65,14 @@
@@ -3551,7 +3551,7 @@ diff -urN linux-7.0.12/include/linux/binfmts.h linux-7.0.12-hdn/include/linux/bi
  
  	struct rlimit rlim_stack; /* Saved RLIMIT_STACK used during exec. */
  
-diff -urN linux-7.0.12/include/linux/btf.h linux-7.0.12-hdn/include/linux/btf.h
+diff -ruN linux-7.0.12/include/linux/btf.h linux-7.0.12-hdn/include/linux/btf.h
 --- linux-7.0.12/include/linux/btf.h	2026-06-09 05:32:51.000000000 -0500
 +++ linux-7.0.12-hdn/include/linux/btf.h	2026-06-26 13:11:22.926314053 -0500
 @@ -115,6 +115,13 @@
@@ -3568,7 +3568,7 @@ diff -urN linux-7.0.12/include/linux/btf.h linux-7.0.12-hdn/include/linux/btf.h
  
  typedef int (*btf_kfunc_filter_t)(const struct bpf_prog *prog, u32 kfunc_id);
  
-diff -urN linux-7.0.12/include/linux/hardening.h linux-7.0.12-hdn/include/linux/hardening.h
+diff -ruN linux-7.0.12/include/linux/hardening.h linux-7.0.12-hdn/include/linux/hardening.h
 --- linux-7.0.12/include/linux/hardening.h	1969-12-31 18:00:00.000000000 -0600
 +++ linux-7.0.12-hdn/include/linux/hardening.h	2026-06-26 13:59:31.110042885 -0500
 @@ -0,0 +1,945 @@
@@ -4517,7 +4517,7 @@ diff -urN linux-7.0.12/include/linux/hardening.h linux-7.0.12-hdn/include/linux/
 +#endif
 +
 +#endif /* _LINUX_HARDENING_H */
-diff -urN linux-7.0.12/include/linux/kmod.h linux-7.0.12-hdn/include/linux/kmod.h
+diff -ruN linux-7.0.12/include/linux/kmod.h linux-7.0.12-hdn/include/linux/kmod.h
 --- linux-7.0.12/include/linux/kmod.h	2026-06-09 05:32:51.000000000 -0500
 +++ linux-7.0.12-hdn/include/linux/kmod.h	2026-06-26 17:55:58.928767669 -0500
 @@ -7,6 +7,7 @@
@@ -4559,7 +4559,7 @@ diff -urN linux-7.0.12/include/linux/kmod.h linux-7.0.12-hdn/include/linux/kmod.
  #else
  static inline int request_module(const char *name, ...) { return -ENOSYS; }
  static inline int request_module_nowait(const char *name, ...) { return -ENOSYS; }
-diff -urN linux-7.0.12/include/linux/mm.h linux-7.0.12-hdn/include/linux/mm.h
+diff -ruN linux-7.0.12/include/linux/mm.h linux-7.0.12-hdn/include/linux/mm.h
 --- linux-7.0.12/include/linux/mm.h	2026-06-09 05:32:51.000000000 -0500
 +++ linux-7.0.12-hdn/include/linux/mm.h	2026-06-25 13:56:50.890255247 -0500
 @@ -3913,8 +3913,12 @@
@@ -4575,7 +4575,7 @@ diff -urN linux-7.0.12/include/linux/mm.h linux-7.0.12-hdn/include/linux/mm.h
  extern unsigned long vm_unmapped_area(struct vm_unmapped_area_info *info);
  
  /* truncate.c */
-diff -urN linux-7.0.12/include/linux/mm_types.h linux-7.0.12-hdn/include/linux/mm_types.h
+diff -ruN linux-7.0.12/include/linux/mm_types.h linux-7.0.12-hdn/include/linux/mm_types.h
 --- linux-7.0.12/include/linux/mm_types.h	2026-06-09 05:32:51.000000000 -0500
 +++ linux-7.0.12-hdn/include/linux/mm_types.h	2026-06-26 09:20:39.951564854 -0500
 @@ -1291,6 +1291,17 @@
@@ -4596,7 +4596,7 @@ diff -urN linux-7.0.12/include/linux/mm_types.h linux-7.0.12-hdn/include/linux/m
  		/* store ref to file /proc/<pid>/exe symlink points to */
  		struct file __rcu *exe_file;
  #ifdef CONFIG_MMU_NOTIFIER
-diff -urN linux-7.0.12/include/linux/ptrace.h linux-7.0.12-hdn/include/linux/ptrace.h
+diff -ruN linux-7.0.12/include/linux/ptrace.h linux-7.0.12-hdn/include/linux/ptrace.h
 --- linux-7.0.12/include/linux/ptrace.h	2026-06-09 05:32:51.000000000 -0500
 +++ linux-7.0.12-hdn/include/linux/ptrace.h	2026-06-26 03:36:47.071105551 -0500
 @@ -64,6 +64,9 @@
@@ -4609,7 +4609,7 @@ diff -urN linux-7.0.12/include/linux/ptrace.h linux-7.0.12-hdn/include/linux/ptr
  
  /* shorthands for READ/ATTACH and FSCREDS/REALCREDS combinations */
  #define PTRACE_MODE_READ_FSCREDS (PTRACE_MODE_READ | PTRACE_MODE_FSCREDS)
-diff -urN linux-7.0.12/include/linux/sched/signal.h linux-7.0.12-hdn/include/linux/sched/signal.h
+diff -ruN linux-7.0.12/include/linux/sched/signal.h linux-7.0.12-hdn/include/linux/sched/signal.h
 --- linux-7.0.12/include/linux/sched/signal.h	2026-06-09 05:32:51.000000000 -0500
 +++ linux-7.0.12-hdn/include/linux/sched/signal.h	2026-06-25 09:42:59.333048459 -0500
 @@ -252,6 +252,15 @@
@@ -4628,7 +4628,7 @@ diff -urN linux-7.0.12/include/linux/sched/signal.h linux-7.0.12-hdn/include/lin
  } __randomize_layout;
  
  /*
-diff -urN linux-7.0.12/include/linux/sched.h linux-7.0.12-hdn/include/linux/sched.h
+diff -ruN linux-7.0.12/include/linux/sched.h linux-7.0.12-hdn/include/linux/sched.h
 --- linux-7.0.12/include/linux/sched.h	2026-06-09 05:32:51.000000000 -0500
 +++ linux-7.0.12-hdn/include/linux/sched.h	2026-06-26 09:52:13.791389274 -0500
 @@ -1209,6 +1209,18 @@
@@ -4650,7 +4650,7 @@ diff -urN linux-7.0.12/include/linux/sched.h linux-7.0.12-hdn/include/linux/sche
  #ifdef CONFIG_AUDIT
  #ifdef CONFIG_AUDITSYSCALL
  	struct audit_context		*audit_context;
-diff -urN linux-7.0.12/include/linux/user_namespace.h linux-7.0.12-hdn/include/linux/user_namespace.h
+diff -ruN linux-7.0.12/include/linux/user_namespace.h linux-7.0.12-hdn/include/linux/user_namespace.h
 --- linux-7.0.12/include/linux/user_namespace.h	2026-06-09 05:32:51.000000000 -0500
 +++ linux-7.0.12-hdn/include/linux/user_namespace.h	2026-06-22 18:56:30.001045445 -0500
 @@ -82,6 +82,7 @@
@@ -4661,7 +4661,7 @@ diff -urN linux-7.0.12/include/linux/user_namespace.h linux-7.0.12-hdn/include/l
  	unsigned long		flags;
  	/* parent_could_setfcap: true if the creator if this ns had CAP_SETFCAP
  	 * in its effective capability set at the child ns creation time. */
-diff -urN linux-7.0.12/include/net/af_unix.h linux-7.0.12-hdn/include/net/af_unix.h
+diff -ruN linux-7.0.12/include/net/af_unix.h linux-7.0.12-hdn/include/net/af_unix.h
 --- linux-7.0.12/include/net/af_unix.h	2026-06-09 05:32:51.000000000 -0500
 +++ linux-7.0.12-hdn/include/net/af_unix.h	2026-06-25 05:52:44.413427525 -0500
 @@ -38,6 +38,7 @@
@@ -4672,7 +4672,7 @@ diff -urN linux-7.0.12/include/net/af_unix.h linux-7.0.12-hdn/include/net/af_uni
  	struct mutex		iolock, bindlock;
  	struct sock		*peer;
  	struct sock		*listener;
-diff -urN linux-7.0.12/include/trace/events/mmap.h linux-7.0.12-hdn/include/trace/events/mmap.h
+diff -ruN linux-7.0.12/include/trace/events/mmap.h linux-7.0.12-hdn/include/trace/events/mmap.h
 --- linux-7.0.12/include/trace/events/mmap.h	2026-06-09 05:32:51.000000000 -0500
 +++ linux-7.0.12-hdn/include/trace/events/mmap.h	2026-06-25 13:50:04.737746076 -0500
 @@ -22,6 +22,7 @@
@@ -4701,7 +4701,7 @@ diff -urN linux-7.0.12/include/trace/events/mmap.h linux-7.0.12-hdn/include/trac
  );
  
  TRACE_EVENT(exit_mmap,
-diff -urN linux-7.0.12/include/uapi/linux/hardening.h linux-7.0.12-hdn/include/uapi/linux/hardening.h
+diff -ruN linux-7.0.12/include/uapi/linux/hardening.h linux-7.0.12-hdn/include/uapi/linux/hardening.h
 --- linux-7.0.12/include/uapi/linux/hardening.h	1969-12-31 18:00:00.000000000 -0600
 +++ linux-7.0.12-hdn/include/uapi/linux/hardening.h	2026-06-26 13:59:23.866041588 -0500
 @@ -0,0 +1,588 @@
@@ -5293,7 +5293,7 @@ diff -urN linux-7.0.12/include/uapi/linux/hardening.h linux-7.0.12-hdn/include/u
 +};
 +
 +#endif /* _UAPI_LINUX_HARDENING_H */
-diff -urN linux-7.0.12/io_uring/io_uring.c linux-7.0.12-hdn/io_uring/io_uring.c
+diff -ruN linux-7.0.12/io_uring/io_uring.c linux-7.0.12-hdn/io_uring/io_uring.c
 --- linux-7.0.12/io_uring/io_uring.c	2026-06-09 05:32:51.000000000 -0500
 +++ linux-7.0.12-hdn/io_uring/io_uring.c	2026-06-26 17:18:34.376964093 -0500
 @@ -59,6 +59,7 @@
@@ -5375,7 +5375,7 @@ diff -urN linux-7.0.12/io_uring/io_uring.c linux-7.0.12-hdn/io_uring/io_uring.c
  	ret = io_uring_fill_params(p);
  	if (ret)
  		return ret;
-diff -urN linux-7.0.12/io_uring/register.c linux-7.0.12-hdn/io_uring/register.c
+diff -ruN linux-7.0.12/io_uring/register.c linux-7.0.12-hdn/io_uring/register.c
 --- linux-7.0.12/io_uring/register.c	2026-06-09 05:32:51.000000000 -0500
 +++ linux-7.0.12-hdn/io_uring/register.c	2026-06-22 18:24:58.409509259 -0500
 @@ -17,6 +17,7 @@
@@ -5436,7 +5436,7 @@ diff -urN linux-7.0.12/io_uring/register.c linux-7.0.12-hdn/io_uring/register.c
  	switch (opcode) {
  	case IORING_REGISTER_SEND_MSG_RING:
  		return io_uring_register_send_msg_ring(arg, nr_args);
-diff -urN linux-7.0.12/io_uring/rw.c linux-7.0.12-hdn/io_uring/rw.c
+diff -ruN linux-7.0.12/io_uring/rw.c linux-7.0.12-hdn/io_uring/rw.c
 --- linux-7.0.12/io_uring/rw.c	2026-06-09 05:32:51.000000000 -0500
 +++ linux-7.0.12-hdn/io_uring/rw.c	2026-06-26 06:23:45.942195515 -0500
 @@ -7,6 +7,7 @@
@@ -5470,7 +5470,7 @@ diff -urN linux-7.0.12/io_uring/rw.c linux-7.0.12-hdn/io_uring/rw.c
  	if (unlikely(!io_kiocb_start_write(req, kiocb)))
  		return -EAGAIN;
  	kiocb->ki_flags |= IOCB_WRITE;
-diff -urN linux-7.0.12/ipc/mqueue.c linux-7.0.12-hdn/ipc/mqueue.c
+diff -ruN linux-7.0.12/ipc/mqueue.c linux-7.0.12-hdn/ipc/mqueue.c
 --- linux-7.0.12/ipc/mqueue.c	2026-06-09 05:32:51.000000000 -0500
 +++ linux-7.0.12-hdn/ipc/mqueue.c	2026-06-25 11:02:23.322249932 -0500
 @@ -17,6 +17,7 @@
@@ -5576,7 +5576,7 @@ diff -urN linux-7.0.12/ipc/mqueue.c linux-7.0.12-hdn/ipc/mqueue.c
  
  	spin_lock(&info->lock);
  
-diff -urN linux-7.0.12/ipc/shm.c linux-7.0.12-hdn/ipc/shm.c
+diff -ruN linux-7.0.12/ipc/shm.c linux-7.0.12-hdn/ipc/shm.c
 --- linux-7.0.12/ipc/shm.c	2026-06-09 05:32:51.000000000 -0500
 +++ linux-7.0.12-hdn/ipc/shm.c	2026-06-25 05:41:28.259814026 -0500
 @@ -44,6 +44,7 @@
@@ -5598,7 +5598,7 @@ diff -urN linux-7.0.12/ipc/shm.c linux-7.0.12-hdn/ipc/shm.c
  	err = security_shm_shmat(&shp->shm_perm, shmaddr, shmflg);
  	if (err)
  		goto out_unlock;
-diff -urN linux-7.0.12/ipc/util.c linux-7.0.12-hdn/ipc/util.c
+diff -ruN linux-7.0.12/ipc/util.c linux-7.0.12-hdn/ipc/util.c
 --- linux-7.0.12/ipc/util.c	2026-06-09 05:32:51.000000000 -0500
 +++ linux-7.0.12-hdn/ipc/util.c	2026-06-25 04:53:40.905286962 -0500
 @@ -65,6 +65,7 @@
@@ -5619,7 +5619,7 @@ diff -urN linux-7.0.12/ipc/util.c linux-7.0.12-hdn/ipc/util.c
  	/* is there some bit set in requested_mode but not in granted_mode? */
  	if ((requested_mode & ~granted_mode & 0007) &&
  	    !ns_capable(ns->user_ns, CAP_IPC_OWNER))
-diff -urN linux-7.0.12/kernel/bpf/btf.c linux-7.0.12-hdn/kernel/bpf/btf.c
+diff -ruN linux-7.0.12/kernel/bpf/btf.c linux-7.0.12-hdn/kernel/bpf/btf.c
 --- linux-7.0.12/kernel/bpf/btf.c	2026-06-09 05:32:51.000000000 -0500
 +++ linux-7.0.12-hdn/kernel/bpf/btf.c	2026-06-26 13:29:12.126215776 -0500
 @@ -22,6 +22,7 @@
@@ -5669,7 +5669,7 @@ diff -urN linux-7.0.12/kernel/bpf/btf.c linux-7.0.12-hdn/kernel/bpf/btf.c
  
  			err = sysfs_create_bin_file(btf_kobj, attr);
  			if (err) {
-diff -urN linux-7.0.12/kernel/bpf/core.c linux-7.0.12-hdn/kernel/bpf/core.c
+diff -ruN linux-7.0.12/kernel/bpf/core.c linux-7.0.12-hdn/kernel/bpf/core.c
 --- linux-7.0.12/kernel/bpf/core.c	2026-06-09 05:32:51.000000000 -0500
 +++ linux-7.0.12-hdn/kernel/bpf/core.c	2026-06-26 01:07:30.367916365 -0500
 @@ -546,8 +546,11 @@
@@ -5686,7 +5686,7 @@ diff -urN linux-7.0.12/kernel/bpf/core.c linux-7.0.12-hdn/kernel/bpf/core.c
  long bpf_jit_limit   __read_mostly;
  long bpf_jit_limit_max __read_mostly;
  
-diff -urN linux-7.0.12/kernel/bpf/syscall.c linux-7.0.12-hdn/kernel/bpf/syscall.c
+diff -ruN linux-7.0.12/kernel/bpf/syscall.c linux-7.0.12-hdn/kernel/bpf/syscall.c
 --- linux-7.0.12/kernel/bpf/syscall.c	2026-06-09 05:32:51.000000000 -0500
 +++ linux-7.0.12-hdn/kernel/bpf/syscall.c	2026-06-26 13:51:15.994083756 -0500
 @@ -19,6 +19,7 @@
@@ -5816,7 +5816,7 @@ diff -urN linux-7.0.12/kernel/bpf/syscall.c linux-7.0.12-hdn/kernel/bpf/syscall.
  		.extra2		= SYSCTL_TWO,
  	},
  	{
-diff -urN linux-7.0.12/kernel/bpf/sysfs_btf.c linux-7.0.12-hdn/kernel/bpf/sysfs_btf.c
+diff -ruN linux-7.0.12/kernel/bpf/sysfs_btf.c linux-7.0.12-hdn/kernel/bpf/sysfs_btf.c
 --- linux-7.0.12/kernel/bpf/sysfs_btf.c	2026-06-09 05:32:51.000000000 -0500
 +++ linux-7.0.12-hdn/kernel/bpf/sysfs_btf.c	2026-06-26 13:11:34.442313002 -0500
 @@ -10,11 +10,25 @@
@@ -5866,7 +5866,7 @@ diff -urN linux-7.0.12/kernel/bpf/sysfs_btf.c linux-7.0.12-hdn/kernel/bpf/sysfs_
  	.mmap = btf_sysfs_vmlinux_mmap,
  };
  
-diff -urN linux-7.0.12/kernel/bpf/verifier.c linux-7.0.12-hdn/kernel/bpf/verifier.c
+diff -ruN linux-7.0.12/kernel/bpf/verifier.c linux-7.0.12-hdn/kernel/bpf/verifier.c
 --- linux-7.0.12/kernel/bpf/verifier.c	2026-06-09 05:32:51.000000000 -0500
 +++ linux-7.0.12-hdn/kernel/bpf/verifier.c	2026-06-26 13:26:12.402232068 -0500
 @@ -30,6 +30,7 @@
@@ -5934,7 +5934,7 @@ diff -urN linux-7.0.12/kernel/bpf/verifier.c linux-7.0.12-hdn/kernel/bpf/verifie
  			if (btf_is_module(btf)) {
  				mod = btf_try_get_module(btf);
  				if (mod)
-diff -urN linux-7.0.12/kernel/configs.c linux-7.0.12-hdn/kernel/configs.c
+diff -ruN linux-7.0.12/kernel/configs.c linux-7.0.12-hdn/kernel/configs.c
 --- linux-7.0.12/kernel/configs.c	2026-06-09 05:32:51.000000000 -0500
 +++ linux-7.0.12-hdn/kernel/configs.c	2026-06-22 19:30:18.024558560 -0500
 @@ -15,6 +15,7 @@
@@ -5961,7 +5961,7 @@ diff -urN linux-7.0.12/kernel/configs.c linux-7.0.12-hdn/kernel/configs.c
  	return simple_read_from_buffer(buf, len, offset,
  				       &kernel_config_data,
  				       &kernel_config_data_end -
-diff -urN linux-7.0.12/kernel/cred.c linux-7.0.12-hdn/kernel/cred.c
+diff -ruN linux-7.0.12/kernel/cred.c linux-7.0.12-hdn/kernel/cred.c
 --- linux-7.0.12/kernel/cred.c	2026-06-09 05:32:51.000000000 -0500
 +++ linux-7.0.12-hdn/kernel/cred.c	2026-06-25 17:23:26.987382586 -0500
 @@ -12,12 +12,15 @@
@@ -6133,7 +6133,7 @@ diff -urN linux-7.0.12/kernel/cred.c linux-7.0.12-hdn/kernel/cred.c
  	/* send notifications */
  	if (!uid_eq(new->uid,   old->uid)  ||
  	    !uid_eq(new->euid,  old->euid) ||
-diff -urN linux-7.0.12/kernel/events/core.c linux-7.0.12-hdn/kernel/events/core.c
+diff -ruN linux-7.0.12/kernel/events/core.c linux-7.0.12-hdn/kernel/events/core.c
 --- linux-7.0.12/kernel/events/core.c	2026-06-09 05:32:51.000000000 -0500
 +++ linux-7.0.12-hdn/kernel/events/core.c	2026-06-26 00:51:03.091994603 -0500
 @@ -14,6 +14,7 @@
@@ -6183,7 +6183,7 @@ diff -urN linux-7.0.12/kernel/events/core.c linux-7.0.12-hdn/kernel/events/core.
  	/* Do we allow access to perf_event_open(2) ? */
  	err = security_perf_event_open(PERF_SECURITY_OPEN);
  	if (err)
-diff -urN linux-7.0.12/kernel/exit.c linux-7.0.12-hdn/kernel/exit.c
+diff -ruN linux-7.0.12/kernel/exit.c linux-7.0.12-hdn/kernel/exit.c
 --- linux-7.0.12/kernel/exit.c	2026-06-09 05:32:51.000000000 -0500
 +++ linux-7.0.12-hdn/kernel/exit.c	2026-06-26 09:07:42.351626484 -0500
 @@ -27,6 +27,7 @@
@@ -6227,7 +6227,7 @@ diff -urN linux-7.0.12/kernel/exit.c linux-7.0.12-hdn/kernel/exit.c
  	if (group_dead)
  		tty_audit_exit();
  	audit_free(tsk);
-diff -urN linux-7.0.12/kernel/fail_function.c linux-7.0.12-hdn/kernel/fail_function.c
+diff -ruN linux-7.0.12/kernel/fail_function.c linux-7.0.12-hdn/kernel/fail_function.c
 --- linux-7.0.12/kernel/fail_function.c	2026-06-09 05:32:51.000000000 -0500
 +++ linux-7.0.12-hdn/kernel/fail_function.c	2026-06-26 12:45:28.042438483 -0500
 @@ -2,9 +2,11 @@
@@ -6320,7 +6320,7 @@ diff -urN linux-7.0.12/kernel/fail_function.c linux-7.0.12-hdn/kernel/fail_funct
  	addr = kallsyms_lookup_name(sym);
  	if (!addr) {
  		ret = -EINVAL;
-diff -urN linux-7.0.12/kernel/fork.c linux-7.0.12-hdn/kernel/fork.c
+diff -ruN linux-7.0.12/kernel/fork.c linux-7.0.12-hdn/kernel/fork.c
 --- linux-7.0.12/kernel/fork.c	2026-06-09 05:32:51.000000000 -0500
 +++ linux-7.0.12-hdn/kernel/fork.c	2026-06-26 10:09:05.039261936 -0500
 @@ -51,6 +51,7 @@
@@ -6407,7 +6407,7 @@ diff -urN linux-7.0.12/kernel/fork.c linux-7.0.12-hdn/kernel/fork.c
  
  	if (clone_flags & CLONE_PARENT_SETTID)
  		put_user(nr, args->parent_tid);
-diff -urN linux-7.0.12/kernel/kallsyms.c linux-7.0.12-hdn/kernel/kallsyms.c
+diff -ruN linux-7.0.12/kernel/kallsyms.c linux-7.0.12-hdn/kernel/kallsyms.c
 --- linux-7.0.12/kernel/kallsyms.c	2026-06-09 05:32:51.000000000 -0500
 +++ linux-7.0.12-hdn/kernel/kallsyms.c	2026-06-26 11:29:34.082871889 -0500
 @@ -25,6 +25,7 @@
@@ -6461,7 +6461,7 @@ diff -urN linux-7.0.12/kernel/kallsyms.c linux-7.0.12-hdn/kernel/kallsyms.c
  	return 0;
  }
  
-diff -urN linux-7.0.12/kernel/kcsan/debugfs.c linux-7.0.12-hdn/kernel/kcsan/debugfs.c
+diff -ruN linux-7.0.12/kernel/kcsan/debugfs.c linux-7.0.12-hdn/kernel/kcsan/debugfs.c
 --- linux-7.0.12/kernel/kcsan/debugfs.c	2026-06-09 05:32:51.000000000 -0500
 +++ linux-7.0.12-hdn/kernel/kcsan/debugfs.c	2026-06-26 12:37:55.822495422 -0500
 @@ -11,6 +11,7 @@
@@ -6515,7 +6515,7 @@ diff -urN linux-7.0.12/kernel/kcsan/debugfs.c linux-7.0.12-hdn/kernel/kcsan/debu
  	raw_spin_unlock_irqrestore(&report_filterlist_lock, flags);
  
  	return 0;
-diff -urN linux-7.0.12/kernel/kexec_core.c linux-7.0.12-hdn/kernel/kexec_core.c
+diff -ruN linux-7.0.12/kernel/kexec_core.c linux-7.0.12-hdn/kernel/kexec_core.c
 --- linux-7.0.12/kernel/kexec_core.c	2026-06-09 05:32:51.000000000 -0500
 +++ linux-7.0.12-hdn/kernel/kexec_core.c	2026-06-22 18:24:58.401509261 -0500
 @@ -42,6 +42,7 @@
@@ -6536,7 +6536,7 @@ diff -urN linux-7.0.12/kernel/kexec_core.c linux-7.0.12-hdn/kernel/kexec_core.c
  
  	/* Check limit counter and decrease it.*/
  	limit = (kexec_image_type == KEXEC_TYPE_CRASH) ?
-diff -urN linux-7.0.12/kernel/kprobes.c linux-7.0.12-hdn/kernel/kprobes.c
+diff -ruN linux-7.0.12/kernel/kprobes.c linux-7.0.12-hdn/kernel/kprobes.c
 --- linux-7.0.12/kernel/kprobes.c	2026-06-09 05:32:51.000000000 -0500
 +++ linux-7.0.12-hdn/kernel/kprobes.c	2026-06-26 11:29:34.086871888 -0500
 @@ -30,6 +30,7 @@
@@ -6569,7 +6569,7 @@ diff -urN linux-7.0.12/kernel/kprobes.c linux-7.0.12-hdn/kernel/kprobes.c
  		if (kprobe_aggrprobe(p)) {
  			list_for_each_entry_rcu(kp, &p->list, list)
  				report_probe(pi, kp, sym, offset, modname, p);
-diff -urN linux-7.0.12/kernel/ksyms_common.c linux-7.0.12-hdn/kernel/ksyms_common.c
+diff -ruN linux-7.0.12/kernel/ksyms_common.c linux-7.0.12-hdn/kernel/ksyms_common.c
 --- linux-7.0.12/kernel/ksyms_common.c	2026-06-09 05:32:51.000000000 -0500
 +++ linux-7.0.12-hdn/kernel/ksyms_common.c	2026-06-22 19:30:26.016557082 -0500
 @@ -4,6 +4,7 @@
@@ -6603,7 +6603,7 @@ diff -urN linux-7.0.12/kernel/ksyms_common.c linux-7.0.12-hdn/kernel/ksyms_commo
  		fallthrough;
  	default:
  		return false;
-diff -urN linux-7.0.12/kernel/locking/lockdep.c linux-7.0.12-hdn/kernel/locking/lockdep.c
+diff -ruN linux-7.0.12/kernel/locking/lockdep.c linux-7.0.12-hdn/kernel/locking/lockdep.c
 --- linux-7.0.12/kernel/locking/lockdep.c	2026-06-09 05:32:51.000000000 -0500
 +++ linux-7.0.12-hdn/kernel/locking/lockdep.c	2026-06-26 11:36:25.050835189 -0500
 @@ -38,6 +38,7 @@
@@ -6626,9 +6626,9 @@ diff -urN linux-7.0.12/kernel/locking/lockdep.c linux-7.0.12-hdn/kernel/locking/
  	return kallsyms_lookup((unsigned long)key, NULL, NULL, NULL, str);
  }
  
-diff -urN linux-7.0.12/kernel/module/kmod.c linux-7.0.12-hdn/kernel/module/kmod.c
+diff -ruN linux-7.0.12/kernel/module/kmod.c linux-7.0.12-hdn/kernel/module/kmod.c
 --- linux-7.0.12/kernel/module/kmod.c	2026-06-09 05:32:51.000000000 -0500
-+++ linux-7.0.12-hdn/kernel/module/kmod.c	2026-06-26 17:45:58.132823286 -0500
++++ linux-7.0.12-hdn/kernel/module/kmod.c	2026-06-26 18:03:25.784728005 -0500
 @@ -18,6 +18,7 @@
  #include <linux/file.h>
  #include <linux/workqueue.h>
@@ -6637,15 +6637,124 @@ diff -urN linux-7.0.12/kernel/module/kmod.c linux-7.0.12-hdn/kernel/module/kmod.
  #include <linux/mount.h>
  #include <linux/kernel.h>
  #include <linux/init.h>
-@@ -28,6 +29,7 @@
+@@ -28,6 +29,8 @@
  #include <linux/ptrace.h>
  #include <linux/async.h>
  #include <linux/uaccess.h>
 +#include <linux/string.h>
++#include <linux/user_namespace.h>
  
  #include <trace/events/module.h>
  #include "internal.h"
-@@ -113,28 +115,8 @@
+@@ -63,21 +66,74 @@
+ */
+ char modprobe_path[KMOD_PATH_LEN] = CONFIG_MODPROBE_PATH;
+ 
++enum {
++	MODPROBE_ENV_HOME,
++	MODPROBE_ENV_TERM,
++	MODPROBE_ENV_PATH,
++	MODPROBE_ENV_HDN_REQUEST,
++	MODPROBE_ENV_HDN_UID,
++	MODPROBE_ENV_HDN_EUID,
++	MODPROBE_ENV_HDN_PROFILE,
++	MODPROBE_ENV_COUNT,
++};
++
++static void free_modprobe_envp(char **envp)
++{
++	if (!envp)
++		return;
++
++	kfree(envp[MODPROBE_ENV_HDN_REQUEST]);
++	kfree(envp[MODPROBE_ENV_HDN_UID]);
++	kfree(envp[MODPROBE_ENV_HDN_EUID]);
++	kfree(envp[MODPROBE_ENV_HDN_PROFILE]);
++	kfree(envp);
++}
++
++static char **build_modprobe_envp(const char *module_name)
++{
++	uid_t uid = from_kuid_munged(&init_user_ns, current_uid());
++	uid_t euid = from_kuid_munged(&init_user_ns, current_euid());
++	char **envp;
++
++	envp = kcalloc(MODPROBE_ENV_COUNT, sizeof(*envp), GFP_KERNEL);
++	if (!envp)
++		return NULL;
++
++	envp[MODPROBE_ENV_HOME] = "HOME=/";
++	envp[MODPROBE_ENV_TERM] = "TERM=linux";
++	envp[MODPROBE_ENV_PATH] = "PATH=/sbin:/usr/sbin:/bin:/usr/bin";
++	envp[MODPROBE_ENV_HDN_REQUEST] =
++		kasprintf(GFP_KERNEL, "HDN_MODULE_REQUEST=%s", module_name);
++	envp[MODPROBE_ENV_HDN_UID] =
++		kasprintf(GFP_KERNEL, "HDN_MODULE_UID=%u", uid);
++	envp[MODPROBE_ENV_HDN_EUID] =
++		kasprintf(GFP_KERNEL, "HDN_MODULE_EUID=%u", euid);
++	envp[MODPROBE_ENV_HDN_PROFILE] =
++		kasprintf(GFP_KERNEL, "HDN_MODULE_PROFILE=%llu",
++			  (unsigned long long)hdn_current_profile_id());
++
++	if (!envp[MODPROBE_ENV_HDN_REQUEST] ||
++	    !envp[MODPROBE_ENV_HDN_UID] ||
++	    !envp[MODPROBE_ENV_HDN_EUID] ||
++	    !envp[MODPROBE_ENV_HDN_PROFILE]) {
++		free_modprobe_envp(envp);
++		return NULL;
++	}
++
++	return envp;
++}
++
+ static void free_modprobe_argv(struct subprocess_info *info)
+ {
+ 	kfree(info->argv[3]); /* check call_modprobe() */
+ 	kfree(info->argv);
++	free_modprobe_envp(info->envp);
+ }
+ 
+ static int call_modprobe(char *orig_module_name, int wait)
+ {
+ 	struct subprocess_info *info;
+-	static char *envp[] = {
+-		"HOME=/",
+-		"TERM=linux",
+-		"PATH=/sbin:/usr/sbin:/bin:/usr/bin",
+-		NULL
+-	};
++	char **envp;
+ 	char *module_name;
+ 	int ret;
+ 
+@@ -89,6 +145,10 @@
+ 	if (!module_name)
+ 		goto free_argv;
+ 
++	envp = build_modprobe_envp(module_name);
++	if (!envp)
++		goto free_module_name;
++
+ 	argv[0] = modprobe_path;
+ 	argv[1] = "-q";
+ 	argv[2] = "--";
+@@ -98,12 +158,14 @@
+ 	info = call_usermodehelper_setup(modprobe_path, argv, envp, GFP_KERNEL,
+ 					 NULL, free_modprobe_argv, NULL);
+ 	if (!info)
+-		goto free_module_name;
++		goto free_envp;
+ 
+ 	ret = call_usermodehelper_exec(info, wait | UMH_KILLABLE);
+ 	kmod_dup_request_announce(orig_module_name, ret);
+ 	return ret;
+ 
++free_envp:
++	free_modprobe_envp(envp);
+ free_module_name:
+ 	kfree(module_name);
+ free_argv:
+@@ -113,28 +175,8 @@
  	return -ENOMEM;
  }
  
@@ -6675,7 +6784,7 @@ diff -urN linux-7.0.12/kernel/module/kmod.c linux-7.0.12-hdn/kernel/module/kmod.
  	/*
  	 * We don't allow synchronous module loading from async.  Module
  	 * init may invoke async_synchronize_full() which will end up
-@@ -146,16 +128,24 @@
+@@ -146,16 +188,24 @@
  	if (!modprobe_path[0])
  		return -ENOENT;
  
@@ -6705,7 +6814,7 @@ diff -urN linux-7.0.12/kernel/module/kmod.c linux-7.0.12-hdn/kernel/module/kmod.
  	ret = down_timeout(&kmod_concurrent_max, MAX_KMOD_ALL_BUSY_TIMEOUT * HZ);
  	if (ret) {
  		pr_warn_ratelimited("request_module: modprobe %s cannot be processed, kmod busy with %d threads for more than %d seconds now",
-@@ -177,4 +167,71 @@
+@@ -177,4 +227,71 @@
  
  	return ret;
  }
@@ -6777,7 +6886,7 @@ diff -urN linux-7.0.12/kernel/module/kmod.c linux-7.0.12-hdn/kernel/module/kmod.
 +	return request_module_run(wait, module_name);
 +}
  EXPORT_SYMBOL(__request_module);
-diff -urN linux-7.0.12/kernel/module/main.c linux-7.0.12-hdn/kernel/module/main.c
+diff -ruN linux-7.0.12/kernel/module/main.c linux-7.0.12-hdn/kernel/module/main.c
 --- linux-7.0.12/kernel/module/main.c	2026-06-09 05:32:51.000000000 -0500
 +++ linux-7.0.12-hdn/kernel/module/main.c	2026-06-26 17:28:20.328916464 -0500
 @@ -16,6 +16,7 @@
@@ -6954,7 +7063,7 @@ diff -urN linux-7.0.12/kernel/module/main.c linux-7.0.12-hdn/kernel/module/main.
  	return idempotent_init_module(fd_file(f), uargs, flags);
  }
  
-diff -urN linux-7.0.12/kernel/nsproxy.c linux-7.0.12-hdn/kernel/nsproxy.c
+diff -ruN linux-7.0.12/kernel/nsproxy.c linux-7.0.12-hdn/kernel/nsproxy.c
 --- linux-7.0.12/kernel/nsproxy.c	2026-06-09 05:32:51.000000000 -0500
 +++ linux-7.0.12-hdn/kernel/nsproxy.c	2026-06-26 04:11:33.090901130 -0500
 @@ -20,8 +20,10 @@
@@ -7051,7 +7160,7 @@ diff -urN linux-7.0.12/kernel/nsproxy.c linux-7.0.12-hdn/kernel/nsproxy.c
  	if (!err) {
  		commit_nsset(&nsset);
  		perf_event_namespaces(current);
-diff -urN linux-7.0.12/kernel/pid.c linux-7.0.12-hdn/kernel/pid.c
+diff -ruN linux-7.0.12/kernel/pid.c linux-7.0.12-hdn/kernel/pid.c
 --- linux-7.0.12/kernel/pid.c	2026-06-09 05:32:51.000000000 -0500
 +++ linux-7.0.12-hdn/kernel/pid.c	2026-06-26 14:09:04.497996754 -0500
 @@ -37,6 +37,7 @@
@@ -7143,7 +7252,7 @@ diff -urN linux-7.0.12/kernel/pid.c linux-7.0.12-hdn/kernel/pid.c
  
  	up_read(&task->signal->exec_update_lock);
  
-diff -urN linux-7.0.12/kernel/pid_sysctl.h linux-7.0.12-hdn/kernel/pid_sysctl.h
+diff -ruN linux-7.0.12/kernel/pid_sysctl.h linux-7.0.12-hdn/kernel/pid_sysctl.h
 --- linux-7.0.12/kernel/pid_sysctl.h	2026-06-09 05:32:51.000000000 -0500
 +++ linux-7.0.12-hdn/kernel/pid_sysctl.h	2026-06-26 14:09:04.497996754 -0500
 @@ -10,15 +10,19 @@
@@ -7168,7 +7277,7 @@ diff -urN linux-7.0.12/kernel/pid_sysctl.h linux-7.0.12-hdn/kernel/pid_sysctl.h
  	/* Equivalent to pidns_memfd_noexec_scope(ns). */
  	scope = max(READ_ONCE(ns->memfd_noexec_scope), parent_scope);
  
-diff -urN linux-7.0.12/kernel/printk/printk.c linux-7.0.12-hdn/kernel/printk/printk.c
+diff -ruN linux-7.0.12/kernel/printk/printk.c linux-7.0.12-hdn/kernel/printk/printk.c
 --- linux-7.0.12/kernel/printk/printk.c	2026-06-09 05:32:51.000000000 -0500
 +++ linux-7.0.12-hdn/kernel/printk/printk.c	2026-06-22 18:24:58.409509259 -0500
 @@ -39,6 +39,7 @@
@@ -7240,7 +7349,7 @@ diff -urN linux-7.0.12/kernel/printk/printk.c linux-7.0.12-hdn/kernel/printk/pri
  		mutex_lock(&syslog_lock);
  		if (!prb_read_valid_info(prb, syslog_seq, &info, NULL)) {
  			/* No unread messages. */
-diff -urN linux-7.0.12/kernel/printk/sysctl.c linux-7.0.12-hdn/kernel/printk/sysctl.c
+diff -ruN linux-7.0.12/kernel/printk/sysctl.c linux-7.0.12-hdn/kernel/printk/sysctl.c
 --- linux-7.0.12/kernel/printk/sysctl.c	2026-06-09 05:32:51.000000000 -0500
 +++ linux-7.0.12-hdn/kernel/printk/sysctl.c	2026-06-26 14:31:49.577861373 -0500
 @@ -5,6 +5,7 @@
@@ -7275,7 +7384,7 @@ diff -urN linux-7.0.12/kernel/printk/sysctl.c linux-7.0.12-hdn/kernel/printk/sys
  		.extra2		= SYSCTL_TWO,
  	},
  };
-diff -urN linux-7.0.12/kernel/ptrace.c linux-7.0.12-hdn/kernel/ptrace.c
+diff -ruN linux-7.0.12/kernel/ptrace.c linux-7.0.12-hdn/kernel/ptrace.c
 --- linux-7.0.12/kernel/ptrace.c	2026-06-09 05:32:51.000000000 -0500
 +++ linux-7.0.12-hdn/kernel/ptrace.c	2026-06-26 03:36:47.071105551 -0500
 @@ -16,6 +16,7 @@
@@ -7365,7 +7474,7 @@ diff -urN linux-7.0.12/kernel/ptrace.c linux-7.0.12-hdn/kernel/ptrace.c
  		goto out_put_task_struct;
  	}
  
-diff -urN linux-7.0.12/kernel/resource.c linux-7.0.12-hdn/kernel/resource.c
+diff -ruN linux-7.0.12/kernel/resource.c linux-7.0.12-hdn/kernel/resource.c
 --- linux-7.0.12/kernel/resource.c	2026-06-09 05:32:51.000000000 -0500
 +++ linux-7.0.12-hdn/kernel/resource.c	2026-06-26 12:22:04.106568334 -0500
 @@ -17,6 +17,7 @@
@@ -7386,7 +7495,7 @@ diff -urN linux-7.0.12/kernel/resource.c linux-7.0.12-hdn/kernel/resource.c
  		start = r->start;
  		end = r->end;
  	} else {
-diff -urN linux-7.0.12/kernel/sched/syscalls.c linux-7.0.12-hdn/kernel/sched/syscalls.c
+diff -ruN linux-7.0.12/kernel/sched/syscalls.c linux-7.0.12-hdn/kernel/sched/syscalls.c
 --- linux-7.0.12/kernel/sched/syscalls.c	2026-06-09 05:32:51.000000000 -0500
 +++ linux-7.0.12-hdn/kernel/sched/syscalls.c	2026-06-25 11:21:57.866535435 -0500
 @@ -9,6 +9,7 @@
@@ -7493,7 +7602,7 @@ diff -urN linux-7.0.12/kernel/sched/syscalls.c linux-7.0.12-hdn/kernel/sched/sys
  
  	return 0;
  }
-diff -urN linux-7.0.12/kernel/signal.c linux-7.0.12-hdn/kernel/signal.c
+diff -ruN linux-7.0.12/kernel/signal.c linux-7.0.12-hdn/kernel/signal.c
 --- linux-7.0.12/kernel/signal.c	2026-06-09 05:32:51.000000000 -0500
 +++ linux-7.0.12-hdn/kernel/signal.c	2026-06-26 02:54:56.379331751 -0500
 @@ -30,6 +30,7 @@
@@ -7567,7 +7676,7 @@ diff -urN linux-7.0.12/kernel/signal.c linux-7.0.12-hdn/kernel/signal.c
  	clear_siginfo(&info);
  	info.si_signo = sig;
  	info.si_errno = 0;
-diff -urN linux-7.0.12/kernel/sys.c linux-7.0.12-hdn/kernel/sys.c
+diff -ruN linux-7.0.12/kernel/sys.c linux-7.0.12-hdn/kernel/sys.c
 --- linux-7.0.12/kernel/sys.c	2026-06-09 05:32:51.000000000 -0500
 +++ linux-7.0.12-hdn/kernel/sys.c	2026-06-25 08:22:18.130491412 -0500
 @@ -12,6 +12,7 @@
@@ -7636,7 +7745,7 @@ diff -urN linux-7.0.12/kernel/sys.c linux-7.0.12-hdn/kernel/sys.c
  	return retval;
  }
  
-diff -urN linux-7.0.12/kernel/time/posix-cpu-timers.c linux-7.0.12-hdn/kernel/time/posix-cpu-timers.c
+diff -ruN linux-7.0.12/kernel/time/posix-cpu-timers.c linux-7.0.12-hdn/kernel/time/posix-cpu-timers.c
 --- linux-7.0.12/kernel/time/posix-cpu-timers.c	2026-06-09 05:32:51.000000000 -0500
 +++ linux-7.0.12-hdn/kernel/time/posix-cpu-timers.c	2026-06-25 11:31:54.428323074 -0500
 @@ -5,6 +5,7 @@
@@ -7698,7 +7807,7 @@ diff -urN linux-7.0.12/kernel/time/posix-cpu-timers.c linux-7.0.12-hdn/kernel/ti
  
  		/* Update the expiry cache */
  		if (softns < pct->bases[CPUCLOCK_PROF].nextevt)
-diff -urN linux-7.0.12/kernel/time/time.c linux-7.0.12-hdn/kernel/time/time.c
+diff -ruN linux-7.0.12/kernel/time/time.c linux-7.0.12-hdn/kernel/time/time.c
 --- linux-7.0.12/kernel/time/time.c	2026-06-09 05:32:51.000000000 -0500
 +++ linux-7.0.12-hdn/kernel/time/time.c	2026-06-25 08:26:46.523969561 -0500
 @@ -35,6 +35,7 @@
@@ -7773,7 +7882,7 @@ diff -urN linux-7.0.12/kernel/time/time.c linux-7.0.12-hdn/kernel/time/time.c
  	return 0;
  }
  
-diff -urN linux-7.0.12/kernel/time/timekeeping.c linux-7.0.12-hdn/kernel/time/timekeeping.c
+diff -ruN linux-7.0.12/kernel/time/timekeeping.c linux-7.0.12-hdn/kernel/time/timekeeping.c
 --- linux-7.0.12/kernel/time/timekeeping.c	2026-06-09 05:32:51.000000000 -0500
 +++ linux-7.0.12-hdn/kernel/time/timekeeping.c	2026-06-25 08:26:46.523969561 -0500
 @@ -25,6 +25,7 @@
@@ -7825,7 +7934,7 @@ diff -urN linux-7.0.12/kernel/time/timekeeping.c linux-7.0.12-hdn/kernel/time/ti
  
  	return ret;
  }
-diff -urN linux-7.0.12/kernel/time/timer_list.c linux-7.0.12-hdn/kernel/time/timer_list.c
+diff -ruN linux-7.0.12/kernel/time/timer_list.c linux-7.0.12-hdn/kernel/time/timer_list.c
 --- linux-7.0.12/kernel/time/timer_list.c	2026-06-09 05:32:51.000000000 -0500
 +++ linux-7.0.12-hdn/kernel/time/timer_list.c	2026-06-26 13:43:17.486139070 -0500
 @@ -7,6 +7,7 @@
@@ -7916,7 +8025,7 @@ diff -urN linux-7.0.12/kernel/time/timer_list.c linux-7.0.12-hdn/kernel/time/tim
  	SEQ_printf(m, "\n");
  	SEQ_printf(m, " retries:        %lu\n", dev->retries);
  
-diff -urN linux-7.0.12/kernel/trace/bpf_trace.c linux-7.0.12-hdn/kernel/trace/bpf_trace.c
+diff -ruN linux-7.0.12/kernel/trace/bpf_trace.c linux-7.0.12-hdn/kernel/trace/bpf_trace.c
 --- linux-7.0.12/kernel/trace/bpf_trace.c	2026-06-09 05:32:51.000000000 -0500
 +++ linux-7.0.12-hdn/kernel/trace/bpf_trace.c	2026-06-26 12:07:58.418651266 -0500
 @@ -23,6 +23,7 @@
@@ -7938,7 +8047,7 @@ diff -urN linux-7.0.12/kernel/trace/bpf_trace.c linux-7.0.12-hdn/kernel/trace/bp
  		err = copy_user_syms(&us, usyms, cnt);
  		if (err)
  			goto error;
-diff -urN linux-7.0.12/kernel/trace/ftrace.c linux-7.0.12-hdn/kernel/trace/ftrace.c
+diff -ruN linux-7.0.12/kernel/trace/ftrace.c linux-7.0.12-hdn/kernel/trace/ftrace.c
 --- linux-7.0.12/kernel/trace/ftrace.c	2026-06-09 05:32:51.000000000 -0500
 +++ linux-7.0.12-hdn/kernel/trace/ftrace.c	2026-06-26 11:30:16.638867553 -0500
 @@ -18,6 +18,7 @@
@@ -8117,7 +8226,7 @@ diff -urN linux-7.0.12/kernel/trace/ftrace.c linux-7.0.12-hdn/kernel/trace/ftrac
  
  	func_g.len = strlen(func_g.search);
  
-diff -urN linux-7.0.12/kernel/trace/trace_events_filter.c linux-7.0.12-hdn/kernel/trace/trace_events_filter.c
+diff -ruN linux-7.0.12/kernel/trace/trace_events_filter.c linux-7.0.12-hdn/kernel/trace/trace_events_filter.c
 --- linux-7.0.12/kernel/trace/trace_events_filter.c	2026-06-09 05:32:51.000000000 -0500
 +++ linux-7.0.12-hdn/kernel/trace/trace_events_filter.c	2026-06-26 11:03:33.170988326 -0500
 @@ -8,6 +8,7 @@
@@ -8141,7 +8250,7 @@ diff -urN linux-7.0.12/kernel/trace/trace_events_filter.c linux-7.0.12-hdn/kerne
  			ip = kallsyms_lookup_name(name);
  			kfree(name);
  			if (!ip) {
-diff -urN linux-7.0.12/kernel/trace/trace_fprobe.c linux-7.0.12-hdn/kernel/trace/trace_fprobe.c
+diff -ruN linux-7.0.12/kernel/trace/trace_fprobe.c linux-7.0.12-hdn/kernel/trace/trace_fprobe.c
 --- linux-7.0.12/kernel/trace/trace_fprobe.c	2026-06-09 05:32:51.000000000 -0500
 +++ linux-7.0.12-hdn/kernel/trace/trace_fprobe.c	2026-06-26 10:57:53.511046419 -0500
 @@ -6,6 +6,7 @@
@@ -8164,7 +8273,7 @@ diff -urN linux-7.0.12/kernel/trace/trace_fprobe.c linux-7.0.12-hdn/kernel/trace
  
  	trace_probe_log_set_index(0);
  	if (event) {
-diff -urN linux-7.0.12/kernel/trace/trace_kprobe.c linux-7.0.12-hdn/kernel/trace/trace_kprobe.c
+diff -ruN linux-7.0.12/kernel/trace/trace_kprobe.c linux-7.0.12-hdn/kernel/trace/trace_kprobe.c
 --- linux-7.0.12/kernel/trace/trace_kprobe.c	2026-06-09 05:32:51.000000000 -0500
 +++ linux-7.0.12-hdn/kernel/trace/trace_kprobe.c	2026-06-26 10:57:53.511046419 -0500
 @@ -10,6 +10,7 @@
@@ -8186,7 +8295,7 @@ diff -urN linux-7.0.12/kernel/trace/trace_kprobe.c linux-7.0.12-hdn/kernel/trace
  		/* a symbol specified */
  		symbol = kstrdup(argv[1], GFP_KERNEL);
  		if (!symbol)
-diff -urN linux-7.0.12/kernel/trace/trace_output.c linux-7.0.12-hdn/kernel/trace/trace_output.c
+diff -ruN linux-7.0.12/kernel/trace/trace_output.c linux-7.0.12-hdn/kernel/trace/trace_output.c
 --- linux-7.0.12/kernel/trace/trace_output.c	2026-06-09 05:32:51.000000000 -0500
 +++ linux-7.0.12-hdn/kernel/trace/trace_output.c	2026-06-26 11:20:17.126920988 -0500
 @@ -15,6 +15,7 @@
@@ -8209,7 +8318,7 @@ diff -urN linux-7.0.12/kernel/trace/trace_output.c linux-7.0.12-hdn/kernel/trace
  #ifdef CONFIG_KALLSYMS
  	char str[KSYM_SYMBOL_LEN];
  	const char *name;
-diff -urN linux-7.0.12/kernel/trace/trace_probe.c linux-7.0.12-hdn/kernel/trace/trace_probe.c
+diff -ruN linux-7.0.12/kernel/trace/trace_probe.c linux-7.0.12-hdn/kernel/trace/trace_probe.c
 --- linux-7.0.12/kernel/trace/trace_probe.c	2026-06-09 05:32:51.000000000 -0500
 +++ linux-7.0.12-hdn/kernel/trace/trace_probe.c	2026-06-26 11:20:17.126920988 -0500
 @@ -13,6 +13,7 @@
@@ -8240,7 +8349,7 @@ diff -urN linux-7.0.12/kernel/trace/trace_probe.c linux-7.0.12-hdn/kernel/trace/
  			tmp = strpbrk(code->data, "+-");
  			if (tmp)
  				c = *tmp;
-diff -urN linux-7.0.12/kernel/trace/trace_probe_tmpl.h linux-7.0.12-hdn/kernel/trace/trace_probe_tmpl.h
+diff -ruN linux-7.0.12/kernel/trace/trace_probe_tmpl.h linux-7.0.12-hdn/kernel/trace/trace_probe_tmpl.h
 --- linux-7.0.12/kernel/trace/trace_probe_tmpl.h	2026-06-09 05:32:51.000000000 -0500
 +++ linux-7.0.12-hdn/kernel/trace/trace_probe_tmpl.h	2026-06-26 11:20:17.126920988 -0500
 @@ -3,6 +3,8 @@
@@ -8274,7 +8383,7 @@ diff -urN linux-7.0.12/kernel/trace/trace_probe_tmpl.h linux-7.0.12-hdn/kernel/t
  	return sprint_symbol(__dest, addr);
  }
  
-diff -urN linux-7.0.12/kernel/user_namespace.c linux-7.0.12-hdn/kernel/user_namespace.c
+diff -ruN linux-7.0.12/kernel/user_namespace.c linux-7.0.12-hdn/kernel/user_namespace.c
 --- linux-7.0.12/kernel/user_namespace.c	2026-06-09 05:32:51.000000000 -0500
 +++ linux-7.0.12-hdn/kernel/user_namespace.c	2026-06-22 18:57:48.821027367 -0500
 @@ -15,6 +15,7 @@
@@ -8304,7 +8413,7 @@ diff -urN linux-7.0.12/kernel/user_namespace.c linux-7.0.12-hdn/kernel/user_name
  	INIT_WORK(&ns->work, free_user_ns);
  	for (i = 0; i < UCOUNT_COUNTS; i++) {
  		ns->ucount_max[i] = INT_MAX;
-diff -urN linux-7.0.12/lib/error-inject.c linux-7.0.12-hdn/lib/error-inject.c
+diff -ruN linux-7.0.12/lib/error-inject.c linux-7.0.12-hdn/lib/error-inject.c
 --- linux-7.0.12/lib/error-inject.c	2026-06-09 05:32:51.000000000 -0500
 +++ linux-7.0.12-hdn/lib/error-inject.c	2026-06-26 12:49:28.702415847 -0500
 @@ -2,6 +2,7 @@
@@ -8328,7 +8437,7 @@ diff -urN linux-7.0.12/lib/error-inject.c linux-7.0.12-hdn/lib/error-inject.c
  	seq_printf(m, "%ps\t%s\n", (void *)ent->start_addr,
  		   error_type_string(ent->etype));
  	return 0;
-diff -urN linux-7.0.12/lib/vsprintf.c linux-7.0.12-hdn/lib/vsprintf.c
+diff -ruN linux-7.0.12/lib/vsprintf.c linux-7.0.12-hdn/lib/vsprintf.c
 --- linux-7.0.12/lib/vsprintf.c	2026-06-09 05:32:51.000000000 -0500
 +++ linux-7.0.12-hdn/lib/vsprintf.c	2026-06-26 11:24:32.134884257 -0500
 @@ -29,6 +29,7 @@
@@ -8361,7 +8470,7 @@ diff -urN linux-7.0.12/lib/vsprintf.c linux-7.0.12-hdn/lib/vsprintf.c
  #ifdef CONFIG_KALLSYMS
  	if (*fmt == 'B' && fmt[1] == 'b')
  		sprint_backtrace_build_id(sym, value);
-diff -urN linux-7.0.12/mm/Kconfig linux-7.0.12-hdn/mm/Kconfig
+diff -ruN linux-7.0.12/mm/Kconfig linux-7.0.12-hdn/mm/Kconfig
 --- linux-7.0.12/mm/Kconfig	2026-06-09 05:32:51.000000000 -0500
 +++ linux-7.0.12-hdn/mm/Kconfig	2026-06-22 21:35:20.954732050 -0500
 @@ -188,6 +188,7 @@
@@ -8396,7 +8505,7 @@ diff -urN linux-7.0.12/mm/Kconfig linux-7.0.12-hdn/mm/Kconfig
  	default n
  	depends on !SLUB_TINY
  	bool "Randomize slab caches for normal kmalloc"
-diff -urN linux-7.0.12/mm/Kconfig.debug linux-7.0.12-hdn/mm/Kconfig.debug
+diff -ruN linux-7.0.12/mm/Kconfig.debug linux-7.0.12-hdn/mm/Kconfig.debug
 --- linux-7.0.12/mm/Kconfig.debug	2026-06-09 05:32:51.000000000 -0500
 +++ linux-7.0.12-hdn/mm/Kconfig.debug	2026-06-26 16:31:25.737194706 -0500
 @@ -124,6 +124,7 @@
@@ -8415,7 +8524,7 @@ diff -urN linux-7.0.12/mm/Kconfig.debug linux-7.0.12-hdn/mm/Kconfig.debug
  	help
  	  Always enable page table checking.  By default the page table checking
  	  is disabled, and can be optionally enabled via page_table_check=on
-diff -urN linux-7.0.12/mm/madvise.c linux-7.0.12-hdn/mm/madvise.c
+diff -ruN linux-7.0.12/mm/madvise.c linux-7.0.12-hdn/mm/madvise.c
 --- linux-7.0.12/mm/madvise.c	2026-06-09 05:32:51.000000000 -0500
 +++ linux-7.0.12-hdn/mm/madvise.c	2026-06-26 03:09:48.303251204 -0500
 @@ -16,6 +16,7 @@
@@ -8447,7 +8556,7 @@ diff -urN linux-7.0.12/mm/madvise.c linux-7.0.12-hdn/mm/madvise.c
  
  	ret = vector_madvise(mm, &iter, behavior);
  
-diff -urN linux-7.0.12/mm/memory.c linux-7.0.12-hdn/mm/memory.c
+diff -ruN linux-7.0.12/mm/memory.c linux-7.0.12-hdn/mm/memory.c
 --- linux-7.0.12/mm/memory.c	2026-06-09 05:32:51.000000000 -0500
 +++ linux-7.0.12-hdn/mm/memory.c	2026-06-25 08:59:05.536993372 -0500
 @@ -78,6 +78,7 @@
@@ -8470,7 +8579,7 @@ diff -urN linux-7.0.12/mm/memory.c linux-7.0.12-hdn/mm/memory.c
  	/* Avoid triggering the temporary warning in __get_user_pages */
  	if (!vma_lookup(mm, addr) && !expand_stack(mm, addr))
  		return 0;
-diff -urN linux-7.0.12/mm/mempolicy.c linux-7.0.12-hdn/mm/mempolicy.c
+diff -ruN linux-7.0.12/mm/mempolicy.c linux-7.0.12-hdn/mm/mempolicy.c
 --- linux-7.0.12/mm/mempolicy.c	2026-06-09 05:32:51.000000000 -0500
 +++ linux-7.0.12-hdn/mm/mempolicy.c	2026-06-26 03:23:16.455177463 -0500
 @@ -112,6 +112,7 @@
@@ -8510,7 +8619,7 @@ diff -urN linux-7.0.12/mm/mempolicy.c linux-7.0.12-hdn/mm/mempolicy.c
  		goto out;
  	}
  
-diff -urN linux-7.0.12/mm/migrate.c linux-7.0.12-hdn/mm/migrate.c
+diff -ruN linux-7.0.12/mm/migrate.c linux-7.0.12-hdn/mm/migrate.c
 --- linux-7.0.12/mm/migrate.c	2026-06-09 05:32:51.000000000 -0500
 +++ linux-7.0.12-hdn/mm/migrate.c	2026-06-26 03:31:50.363133723 -0500
 @@ -43,6 +43,7 @@
@@ -8554,7 +8663,7 @@ diff -urN linux-7.0.12/mm/migrate.c linux-7.0.12-hdn/mm/migrate.c
  out:
  	put_task_struct(task);
  	if (!mm)
-diff -urN linux-7.0.12/mm/mlock.c linux-7.0.12-hdn/mm/mlock.c
+diff -ruN linux-7.0.12/mm/mlock.c linux-7.0.12-hdn/mm/mlock.c
 --- linux-7.0.12/mm/mlock.c	2026-06-09 05:32:51.000000000 -0500
 +++ linux-7.0.12-hdn/mm/mlock.c	2026-06-25 10:21:55.262136126 -0500
 @@ -19,6 +19,7 @@
@@ -8613,7 +8722,7 @@ diff -urN linux-7.0.12/mm/mlock.c linux-7.0.12-hdn/mm/mlock.c
  		dec_rlimit_ucounts(ucounts, UCOUNT_RLIMIT_MEMLOCK, locked);
  		goto out;
  	}
-diff -urN linux-7.0.12/mm/mmap.c linux-7.0.12-hdn/mm/mmap.c
+diff -ruN linux-7.0.12/mm/mmap.c linux-7.0.12-hdn/mm/mmap.c
 --- linux-7.0.12/mm/mmap.c	2026-06-09 05:32:51.000000000 -0500
 +++ linux-7.0.12-hdn/mm/mmap.c	2026-06-25 18:13:07.103404237 -0500
 @@ -23,6 +23,7 @@
@@ -8844,7 +8953,7 @@ diff -urN linux-7.0.12/mm/mmap.c linux-7.0.12-hdn/mm/mmap.c
  	}
  
  	return true;
-diff -urN linux-7.0.12/mm/mprotect.c linux-7.0.12-hdn/mm/mprotect.c
+diff -ruN linux-7.0.12/mm/mprotect.c linux-7.0.12-hdn/mm/mprotect.c
 --- linux-7.0.12/mm/mprotect.c	2026-06-09 05:32:51.000000000 -0500
 +++ linux-7.0.12-hdn/mm/mprotect.c	2026-06-22 18:08:44.689747173 -0500
 @@ -14,6 +14,7 @@
@@ -8874,7 +8983,7 @@ diff -urN linux-7.0.12/mm/mprotect.c linux-7.0.12-hdn/mm/mprotect.c
  		/* newflags >> 4 shift VM_MAY% in place of VM_% */
  		if ((newflags & ~(newflags >> 4)) & VM_ACCESS_FLAGS) {
  			error = -EACCES;
-diff -urN linux-7.0.12/mm/oom_kill.c linux-7.0.12-hdn/mm/oom_kill.c
+diff -ruN linux-7.0.12/mm/oom_kill.c linux-7.0.12-hdn/mm/oom_kill.c
 --- linux-7.0.12/mm/oom_kill.c	2026-06-09 05:32:51.000000000 -0500
 +++ linux-7.0.12-hdn/mm/oom_kill.c	2026-06-26 03:45:10.407056280 -0500
 @@ -44,6 +44,7 @@
@@ -8899,7 +9008,7 @@ diff -urN linux-7.0.12/mm/oom_kill.c linux-7.0.12-hdn/mm/oom_kill.c
  	if (task_will_free_mem(p))
  		reap = true;
  	else {
-diff -urN linux-7.0.12/mm/process_vm_access.c linux-7.0.12-hdn/mm/process_vm_access.c
+diff -ruN linux-7.0.12/mm/process_vm_access.c linux-7.0.12-hdn/mm/process_vm_access.c
 --- linux-7.0.12/mm/process_vm_access.c	2026-06-09 05:32:51.000000000 -0500
 +++ linux-7.0.12-hdn/mm/process_vm_access.c	2026-06-26 03:09:48.303251204 -0500
 @@ -6,6 +6,7 @@
@@ -8940,7 +9049,7 @@ diff -urN linux-7.0.12/mm/process_vm_access.c linux-7.0.12-hdn/mm/process_vm_acc
  	mmput(mm);
  
  put_task_struct:
-diff -urN linux-7.0.12/mm/slub.c linux-7.0.12-hdn/mm/slub.c
+diff -ruN linux-7.0.12/mm/slub.c linux-7.0.12-hdn/mm/slub.c
 --- linux-7.0.12/mm/slub.c	2026-06-09 05:32:51.000000000 -0500
 +++ linux-7.0.12-hdn/mm/slub.c	2026-06-26 12:56:10.406397164 -0500
 @@ -15,6 +15,7 @@
@@ -9002,7 +9111,7 @@ diff -urN linux-7.0.12/mm/slub.c linux-7.0.12-hdn/mm/slub.c
  			}
  		}
  #endif
-diff -urN linux-7.0.12/mm/vma.c linux-7.0.12-hdn/mm/vma.c
+diff -ruN linux-7.0.12/mm/vma.c linux-7.0.12-hdn/mm/vma.c
 --- linux-7.0.12/mm/vma.c	2026-06-09 05:32:51.000000000 -0500
 +++ linux-7.0.12-hdn/mm/vma.c	2026-06-25 13:50:04.741746304 -0500
 @@ -4,6 +4,8 @@
@@ -9092,7 +9201,7 @@ diff -urN linux-7.0.12/mm/vma.c linux-7.0.12-hdn/mm/vma.c
  
  	/* mlock limit tests */
  	if (!mlock_future_ok(mm, vma->vm_flags & VM_LOCKED, grow << PAGE_SHIFT))
-diff -urN linux-7.0.12/mm/vmalloc.c linux-7.0.12-hdn/mm/vmalloc.c
+diff -ruN linux-7.0.12/mm/vmalloc.c linux-7.0.12-hdn/mm/vmalloc.c
 --- linux-7.0.12/mm/vmalloc.c	2026-06-09 05:32:51.000000000 -0500
 +++ linux-7.0.12-hdn/mm/vmalloc.c	2026-06-26 12:55:58.662397786 -0500
 @@ -12,6 +12,7 @@
@@ -9126,7 +9235,7 @@ diff -urN linux-7.0.12/mm/vmalloc.c linux-7.0.12-hdn/mm/vmalloc.c
  
  			if (v->nr_pages)
  				seq_printf(m, " pages=%d", v->nr_pages);
-diff -urN linux-7.0.12/net/core/net-procfs.c linux-7.0.12-hdn/net/core/net-procfs.c
+diff -ruN linux-7.0.12/net/core/net-procfs.c linux-7.0.12-hdn/net/core/net-procfs.c
 --- linux-7.0.12/net/core/net-procfs.c	2026-06-09 05:32:51.000000000 -0500
 +++ linux-7.0.12-hdn/net/core/net-procfs.c	2026-06-26 13:37:43.078169254 -0500
 @@ -1,5 +1,6 @@
@@ -9151,7 +9260,7 @@ diff -urN linux-7.0.12/net/core/net-procfs.c linux-7.0.12-hdn/net/core/net-procf
  	}
  
  	return 0;
-diff -urN linux-7.0.12/net/core/sysctl_net_core.c linux-7.0.12-hdn/net/core/sysctl_net_core.c
+diff -ruN linux-7.0.12/net/core/sysctl_net_core.c linux-7.0.12-hdn/net/core/sysctl_net_core.c
 --- linux-7.0.12/net/core/sysctl_net_core.c	2026-06-09 05:32:51.000000000 -0500
 +++ linux-7.0.12-hdn/net/core/sysctl_net_core.c	2026-06-26 01:07:30.371916365 -0500
 @@ -472,7 +472,11 @@
@@ -9178,7 +9287,7 @@ diff -urN linux-7.0.12/net/core/sysctl_net_core.c linux-7.0.12-hdn/net/core/sysc
  	},
  # endif
  	{
-diff -urN linux-7.0.12/net/ipv4/inet_hashtables.c linux-7.0.12-hdn/net/ipv4/inet_hashtables.c
+diff -ruN linux-7.0.12/net/ipv4/inet_hashtables.c linux-7.0.12-hdn/net/ipv4/inet_hashtables.c
 --- linux-7.0.12/net/ipv4/inet_hashtables.c	2026-06-09 05:32:51.000000000 -0500
 +++ linux-7.0.12-hdn/net/ipv4/inet_hashtables.c	2026-06-25 09:43:16.389278298 -0500
 @@ -16,6 +16,7 @@
@@ -9206,7 +9315,7 @@ diff -urN linux-7.0.12/net/ipv4/inet_hashtables.c linux-7.0.12-hdn/net/ipv4/inet
  	local_bh_enable();
  	return 0;
  
-diff -urN linux-7.0.12/net/ipv4/ip_input.c linux-7.0.12-hdn/net/ipv4/ip_input.c
+diff -ruN linux-7.0.12/net/ipv4/ip_input.c linux-7.0.12-hdn/net/ipv4/ip_input.c
 --- linux-7.0.12/net/ipv4/ip_input.c	2026-06-09 05:32:51.000000000 -0500
 +++ linux-7.0.12-hdn/net/ipv4/ip_input.c	2026-06-25 10:30:04.383501834 -0500
 @@ -110,6 +110,7 @@
@@ -9229,7 +9338,7 @@ diff -urN linux-7.0.12/net/ipv4/ip_input.c linux-7.0.12-hdn/net/ipv4/ip_input.c
  			}
  			kfree_skb_reason(skb, SKB_DROP_REASON_IP_NOPROTO);
  		} else {
-diff -urN linux-7.0.12/net/ipv4/tcp_input.c linux-7.0.12-hdn/net/ipv4/tcp_input.c
+diff -ruN linux-7.0.12/net/ipv4/tcp_input.c linux-7.0.12-hdn/net/ipv4/tcp_input.c
 --- linux-7.0.12/net/ipv4/tcp_input.c	2026-06-09 05:32:51.000000000 -0500
 +++ linux-7.0.12-hdn/net/ipv4/tcp_input.c	2026-06-25 10:31:38.060796020 -0500
 @@ -7046,6 +7046,7 @@
@@ -9248,7 +9357,7 @@ diff -urN linux-7.0.12/net/ipv4/tcp_input.c linux-7.0.12-hdn/net/ipv4/tcp_input.
  	/* "fifth, if neither of the SYN or RST bits is set then
  	 * drop the segment and return."
  	 */
-diff -urN linux-7.0.12/net/ipv4/tcp_ipv4.c linux-7.0.12-hdn/net/ipv4/tcp_ipv4.c
+diff -ruN linux-7.0.12/net/ipv4/tcp_ipv4.c linux-7.0.12-hdn/net/ipv4/tcp_ipv4.c
 --- linux-7.0.12/net/ipv4/tcp_ipv4.c	2026-06-09 05:32:51.000000000 -0500
 +++ linux-7.0.12-hdn/net/ipv4/tcp_ipv4.c	2026-06-25 10:30:47.886544128 -0500
 @@ -51,6 +51,7 @@
@@ -9270,7 +9379,7 @@ diff -urN linux-7.0.12/net/ipv4/tcp_ipv4.c linux-7.0.12-hdn/net/ipv4/tcp_ipv4.c
  	}
  
  discard_it:
-diff -urN linux-7.0.12/net/ipv4/tcp_minisocks.c linux-7.0.12-hdn/net/ipv4/tcp_minisocks.c
+diff -ruN linux-7.0.12/net/ipv4/tcp_minisocks.c linux-7.0.12-hdn/net/ipv4/tcp_minisocks.c
 --- linux-7.0.12/net/ipv4/tcp_minisocks.c	2026-06-09 05:32:51.000000000 -0500
 +++ linux-7.0.12-hdn/net/ipv4/tcp_minisocks.c	2026-06-25 10:31:00.547418392 -0500
 @@ -19,6 +19,7 @@
@@ -9298,7 +9407,7 @@ diff -urN linux-7.0.12/net/ipv4/tcp_minisocks.c linux-7.0.12-hdn/net/ipv4/tcp_mi
  	} else if (fastopen) { /* received a valid RST pkt */
  		reqsk_fastopen_remove(sk, req, true);
  		tcp_reset(sk, skb);
-diff -urN linux-7.0.12/net/ipv4/tcp_timer.c linux-7.0.12-hdn/net/ipv4/tcp_timer.c
+diff -ruN linux-7.0.12/net/ipv4/tcp_timer.c linux-7.0.12-hdn/net/ipv4/tcp_timer.c
 --- linux-7.0.12/net/ipv4/tcp_timer.c	2026-06-09 05:32:51.000000000 -0500
 +++ linux-7.0.12-hdn/net/ipv4/tcp_timer.c	2026-06-25 10:31:29.376189295 -0500
 @@ -21,6 +21,7 @@
@@ -9324,7 +9433,7 @@ diff -urN linux-7.0.12/net/ipv4/tcp_timer.c linux-7.0.12-hdn/net/ipv4/tcp_timer.
  			do_reset = alive ||
  				!retransmits_timed_out(sk, retry_until, 0);
  
-diff -urN linux-7.0.12/net/ipv4/udp.c linux-7.0.12-hdn/net/ipv4/udp.c
+diff -ruN linux-7.0.12/net/ipv4/udp.c linux-7.0.12-hdn/net/ipv4/udp.c
 --- linux-7.0.12/net/ipv4/udp.c	2026-06-09 05:32:51.000000000 -0500
 +++ linux-7.0.12-hdn/net/ipv4/udp.c	2026-06-25 10:30:26.519706503 -0500
 @@ -90,6 +90,7 @@
@@ -9345,7 +9454,7 @@ diff -urN linux-7.0.12/net/ipv4/udp.c linux-7.0.12-hdn/net/ipv4/udp.c
  
  	/*
  	 * Hmm.  We got an UDP packet to a port to which we
-diff -urN linux-7.0.12/net/ipv6/tcp_ipv6.c linux-7.0.12-hdn/net/ipv6/tcp_ipv6.c
+diff -ruN linux-7.0.12/net/ipv6/tcp_ipv6.c linux-7.0.12-hdn/net/ipv6/tcp_ipv6.c
 --- linux-7.0.12/net/ipv6/tcp_ipv6.c	2026-06-09 05:32:51.000000000 -0500
 +++ linux-7.0.12-hdn/net/ipv6/tcp_ipv6.c	2026-06-25 10:31:15.923271812 -0500
 @@ -23,6 +23,7 @@
@@ -9367,7 +9476,7 @@ diff -urN linux-7.0.12/net/ipv6/tcp_ipv6.c linux-7.0.12-hdn/net/ipv6/tcp_ipv6.c
  	}
  
  discard_it:
-diff -urN linux-7.0.12/net/ipv6/udp.c linux-7.0.12-hdn/net/ipv6/udp.c
+diff -ruN linux-7.0.12/net/ipv6/udp.c linux-7.0.12-hdn/net/ipv6/udp.c
 --- linux-7.0.12/net/ipv6/udp.c	2026-06-09 05:32:51.000000000 -0500
 +++ linux-7.0.12-hdn/net/ipv6/udp.c	2026-06-25 10:31:09.492017827 -0500
 @@ -21,6 +21,7 @@
@@ -9389,7 +9498,7 @@ diff -urN linux-7.0.12/net/ipv6/udp.c linux-7.0.12-hdn/net/ipv6/udp.c
  
  	sk_skb_reason_drop(sk, skb, reason);
  	return 0;
-diff -urN linux-7.0.12/net/socket.c linux-7.0.12-hdn/net/socket.c
+diff -ruN linux-7.0.12/net/socket.c linux-7.0.12-hdn/net/socket.c
 --- linux-7.0.12/net/socket.c	2026-06-09 05:32:51.000000000 -0500
 +++ linux-7.0.12-hdn/net/socket.c	2026-06-25 09:26:18.584961358 -0500
 @@ -68,6 +68,7 @@
@@ -9465,7 +9574,7 @@ diff -urN linux-7.0.12/net/socket.c linux-7.0.12-hdn/net/socket.c
  	err =
  	    security_socket_connect(sock, (struct sockaddr *)address, addrlen);
  	if (err)
-diff -urN linux-7.0.12/net/unix/af_unix.c linux-7.0.12-hdn/net/unix/af_unix.c
+diff -ruN linux-7.0.12/net/unix/af_unix.c linux-7.0.12-hdn/net/unix/af_unix.c
 --- linux-7.0.12/net/unix/af_unix.c	2026-06-09 05:32:51.000000000 -0500
 +++ linux-7.0.12-hdn/net/unix/af_unix.c	2026-06-26 08:00:18.033620767 -0500
 @@ -86,6 +86,7 @@
@@ -9576,7 +9685,7 @@ diff -urN linux-7.0.12/net/unix/af_unix.c linux-7.0.12-hdn/net/unix/af_unix.c
  	/* take ten and send info to listening sock */
  	spin_lock(&other->sk_receive_queue.lock);
  	__skb_queue_tail(&other->sk_receive_queue, skb);
-diff -urN linux-7.0.12/security/Kconfig linux-7.0.12-hdn/security/Kconfig
+diff -ruN linux-7.0.12/security/Kconfig linux-7.0.12-hdn/security/Kconfig
 --- linux-7.0.12/security/Kconfig	2026-06-09 05:32:51.000000000 -0500
 +++ linux-7.0.12-hdn/security/Kconfig	2026-06-22 21:35:34.206729491 -0500
 @@ -9,6 +9,7 @@
@@ -9600,7 +9709,7 @@ diff -urN linux-7.0.12/security/Kconfig linux-7.0.12-hdn/security/Kconfig
  
  endmenu
 -
-diff -urN linux-7.0.12/security/Kconfig.hardening linux-7.0.12-hdn/security/Kconfig.hardening
+diff -ruN linux-7.0.12/security/Kconfig.hardening linux-7.0.12-hdn/security/Kconfig.hardening
 --- linux-7.0.12/security/Kconfig.hardening	2026-06-09 05:32:51.000000000 -0500
 +++ linux-7.0.12-hdn/security/Kconfig.hardening	2026-06-22 21:35:13.462733800 -0500
 @@ -1,6 +1,8 @@
@@ -9684,7 +9793,7 @@ diff -urN linux-7.0.12/security/Kconfig.hardening linux-7.0.12-hdn/security/Kcon
  	default RANDSTRUCT_FULL if COMPILE_TEST && (GCC_PLUGINS || CC_HAS_RANDSTRUCT)
  	default RANDSTRUCT_NONE
  	help
-diff -urN linux-7.0.12/security/Makefile linux-7.0.12-hdn/security/Makefile
+diff -ruN linux-7.0.12/security/Makefile linux-7.0.12-hdn/security/Makefile
 --- linux-7.0.12/security/Makefile	2026-06-09 05:32:51.000000000 -0500
 +++ linux-7.0.12-hdn/security/Makefile	2026-06-22 18:04:41.625806078 -0500
 @@ -26,6 +26,7 @@
@@ -9695,7 +9804,7 @@ diff -urN linux-7.0.12/security/Makefile linux-7.0.12-hdn/security/Makefile
  
  # Object integrity file lists
  obj-$(CONFIG_INTEGRITY)			+= integrity/
-diff -urN linux-7.0.12/security/commoncap.c linux-7.0.12-hdn/security/commoncap.c
+diff -ruN linux-7.0.12/security/commoncap.c linux-7.0.12-hdn/security/commoncap.c
 --- linux-7.0.12/security/commoncap.c	2026-06-09 05:32:51.000000000 -0500
 +++ linux-7.0.12-hdn/security/commoncap.c	2026-06-25 05:58:56.870765498 -0500
 @@ -17,6 +17,7 @@
@@ -9716,10 +9825,10 @@ diff -urN linux-7.0.12/security/commoncap.c linux-7.0.12-hdn/security/commoncap.
  	trace_cap_capable(cred, target_ns, cred_ns, cap, ret);
  	return ret;
  }
-diff -urN linux-7.0.12/security/hardening/Kconfig linux-7.0.12-hdn/security/hardening/Kconfig
+diff -ruN linux-7.0.12/security/hardening/Kconfig linux-7.0.12-hdn/security/hardening/Kconfig
 --- linux-7.0.12/security/hardening/Kconfig	1969-12-31 18:00:00.000000000 -0600
-+++ linux-7.0.12-hdn/security/hardening/Kconfig	2026-06-26 17:28:20.320916464 -0500
-@@ -0,0 +1,636 @@
++++ linux-7.0.12-hdn/security/hardening/Kconfig	2026-06-26 18:09:48.584693188 -0500
+@@ -0,0 +1,637 @@
 +# SPDX-License-Identifier: GPL-2.0-only
 +menuconfig SECURITY_HARDENING
 +	bool "Hardening contract layer"
@@ -9929,7 +10038,8 @@ diff -urN linux-7.0.12/security/hardening/Kconfig linux-7.0.12-hdn/security/hard
 +	  and MODULE_AUTOLOAD authority, so a restricted root profile cannot
 +	  redirect future helper execution. Existing LSM, module signature, and
 +	  modprobe behavior still run after this gate for authorized autoload
-+	  requests.
++	  requests. Authorized helpers receive bounded HDN_MODULE_* environment
++	  context describing the requested alias, requester ids, and HDN profile.
 +
 +config SECURITY_HARDENING_MODULE_AUTOLOAD_PATH
 +	bool "Validate module autoload helper paths"
@@ -10356,17 +10466,17 @@ diff -urN linux-7.0.12/security/hardening/Kconfig linux-7.0.12-hdn/security/hard
 +	  policy is involved.
 +
 +endif
-diff -urN linux-7.0.12/security/hardening/Makefile linux-7.0.12-hdn/security/hardening/Makefile
+diff -ruN linux-7.0.12/security/hardening/Makefile linux-7.0.12-hdn/security/hardening/Makefile
 --- linux-7.0.12/security/hardening/Makefile	1969-12-31 18:00:00.000000000 -0600
 +++ linux-7.0.12-hdn/security/hardening/Makefile	2026-06-22 18:04:41.625806078 -0500
 @@ -0,0 +1,3 @@
 +# SPDX-License-Identifier: GPL-2.0
 +
 +obj-$(CONFIG_SECURITY_HARDENING) += core.o
-diff -urN linux-7.0.12/security/hardening/core.c linux-7.0.12-hdn/security/hardening/core.c
+diff -ruN linux-7.0.12/security/hardening/core.c linux-7.0.12-hdn/security/hardening/core.c
 --- linux-7.0.12/security/hardening/core.c	1969-12-31 18:00:00.000000000 -0600
-+++ linux-7.0.12-hdn/security/hardening/core.c	2026-06-26 17:46:12.356821992 -0500
-@@ -0,0 +1,7387 @@
++++ linux-7.0.12-hdn/security/hardening/core.c	2026-06-26 18:03:35.136727097 -0500
+@@ -0,0 +1,7393 @@
 +// SPDX-License-Identifier: GPL-2.0-only
 +
 +#include <linux/binfmts.h>
@@ -10522,6 +10632,7 @@ diff -urN linux-7.0.12/security/hardening/core.c linux-7.0.12-hdn/security/harde
 +#define HDN_MITIGATION2_KEXEC_LOAD_DISABLE	(1ULL << 5)
 +#define HDN_MITIGATION2_MODULE_LOAD_DISABLE	(1ULL << 6)
 +#define HDN_MITIGATION2_MODULE_REQUEST_NAME	(1ULL << 7)
++#define HDN_MITIGATION2_MODULE_AUTOLOAD_CONTEXT	(1ULL << 8)
 +
 +struct hdn_mitigation_state {
 +	u32 abi_version;
@@ -10862,6 +10973,8 @@ diff -urN linux-7.0.12/security/hardening/core.c linux-7.0.12-hdn/security/harde
 +		flags |= HDN_MITIGATION2_MODULE_LOAD_DISABLE;
 +	if (IS_ENABLED(CONFIG_MODULES))
 +		flags |= HDN_MITIGATION2_MODULE_REQUEST_NAME;
++	if (IS_ENABLED(CONFIG_MODULES))
++		flags |= HDN_MITIGATION2_MODULE_AUTOLOAD_CONTEXT;
 +
 +	return flags;
 +}
@@ -17340,6 +17453,9 @@ diff -urN linux-7.0.12/security/hardening/core.c linux-7.0.12-hdn/security/harde
 +	seq_printf(m, "mitigation_module_request_name: %u\n",
 +		   hdn_mitigation2_enabled(
 +			   HDN_MITIGATION2_MODULE_REQUEST_NAME));
++	seq_printf(m, "mitigation_module_autoload_context: %u\n",
++		   hdn_mitigation2_enabled(
++			   HDN_MITIGATION2_MODULE_AUTOLOAD_CONTEXT));
 +	seq_printf(m, "mitigation_privexec_arg_stack_limits: %u\n",
 +		   IS_ENABLED(CONFIG_SECURITY_HARDENING_PROC_MEMMAP));
 +	seq_printf(m, "mitigation_memfd_noexec: %u\n",
@@ -17754,7 +17870,7 @@ diff -urN linux-7.0.12/security/hardening/core.c linux-7.0.12-hdn/security/harde
 +	return -ENOMEM;
 +}
 +late_initcall(hdn_securityfs_init);
-diff -urN linux-7.0.12/security/min_addr.c linux-7.0.12-hdn/security/min_addr.c
+diff -ruN linux-7.0.12/security/min_addr.c linux-7.0.12-hdn/security/min_addr.c
 --- linux-7.0.12/security/min_addr.c	2026-06-09 05:32:51.000000000 -0500
 +++ linux-7.0.12-hdn/security/min_addr.c	2026-06-26 16:55:48.149074327 -0500
 @@ -1,21 +1,35 @@
@@ -17816,7 +17932,7 @@ diff -urN linux-7.0.12/security/min_addr.c linux-7.0.12-hdn/security/min_addr.c
  	ret = proc_doulongvec_minmax(table, write, buffer, lenp, ppos);
  
  	update_mmap_min_addr();
-diff -urN linux-7.0.12/security/security.c linux-7.0.12-hdn/security/security.c
+diff -ruN linux-7.0.12/security/security.c linux-7.0.12-hdn/security/security.c
 --- linux-7.0.12/security/security.c	2026-06-09 05:32:51.000000000 -0500
 +++ linux-7.0.12-hdn/security/security.c	2026-06-26 04:42:45.978749775 -0500
 @@ -19,6 +19,7 @@
@@ -17905,7 +18021,7 @@ diff -urN linux-7.0.12/security/security.c linux-7.0.12-hdn/security/security.c
  	return call_int_hook(file_receive, file);
  }
  
-diff -urN linux-7.0.12/security/yama/yama_lsm.c linux-7.0.12-hdn/security/yama/yama_lsm.c
+diff -ruN linux-7.0.12/security/yama/yama_lsm.c linux-7.0.12-hdn/security/yama/yama_lsm.c
 --- linux-7.0.12/security/yama/yama_lsm.c	2026-06-09 05:32:51.000000000 -0500
 +++ linux-7.0.12-hdn/security/yama/yama_lsm.c	2026-06-26 14:51:38.721763607 -0500
 @@ -17,6 +17,7 @@
@@ -17937,7 +18053,7 @@ diff -urN linux-7.0.12/security/yama/yama_lsm.c linux-7.0.12-hdn/security/yama/y
  		.extra2         = &max_scope,
  	},
  };
-diff -urN linux-7.0.12/tools/hardening/Makefile linux-7.0.12-hdn/tools/hardening/Makefile
+diff -ruN linux-7.0.12/tools/hardening/Makefile linux-7.0.12-hdn/tools/hardening/Makefile
 --- linux-7.0.12/tools/hardening/Makefile	1969-12-31 18:00:00.000000000 -0600
 +++ linux-7.0.12-hdn/tools/hardening/Makefile	2026-06-26 17:08:52.373009295 -0500
 @@ -0,0 +1,160 @@
@@ -18101,10 +18217,10 @@ diff -urN linux-7.0.12/tools/hardening/Makefile linux-7.0.12-hdn/tools/hardening
 +		$(DESTDIR)$(systemdunitdir)/hdn-image-seal.service
 +
 +.PHONY: all clean install
-diff -urN linux-7.0.12/tools/hardening/README.rst linux-7.0.12-hdn/tools/hardening/README.rst
+diff -ruN linux-7.0.12/tools/hardening/README.rst linux-7.0.12-hdn/tools/hardening/README.rst
 --- linux-7.0.12/tools/hardening/README.rst	1969-12-31 18:00:00.000000000 -0600
-+++ linux-7.0.12-hdn/tools/hardening/README.rst	2026-06-26 17:55:58.928767669 -0500
-@@ -0,0 +1,1362 @@
++++ linux-7.0.12-hdn/tools/hardening/README.rst	2026-06-26 18:08:42.948699579 -0500
+@@ -0,0 +1,1366 @@
 +.. SPDX-License-Identifier: GPL-2.0-only
 +
 +Linux Hardening Policy Tools
@@ -19426,7 +19542,11 @@ diff -urN linux-7.0.12/tools/hardening/README.rst linux-7.0.12-hdn/tools/hardeni
 +distinguish explicit package-manager module installation from request_module()
 +alias expansion. One-argument ``request_module(name)`` calls are routed as
 +exact aliases instead of treating ``name`` as a printf format string; formatted
-+requests must pass explicit arguments. Supported syntax is::
++requests must pass explicit arguments. Authorized modprobe helpers also receive
++bounded HDN context in their environment: ``HDN_MODULE_REQUEST`` carries the
++resolved alias, ``HDN_MODULE_UID`` and ``HDN_MODULE_EUID`` carry the requesting
++credentials in the initial user namespace, and ``HDN_MODULE_PROFILE`` carries
++the current HDN profile id. Supported syntax is::
 +
 +  module 2 path /lib/modules/example.ko
 +  module 2 path /lib/modules/example.ko verity sha256 0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef
@@ -19467,7 +19587,7 @@ diff -urN linux-7.0.12/tools/hardening/README.rst linux-7.0.12-hdn/tools/hardeni
 +runtime, verifies normal mutation is rejected, enters recovery, rolls back to
 +the previous active generation, confirms earlier events remain available, and
 +reseals runtime.
-diff -urN linux-7.0.12/tools/hardening/admin-broker.conf linux-7.0.12-hdn/tools/hardening/admin-broker.conf
+diff -ruN linux-7.0.12/tools/hardening/admin-broker.conf linux-7.0.12-hdn/tools/hardening/admin-broker.conf
 --- linux-7.0.12/tools/hardening/admin-broker.conf	1969-12-31 18:00:00.000000000 -0600
 +++ linux-7.0.12-hdn/tools/hardening/admin-broker.conf	2026-06-25 15:14:32.759736126 -0500
 @@ -0,0 +1,30 @@
@@ -19501,7 +19621,7 @@ diff -urN linux-7.0.12/tools/hardening/admin-broker.conf linux-7.0.12-hdn/tools/
 +
 +# Permit the UI/recovery flow to request policy rollback.
 +allow-policy-rollback
-diff -urN linux-7.0.12/tools/hardening/default.policy linux-7.0.12-hdn/tools/hardening/default.policy
+diff -ruN linux-7.0.12/tools/hardening/default.policy linux-7.0.12-hdn/tools/hardening/default.policy
 --- linux-7.0.12/tools/hardening/default.policy	1969-12-31 18:00:00.000000000 -0600
 +++ linux-7.0.12-hdn/tools/hardening/default.policy	2026-06-26 14:00:44.542042427 -0500
 @@ -0,0 +1,19 @@
@@ -19524,7 +19644,7 @@ diff -urN linux-7.0.12/tools/hardening/default.policy linux-7.0.12-hdn/tools/har
 +allow 2 SOCKET_CREATE SOCKET_CONNECT SOCKET_SERVER TIME_ADMIN RESOURCE_ADMIN
 +allow 2 BLOCK_DEVICE_ACCESS BLOCK_DEVICE_ADMIN SIGNAL PROCESS_MEMORY MEMORY_MIGRATE PROCESS_FD
 +audit 2 MODULE_LOAD KEXEC_LOAD
-diff -urN linux-7.0.12/tools/hardening/desktop-actions.conf linux-7.0.12-hdn/tools/hardening/desktop-actions.conf
+diff -ruN linux-7.0.12/tools/hardening/desktop-actions.conf linux-7.0.12-hdn/tools/hardening/desktop-actions.conf
 --- linux-7.0.12/tools/hardening/desktop-actions.conf	1969-12-31 18:00:00.000000000 -0600
 +++ linux-7.0.12-hdn/tools/hardening/desktop-actions.conf	2026-06-26 01:21:56.171839159 -0500
 @@ -0,0 +1,17 @@
@@ -19545,7 +19665,7 @@ diff -urN linux-7.0.12/tools/hardening/desktop-actions.conf linux-7.0.12-hdn/too
 +action updates.install package-update
 +action system.image-update image-update
 +action security.policy-rollback policy-rollback
-diff -urN linux-7.0.12/tools/hardening/desktop-daemon.conf linux-7.0.12-hdn/tools/hardening/desktop-daemon.conf
+diff -ruN linux-7.0.12/tools/hardening/desktop-daemon.conf linux-7.0.12-hdn/tools/hardening/desktop-daemon.conf
 --- linux-7.0.12/tools/hardening/desktop-daemon.conf	1969-12-31 18:00:00.000000000 -0600
 +++ linux-7.0.12-hdn/tools/hardening/desktop-daemon.conf	2026-06-26 01:54:26.795661795 -0500
 @@ -0,0 +1,7 @@
@@ -19556,7 +19676,7 @@ diff -urN linux-7.0.12/tools/hardening/desktop-daemon.conf linux-7.0.12-hdn/tool
 +
 +desktop-action-helper /usr/libexec/hdn-desktop-action
 +allow-action updates.install
-diff -urN linux-7.0.12/tools/hardening/hdn-admin-broker.c linux-7.0.12-hdn/tools/hardening/hdn-admin-broker.c
+diff -ruN linux-7.0.12/tools/hardening/hdn-admin-broker.c linux-7.0.12-hdn/tools/hardening/hdn-admin-broker.c
 --- linux-7.0.12/tools/hardening/hdn-admin-broker.c	1969-12-31 18:00:00.000000000 -0600
 +++ linux-7.0.12-hdn/tools/hardening/hdn-admin-broker.c	2026-06-25 14:22:01.675121694 -0500
 @@ -0,0 +1,948 @@
@@ -20508,7 +20628,7 @@ diff -urN linux-7.0.12/tools/hardening/hdn-admin-broker.c linux-7.0.12-hdn/tools
 +	free_broker_policy(&policy);
 +	return ret;
 +}
-diff -urN linux-7.0.12/tools/hardening/hdn-approval-token.c linux-7.0.12-hdn/tools/hardening/hdn-approval-token.c
+diff -ruN linux-7.0.12/tools/hardening/hdn-approval-token.c linux-7.0.12-hdn/tools/hardening/hdn-approval-token.c
 --- linux-7.0.12/tools/hardening/hdn-approval-token.c	1969-12-31 18:00:00.000000000 -0600
 +++ linux-7.0.12-hdn/tools/hardening/hdn-approval-token.c	2026-06-25 14:33:52.970905704 -0500
 @@ -0,0 +1,461 @@
@@ -20973,7 +21093,7 @@ diff -urN linux-7.0.12/tools/hardening/hdn-approval-token.c linux-7.0.12-hdn/too
 +	usage(argv[0]);
 +	return 2;
 +}
-diff -urN linux-7.0.12/tools/hardening/hdn-auth-prompt.c linux-7.0.12-hdn/tools/hardening/hdn-auth-prompt.c
+diff -ruN linux-7.0.12/tools/hardening/hdn-auth-prompt.c linux-7.0.12-hdn/tools/hardening/hdn-auth-prompt.c
 --- linux-7.0.12/tools/hardening/hdn-auth-prompt.c	1969-12-31 18:00:00.000000000 -0600
 +++ linux-7.0.12-hdn/tools/hardening/hdn-auth-prompt.c	2026-06-25 19:07:53.777086915 -0500
 @@ -0,0 +1,336 @@
@@ -21313,7 +21433,7 @@ diff -urN linux-7.0.12/tools/hardening/hdn-auth-prompt.c linux-7.0.12-hdn/tools/
 +	free(blob);
 +	return ret;
 +}
-diff -urN linux-7.0.12/tools/hardening/hdn-control-center.c linux-7.0.12-hdn/tools/hardening/hdn-control-center.c
+diff -ruN linux-7.0.12/tools/hardening/hdn-control-center.c linux-7.0.12-hdn/tools/hardening/hdn-control-center.c
 --- linux-7.0.12/tools/hardening/hdn-control-center.c	1969-12-31 18:00:00.000000000 -0600
 +++ linux-7.0.12-hdn/tools/hardening/hdn-control-center.c	2026-06-26 16:47:32.617140391 -0500
 @@ -0,0 +1,191 @@
@@ -21508,7 +21628,7 @@ diff -urN linux-7.0.12/tools/hardening/hdn-control-center.c linux-7.0.12-hdn/too
 +	usage(argv[0]);
 +	return 2;
 +}
-diff -urN linux-7.0.12/tools/hardening/hdn-desktop-action.c linux-7.0.12-hdn/tools/hardening/hdn-desktop-action.c
+diff -ruN linux-7.0.12/tools/hardening/hdn-desktop-action.c linux-7.0.12-hdn/tools/hardening/hdn-desktop-action.c
 --- linux-7.0.12/tools/hardening/hdn-desktop-action.c	1969-12-31 18:00:00.000000000 -0600
 +++ linux-7.0.12-hdn/tools/hardening/hdn-desktop-action.c	2026-06-26 01:21:39.011840742 -0500
 @@ -0,0 +1,409 @@
@@ -21921,7 +22041,7 @@ diff -urN linux-7.0.12/tools/hardening/hdn-desktop-action.c linux-7.0.12-hdn/too
 +	free_config(&config);
 +	return ret ? 1 : 0;
 +}
-diff -urN linux-7.0.12/tools/hardening/hdn-desktop-daemon.c linux-7.0.12-hdn/tools/hardening/hdn-desktop-daemon.c
+diff -ruN linux-7.0.12/tools/hardening/hdn-desktop-daemon.c linux-7.0.12-hdn/tools/hardening/hdn-desktop-daemon.c
 --- linux-7.0.12/tools/hardening/hdn-desktop-daemon.c	1969-12-31 18:00:00.000000000 -0600
 +++ linux-7.0.12-hdn/tools/hardening/hdn-desktop-daemon.c	2026-06-26 01:54:17.703662617 -0500
 @@ -0,0 +1,458 @@
@@ -22383,7 +22503,7 @@ diff -urN linux-7.0.12/tools/hardening/hdn-desktop-daemon.c linux-7.0.12-hdn/too
 +	free_config(&config);
 +	return ret ? 1 : 0;
 +}
-diff -urN linux-7.0.12/tools/hardening/hdn-event-decode.c linux-7.0.12-hdn/tools/hardening/hdn-event-decode.c
+diff -ruN linux-7.0.12/tools/hardening/hdn-event-decode.c linux-7.0.12-hdn/tools/hardening/hdn-event-decode.c
 --- linux-7.0.12/tools/hardening/hdn-event-decode.c	1969-12-31 18:00:00.000000000 -0600
 +++ linux-7.0.12-hdn/tools/hardening/hdn-event-decode.c	2026-06-26 15:55:03.537405568 -0500
 @@ -0,0 +1,907 @@
@@ -23294,7 +23414,7 @@ diff -urN linux-7.0.12/tools/hardening/hdn-event-decode.c linux-7.0.12-hdn/tools
 +	usage(argv[0]);
 +	return 2;
 +}
-diff -urN linux-7.0.12/tools/hardening/hdn-image-seal.c linux-7.0.12-hdn/tools/hardening/hdn-image-seal.c
+diff -ruN linux-7.0.12/tools/hardening/hdn-image-seal.c linux-7.0.12-hdn/tools/hardening/hdn-image-seal.c
 --- linux-7.0.12/tools/hardening/hdn-image-seal.c	1969-12-31 18:00:00.000000000 -0600
 +++ linux-7.0.12-hdn/tools/hardening/hdn-image-seal.c	2026-06-25 15:18:48.557280910 -0500
 @@ -0,0 +1,417 @@
@@ -23715,7 +23835,7 @@ diff -urN linux-7.0.12/tools/hardening/hdn-image-seal.c linux-7.0.12-hdn/tools/h
 +	usage(argv[0]);
 +	return 2;
 +}
-diff -urN linux-7.0.12/tools/hardening/hdn-package-hook.c linux-7.0.12-hdn/tools/hardening/hdn-package-hook.c
+diff -ruN linux-7.0.12/tools/hardening/hdn-package-hook.c linux-7.0.12-hdn/tools/hardening/hdn-package-hook.c
 --- linux-7.0.12/tools/hardening/hdn-package-hook.c	1969-12-31 18:00:00.000000000 -0600
 +++ linux-7.0.12-hdn/tools/hardening/hdn-package-hook.c	2026-06-25 15:50:47.741586264 -0500
 @@ -0,0 +1,420 @@
@@ -24139,7 +24259,7 @@ diff -urN linux-7.0.12/tools/hardening/hdn-package-hook.c linux-7.0.12-hdn/tools
 +	free_config(&config);
 +	return ret ? 1 : 0;
 +}
-diff -urN linux-7.0.12/tools/hardening/hdn-policy-learn.c linux-7.0.12-hdn/tools/hardening/hdn-policy-learn.c
+diff -ruN linux-7.0.12/tools/hardening/hdn-policy-learn.c linux-7.0.12-hdn/tools/hardening/hdn-policy-learn.c
 --- linux-7.0.12/tools/hardening/hdn-policy-learn.c	1969-12-31 18:00:00.000000000 -0600
 +++ linux-7.0.12-hdn/tools/hardening/hdn-policy-learn.c	2026-06-26 14:00:35.182043147 -0500
 @@ -0,0 +1,846 @@
@@ -24989,7 +25109,7 @@ diff -urN linux-7.0.12/tools/hardening/hdn-policy-learn.c linux-7.0.12-hdn/tools
 +	usage(argv[0]);
 +	return 2;
 +}
-diff -urN linux-7.0.12/tools/hardening/hdn-policy-merge.c linux-7.0.12-hdn/tools/hardening/hdn-policy-merge.c
+diff -ruN linux-7.0.12/tools/hardening/hdn-policy-merge.c linux-7.0.12-hdn/tools/hardening/hdn-policy-merge.c
 --- linux-7.0.12/tools/hardening/hdn-policy-merge.c	1969-12-31 18:00:00.000000000 -0600
 +++ linux-7.0.12-hdn/tools/hardening/hdn-policy-merge.c	2026-06-26 14:00:35.178043147 -0500
 @@ -0,0 +1,633 @@
@@ -25626,7 +25746,7 @@ diff -urN linux-7.0.12/tools/hardening/hdn-policy-merge.c linux-7.0.12-hdn/tools
 +
 +	return 0;
 +}
-diff -urN linux-7.0.12/tools/hardening/hdn-policy-workflow.c linux-7.0.12-hdn/tools/hardening/hdn-policy-workflow.c
+diff -ruN linux-7.0.12/tools/hardening/hdn-policy-workflow.c linux-7.0.12-hdn/tools/hardening/hdn-policy-workflow.c
 --- linux-7.0.12/tools/hardening/hdn-policy-workflow.c	1969-12-31 18:00:00.000000000 -0600
 +++ linux-7.0.12-hdn/tools/hardening/hdn-policy-workflow.c	2026-06-26 17:08:38.845016410 -0500
 @@ -0,0 +1,525 @@
@@ -26155,7 +26275,7 @@ diff -urN linux-7.0.12/tools/hardening/hdn-policy-workflow.c linux-7.0.12-hdn/to
 +	free_config(&config);
 +	return ret;
 +}
-diff -urN linux-7.0.12/tools/hardening/hdn-policy.c linux-7.0.12-hdn/tools/hardening/hdn-policy.c
+diff -ruN linux-7.0.12/tools/hardening/hdn-policy.c linux-7.0.12-hdn/tools/hardening/hdn-policy.c
 --- linux-7.0.12/tools/hardening/hdn-policy.c	1969-12-31 18:00:00.000000000 -0600
 +++ linux-7.0.12-hdn/tools/hardening/hdn-policy.c	2026-06-26 14:00:35.178043147 -0500
 @@ -0,0 +1,2047 @@
@@ -28206,7 +28326,7 @@ diff -urN linux-7.0.12/tools/hardening/hdn-policy.c linux-7.0.12-hdn/tools/harde
 +
 +	return 0;
 +}
-diff -urN linux-7.0.12/tools/hardening/hdn-prompt-describe.c linux-7.0.12-hdn/tools/hardening/hdn-prompt-describe.c
+diff -ruN linux-7.0.12/tools/hardening/hdn-prompt-describe.c linux-7.0.12-hdn/tools/hardening/hdn-prompt-describe.c
 --- linux-7.0.12/tools/hardening/hdn-prompt-describe.c	1969-12-31 18:00:00.000000000 -0600
 +++ linux-7.0.12-hdn/tools/hardening/hdn-prompt-describe.c	2026-06-25 15:27:31.461346200 -0500
 @@ -0,0 +1,417 @@
@@ -28627,7 +28747,7 @@ diff -urN linux-7.0.12/tools/hardening/hdn-prompt-describe.c linux-7.0.12-hdn/to
 +	free_config(&config);
 +	return ret;
 +}
-diff -urN linux-7.0.12/tools/hardening/hdn-prompt-dispatch.c linux-7.0.12-hdn/tools/hardening/hdn-prompt-dispatch.c
+diff -ruN linux-7.0.12/tools/hardening/hdn-prompt-dispatch.c linux-7.0.12-hdn/tools/hardening/hdn-prompt-dispatch.c
 --- linux-7.0.12/tools/hardening/hdn-prompt-dispatch.c	1969-12-31 18:00:00.000000000 -0600
 +++ linux-7.0.12-hdn/tools/hardening/hdn-prompt-dispatch.c	2026-06-25 15:09:00.693226933 -0500
 @@ -0,0 +1,673 @@
@@ -29304,7 +29424,7 @@ diff -urN linux-7.0.12/tools/hardening/hdn-prompt-dispatch.c linux-7.0.12-hdn/to
 +	usage(argv[0]);
 +	return 2;
 +}
-diff -urN linux-7.0.12/tools/hardening/hdn-prompt-portal.c linux-7.0.12-hdn/tools/hardening/hdn-prompt-portal.c
+diff -ruN linux-7.0.12/tools/hardening/hdn-prompt-portal.c linux-7.0.12-hdn/tools/hardening/hdn-prompt-portal.c
 --- linux-7.0.12/tools/hardening/hdn-prompt-portal.c	1969-12-31 18:00:00.000000000 -0600
 +++ linux-7.0.12-hdn/tools/hardening/hdn-prompt-portal.c	2026-06-25 19:48:04.286309168 -0500
 @@ -0,0 +1,407 @@
@@ -29715,7 +29835,7 @@ diff -urN linux-7.0.12/tools/hardening/hdn-prompt-portal.c linux-7.0.12-hdn/tool
 +	free_config(&config);
 +	return ret ? 1 : 0;
 +}
-diff -urN linux-7.0.12/tools/hardening/hdn-prompt-session.c linux-7.0.12-hdn/tools/hardening/hdn-prompt-session.c
+diff -ruN linux-7.0.12/tools/hardening/hdn-prompt-session.c linux-7.0.12-hdn/tools/hardening/hdn-prompt-session.c
 --- linux-7.0.12/tools/hardening/hdn-prompt-session.c	1969-12-31 18:00:00.000000000 -0600
 +++ linux-7.0.12-hdn/tools/hardening/hdn-prompt-session.c	2026-06-25 15:37:03.259739192 -0500
 @@ -0,0 +1,648 @@
@@ -30367,7 +30487,7 @@ diff -urN linux-7.0.12/tools/hardening/hdn-prompt-session.c linux-7.0.12-hdn/too
 +	free_config(&config);
 +	return ret ? 1 : 0;
 +}
-diff -urN linux-7.0.12/tools/hardening/hdn-recovery-action.c linux-7.0.12-hdn/tools/hardening/hdn-recovery-action.c
+diff -ruN linux-7.0.12/tools/hardening/hdn-recovery-action.c linux-7.0.12-hdn/tools/hardening/hdn-recovery-action.c
 --- linux-7.0.12/tools/hardening/hdn-recovery-action.c	1969-12-31 18:00:00.000000000 -0600
 +++ linux-7.0.12-hdn/tools/hardening/hdn-recovery-action.c	2026-06-25 14:45:56.003761215 -0500
 @@ -0,0 +1,425 @@
@@ -30796,7 +30916,7 @@ diff -urN linux-7.0.12/tools/hardening/hdn-recovery-action.c linux-7.0.12-hdn/to
 +	usage(argv[0]);
 +	return 2;
 +}
-diff -urN linux-7.0.12/tools/hardening/hdn-recovery-describe.c linux-7.0.12-hdn/tools/hardening/hdn-recovery-describe.c
+diff -ruN linux-7.0.12/tools/hardening/hdn-recovery-describe.c linux-7.0.12-hdn/tools/hardening/hdn-recovery-describe.c
 --- linux-7.0.12/tools/hardening/hdn-recovery-describe.c	1969-12-31 18:00:00.000000000 -0600
 +++ linux-7.0.12-hdn/tools/hardening/hdn-recovery-describe.c	2026-06-25 15:43:51.760763152 -0500
 @@ -0,0 +1,416 @@
@@ -31216,7 +31336,7 @@ diff -urN linux-7.0.12/tools/hardening/hdn-recovery-describe.c linux-7.0.12-hdn/
 +	free_config(&config);
 +	return ret;
 +}
-diff -urN linux-7.0.12/tools/hardening/hdn-recovery-portal.c linux-7.0.12-hdn/tools/hardening/hdn-recovery-portal.c
+diff -ruN linux-7.0.12/tools/hardening/hdn-recovery-portal.c linux-7.0.12-hdn/tools/hardening/hdn-recovery-portal.c
 --- linux-7.0.12/tools/hardening/hdn-recovery-portal.c	1969-12-31 18:00:00.000000000 -0600
 +++ linux-7.0.12-hdn/tools/hardening/hdn-recovery-portal.c	2026-06-25 19:57:10.274597504 -0500
 @@ -0,0 +1,410 @@
@@ -31630,7 +31750,7 @@ diff -urN linux-7.0.12/tools/hardening/hdn-recovery-portal.c linux-7.0.12-hdn/to
 +	free_config(&config);
 +	return ret ? 1 : 0;
 +}
-diff -urN linux-7.0.12/tools/hardening/hdn-recovery-prompt.c linux-7.0.12-hdn/tools/hardening/hdn-recovery-prompt.c
+diff -ruN linux-7.0.12/tools/hardening/hdn-recovery-prompt.c linux-7.0.12-hdn/tools/hardening/hdn-recovery-prompt.c
 --- linux-7.0.12/tools/hardening/hdn-recovery-prompt.c	1969-12-31 18:00:00.000000000 -0600
 +++ linux-7.0.12-hdn/tools/hardening/hdn-recovery-prompt.c	2026-06-25 19:17:10.275783092 -0500
 @@ -0,0 +1,336 @@
@@ -31970,7 +32090,7 @@ diff -urN linux-7.0.12/tools/hardening/hdn-recovery-prompt.c linux-7.0.12-hdn/to
 +	free(blob);
 +	return ret;
 +}
-diff -urN linux-7.0.12/tools/hardening/hdn-recovery-session.c linux-7.0.12-hdn/tools/hardening/hdn-recovery-session.c
+diff -ruN linux-7.0.12/tools/hardening/hdn-recovery-session.c linux-7.0.12-hdn/tools/hardening/hdn-recovery-session.c
 --- linux-7.0.12/tools/hardening/hdn-recovery-session.c	1969-12-31 18:00:00.000000000 -0600
 +++ linux-7.0.12-hdn/tools/hardening/hdn-recovery-session.c	2026-06-25 16:03:03.839950612 -0500
 @@ -0,0 +1,652 @@
@@ -32626,7 +32746,7 @@ diff -urN linux-7.0.12/tools/hardening/hdn-recovery-session.c linux-7.0.12-hdn/t
 +	free_config(&config);
 +	return ret ? 1 : 0;
 +}
-diff -urN linux-7.0.12/tools/hardening/hdn-rofs-apply.c linux-7.0.12-hdn/tools/hardening/hdn-rofs-apply.c
+diff -ruN linux-7.0.12/tools/hardening/hdn-rofs-apply.c linux-7.0.12-hdn/tools/hardening/hdn-rofs-apply.c
 --- linux-7.0.12/tools/hardening/hdn-rofs-apply.c	1969-12-31 18:00:00.000000000 -0600
 +++ linux-7.0.12-hdn/tools/hardening/hdn-rofs-apply.c	2026-06-26 15:22:38.141586930 -0500
 @@ -0,0 +1,387 @@
@@ -33017,7 +33137,7 @@ diff -urN linux-7.0.12/tools/hardening/hdn-rofs-apply.c linux-7.0.12-hdn/tools/h
 +
 +	return ret ? 1 : 0;
 +}
-diff -urN linux-7.0.12/tools/hardening/hdn-rofs-transaction.c linux-7.0.12-hdn/tools/hardening/hdn-rofs-transaction.c
+diff -ruN linux-7.0.12/tools/hardening/hdn-rofs-transaction.c linux-7.0.12-hdn/tools/hardening/hdn-rofs-transaction.c
 --- linux-7.0.12/tools/hardening/hdn-rofs-transaction.c	1969-12-31 18:00:00.000000000 -0600
 +++ linux-7.0.12-hdn/tools/hardening/hdn-rofs-transaction.c	2026-06-25 12:29:29.811541448 -0500
 @@ -0,0 +1,104 @@
@@ -33125,7 +33245,7 @@ diff -urN linux-7.0.12/tools/hardening/hdn-rofs-transaction.c linux-7.0.12-hdn/t
 +
 +	return command_status;
 +}
-diff -urN linux-7.0.12/tools/hardening/hdn-status.c linux-7.0.12-hdn/tools/hardening/hdn-status.c
+diff -ruN linux-7.0.12/tools/hardening/hdn-status.c linux-7.0.12-hdn/tools/hardening/hdn-status.c
 --- linux-7.0.12/tools/hardening/hdn-status.c	1969-12-31 18:00:00.000000000 -0600
 +++ linux-7.0.12-hdn/tools/hardening/hdn-status.c	2026-06-26 16:14:15.637291350 -0500
 @@ -0,0 +1,920 @@
@@ -34049,7 +34169,7 @@ diff -urN linux-7.0.12/tools/hardening/hdn-status.c linux-7.0.12-hdn/tools/harde
 +	free_expectations(expectations, expectation_count);
 +	return 2;
 +}
-diff -urN linux-7.0.12/tools/hardening/hdn-system-transaction.c linux-7.0.12-hdn/tools/hardening/hdn-system-transaction.c
+diff -ruN linux-7.0.12/tools/hardening/hdn-system-transaction.c linux-7.0.12-hdn/tools/hardening/hdn-system-transaction.c
 --- linux-7.0.12/tools/hardening/hdn-system-transaction.c	1969-12-31 18:00:00.000000000 -0600
 +++ linux-7.0.12-hdn/tools/hardening/hdn-system-transaction.c	2026-06-25 14:38:11.163196929 -0500
 @@ -0,0 +1,413 @@
@@ -34466,7 +34586,7 @@ diff -urN linux-7.0.12/tools/hardening/hdn-system-transaction.c linux-7.0.12-hdn
 +	usage(argv[0]);
 +	return 2;
 +}
-diff -urN linux-7.0.12/tools/hardening/image-seals.conf linux-7.0.12-hdn/tools/hardening/image-seals.conf
+diff -ruN linux-7.0.12/tools/hardening/image-seals.conf linux-7.0.12-hdn/tools/hardening/image-seals.conf
 --- linux-7.0.12/tools/hardening/image-seals.conf	1969-12-31 18:00:00.000000000 -0600
 +++ linux-7.0.12-hdn/tools/hardening/image-seals.conf	2026-06-25 15:18:48.557280910 -0500
 @@ -0,0 +1,13 @@
@@ -34483,7 +34603,7 @@ diff -urN linux-7.0.12/tools/hardening/image-seals.conf linux-7.0.12-hdn/tools/h
 +
 +seal default policy-commit /usr/lib/hdn/policies/default.hdn
 +seal default rofs-apply /etc/hdn/readonly-mounts.conf
-diff -urN linux-7.0.12/tools/hardening/package-hooks.conf linux-7.0.12-hdn/tools/hardening/package-hooks.conf
+diff -ruN linux-7.0.12/tools/hardening/package-hooks.conf linux-7.0.12-hdn/tools/hardening/package-hooks.conf
 --- linux-7.0.12/tools/hardening/package-hooks.conf	1969-12-31 18:00:00.000000000 -0600
 +++ linux-7.0.12-hdn/tools/hardening/package-hooks.conf	2026-06-25 15:50:47.741586264 -0500
 @@ -0,0 +1,11 @@
@@ -34498,7 +34618,7 @@ diff -urN linux-7.0.12/tools/hardening/package-hooks.conf linux-7.0.12-hdn/tools
 +
 +hook package-update system-transaction package-update
 +hook image-seal-default image-seal default
-diff -urN linux-7.0.12/tools/hardening/package-manager-hooks/apt/99-hdn-package-update linux-7.0.12-hdn/tools/hardening/package-manager-hooks/apt/99-hdn-package-update
+diff -ruN linux-7.0.12/tools/hardening/package-manager-hooks/apt/99-hdn-package-update linux-7.0.12-hdn/tools/hardening/package-manager-hooks/apt/99-hdn-package-update
 --- linux-7.0.12/tools/hardening/package-manager-hooks/apt/99-hdn-package-update	1969-12-31 18:00:00.000000000 -0600
 +++ linux-7.0.12-hdn/tools/hardening/package-manager-hooks/apt/99-hdn-package-update	2026-06-25 16:17:23.445968454 -0500
 @@ -0,0 +1,8 @@
@@ -34510,7 +34630,7 @@ diff -urN linux-7.0.12/tools/hardening/package-manager-hooks/apt/99-hdn-package-
 +DPkg::Post-Invoke {
 +	"/usr/libexec/hdn-package-hook package-update";
 +};
-diff -urN linux-7.0.12/tools/hardening/package-manager-hooks/dnf/99-hdn-package-update.action linux-7.0.12-hdn/tools/hardening/package-manager-hooks/dnf/99-hdn-package-update.action
+diff -ruN linux-7.0.12/tools/hardening/package-manager-hooks/dnf/99-hdn-package-update.action linux-7.0.12-hdn/tools/hardening/package-manager-hooks/dnf/99-hdn-package-update.action
 --- linux-7.0.12/tools/hardening/package-manager-hooks/dnf/99-hdn-package-update.action	1969-12-31 18:00:00.000000000 -0600
 +++ linux-7.0.12-hdn/tools/hardening/package-manager-hooks/dnf/99-hdn-package-update.action	2026-06-26 15:35:54.873539136 -0500
 @@ -0,0 +1,9 @@
@@ -34523,7 +34643,7 @@ diff -urN linux-7.0.12/tools/hardening/package-manager-hooks/dnf/99-hdn-package-
 +# workers, broker tokens, and helper paths remain in root-owned HDN config.
 +
 +*:any:/usr/libexec/hdn-package-hook package-update
-diff -urN linux-7.0.12/tools/hardening/package-manager-hooks/dnf5/99-hdn-package-update.actions linux-7.0.12-hdn/tools/hardening/package-manager-hooks/dnf5/99-hdn-package-update.actions
+diff -ruN linux-7.0.12/tools/hardening/package-manager-hooks/dnf5/99-hdn-package-update.actions linux-7.0.12-hdn/tools/hardening/package-manager-hooks/dnf5/99-hdn-package-update.actions
 --- linux-7.0.12/tools/hardening/package-manager-hooks/dnf5/99-hdn-package-update.actions	1969-12-31 18:00:00.000000000 -0600
 +++ linux-7.0.12-hdn/tools/hardening/package-manager-hooks/dnf5/99-hdn-package-update.actions	2026-06-26 15:35:54.873539136 -0500
 @@ -0,0 +1,11 @@
@@ -34538,7 +34658,7 @@ diff -urN linux-7.0.12/tools/hardening/package-manager-hooks/dnf5/99-hdn-package
 +# product reseal hook fails.
 +
 +post_transaction:::enabled=host-only raise_error=1:/usr/libexec/hdn-package-hook package-update
-diff -urN linux-7.0.12/tools/hardening/package-manager-hooks/pacman/99-hdn-package-update.hook linux-7.0.12-hdn/tools/hardening/package-manager-hooks/pacman/99-hdn-package-update.hook
+diff -ruN linux-7.0.12/tools/hardening/package-manager-hooks/pacman/99-hdn-package-update.hook linux-7.0.12-hdn/tools/hardening/package-manager-hooks/pacman/99-hdn-package-update.hook
 --- linux-7.0.12/tools/hardening/package-manager-hooks/pacman/99-hdn-package-update.hook	1969-12-31 18:00:00.000000000 -0600
 +++ linux-7.0.12-hdn/tools/hardening/package-manager-hooks/pacman/99-hdn-package-update.hook	2026-06-25 16:17:23.445968454 -0500
 @@ -0,0 +1,17 @@
@@ -34559,7 +34679,7 @@ diff -urN linux-7.0.12/tools/hardening/package-manager-hooks/pacman/99-hdn-packa
 +When = PostTransaction
 +Exec = /usr/libexec/hdn-package-hook package-update
 +AbortOnFail
-diff -urN linux-7.0.12/tools/hardening/package-manager-hooks/systemd/hdn-image-seal.service linux-7.0.12-hdn/tools/hardening/package-manager-hooks/systemd/hdn-image-seal.service
+diff -ruN linux-7.0.12/tools/hardening/package-manager-hooks/systemd/hdn-image-seal.service linux-7.0.12-hdn/tools/hardening/package-manager-hooks/systemd/hdn-image-seal.service
 --- linux-7.0.12/tools/hardening/package-manager-hooks/systemd/hdn-image-seal.service	1969-12-31 18:00:00.000000000 -0600
 +++ linux-7.0.12-hdn/tools/hardening/package-manager-hooks/systemd/hdn-image-seal.service	2026-06-25 16:17:23.445968454 -0500
 @@ -0,0 +1,17 @@
@@ -34580,7 +34700,7 @@ diff -urN linux-7.0.12/tools/hardening/package-manager-hooks/systemd/hdn-image-s
 +[Service]
 +Type=oneshot
 +ExecStart=/usr/libexec/hdn-package-hook image-seal-default
-diff -urN linux-7.0.12/tools/hardening/policy-workflows.conf linux-7.0.12-hdn/tools/hardening/policy-workflows.conf
+diff -ruN linux-7.0.12/tools/hardening/policy-workflows.conf linux-7.0.12-hdn/tools/hardening/policy-workflows.conf
 --- linux-7.0.12/tools/hardening/policy-workflows.conf	1969-12-31 18:00:00.000000000 -0600
 +++ linux-7.0.12-hdn/tools/hardening/policy-workflows.conf	2026-06-26 17:08:52.373009295 -0500
 @@ -0,0 +1,12 @@
@@ -34596,7 +34716,7 @@ diff -urN linux-7.0.12/tools/hardening/policy-workflows.conf linux-7.0.12-hdn/to
 +# event spool locations.
 +#
 +# workflow default /etc/hdn/policies/base.policy /var/lib/hdn/events.log /var/lib/hdn/policy-review/default.frag /var/lib/hdn/policy-review/candidate.policy
-diff -urN linux-7.0.12/tools/hardening/prompt-actions.conf linux-7.0.12-hdn/tools/hardening/prompt-actions.conf
+diff -ruN linux-7.0.12/tools/hardening/prompt-actions.conf linux-7.0.12-hdn/tools/hardening/prompt-actions.conf
 --- linux-7.0.12/tools/hardening/prompt-actions.conf	1969-12-31 18:00:00.000000000 -0600
 +++ linux-7.0.12-hdn/tools/hardening/prompt-actions.conf	2026-06-25 15:09:00.693226933 -0500
 @@ -0,0 +1,16 @@
@@ -34616,7 +34736,7 @@ diff -urN linux-7.0.12/tools/hardening/prompt-actions.conf linux-7.0.12-hdn/tool
 +action package-update rofs-transaction /usr -- /usr/libexec/hdn-package-worker
 +action image-update rofs-transaction /usr -- /usr/libexec/hdn-image-worker
 +action policy-rollback policy-rollback
-diff -urN linux-7.0.12/tools/hardening/prompt-metadata.conf linux-7.0.12-hdn/tools/hardening/prompt-metadata.conf
+diff -ruN linux-7.0.12/tools/hardening/prompt-metadata.conf linux-7.0.12-hdn/tools/hardening/prompt-metadata.conf
 --- linux-7.0.12/tools/hardening/prompt-metadata.conf	1969-12-31 18:00:00.000000000 -0600
 +++ linux-7.0.12-hdn/tools/hardening/prompt-metadata.conf	2026-06-25 15:27:31.461346200 -0500
 @@ -0,0 +1,29 @@
@@ -34649,7 +34769,7 @@ diff -urN linux-7.0.12/tools/hardening/prompt-metadata.conf linux-7.0.12-hdn/too
 +prompt policy-rollback message The previous signed hardening policy will become active.
 +prompt policy-rollback consequence Current policy changes are reverted through the recovery path.
 +prompt policy-rollback risk recovery
-diff -urN linux-7.0.12/tools/hardening/prompt-portal.conf linux-7.0.12-hdn/tools/hardening/prompt-portal.conf
+diff -ruN linux-7.0.12/tools/hardening/prompt-portal.conf linux-7.0.12-hdn/tools/hardening/prompt-portal.conf
 --- linux-7.0.12/tools/hardening/prompt-portal.conf	1969-12-31 18:00:00.000000000 -0600
 +++ linux-7.0.12-hdn/tools/hardening/prompt-portal.conf	2026-06-25 19:48:10.114522886 -0500
 @@ -0,0 +1,17 @@
@@ -34670,7 +34790,7 @@ diff -urN linux-7.0.12/tools/hardening/prompt-portal.conf linux-7.0.12-hdn/tools
 +action package-update package-update
 +action image-update image-update
 +action policy-rollback policy-rollback
-diff -urN linux-7.0.12/tools/hardening/prompt-session.conf linux-7.0.12-hdn/tools/hardening/prompt-session.conf
+diff -ruN linux-7.0.12/tools/hardening/prompt-session.conf linux-7.0.12-hdn/tools/hardening/prompt-session.conf
 --- linux-7.0.12/tools/hardening/prompt-session.conf	1969-12-31 18:00:00.000000000 -0600
 +++ linux-7.0.12-hdn/tools/hardening/prompt-session.conf	2026-06-25 15:37:03.259739192 -0500
 @@ -0,0 +1,12 @@
@@ -34686,7 +34806,7 @@ diff -urN linux-7.0.12/tools/hardening/prompt-session.conf linux-7.0.12-hdn/tool
 +describe-helper /usr/libexec/hdn-prompt-describe
 +auth-helper /usr/libexec/hdn-auth-prompt
 +dispatch-helper /usr/libexec/hdn-prompt-dispatch
-diff -urN linux-7.0.12/tools/hardening/readonly-mounts.conf linux-7.0.12-hdn/tools/hardening/readonly-mounts.conf
+diff -ruN linux-7.0.12/tools/hardening/readonly-mounts.conf linux-7.0.12-hdn/tools/hardening/readonly-mounts.conf
 --- linux-7.0.12/tools/hardening/readonly-mounts.conf	1969-12-31 18:00:00.000000000 -0600
 +++ linux-7.0.12-hdn/tools/hardening/readonly-mounts.conf	2026-06-26 15:22:53.181585100 -0500
 @@ -0,0 +1,20 @@
@@ -34710,7 +34830,7 @@ diff -urN linux-7.0.12/tools/hardening/readonly-mounts.conf linux-7.0.12-hdn/too
 +optional /usr/local
 +optional /var/lib/flatpak
 +optional /var/lib/snapd
-diff -urN linux-7.0.12/tools/hardening/recovery-actions.conf linux-7.0.12-hdn/tools/hardening/recovery-actions.conf
+diff -ruN linux-7.0.12/tools/hardening/recovery-actions.conf linux-7.0.12-hdn/tools/hardening/recovery-actions.conf
 --- linux-7.0.12/tools/hardening/recovery-actions.conf	1969-12-31 18:00:00.000000000 -0600
 +++ linux-7.0.12-hdn/tools/hardening/recovery-actions.conf	2026-06-25 14:52:33.660234776 -0500
 @@ -0,0 +1,11 @@
@@ -34725,7 +34845,7 @@ diff -urN linux-7.0.12/tools/hardening/recovery-actions.conf linux-7.0.12-hdn/to
 +
 +action policy-rollback policy-rollback
 +action package-repair system-transaction package-update
-diff -urN linux-7.0.12/tools/hardening/recovery-metadata.conf linux-7.0.12-hdn/tools/hardening/recovery-metadata.conf
+diff -ruN linux-7.0.12/tools/hardening/recovery-metadata.conf linux-7.0.12-hdn/tools/hardening/recovery-metadata.conf
 --- linux-7.0.12/tools/hardening/recovery-metadata.conf	1969-12-31 18:00:00.000000000 -0600
 +++ linux-7.0.12-hdn/tools/hardening/recovery-metadata.conf	2026-06-25 15:43:51.764763308 -0500
 @@ -0,0 +1,24 @@
@@ -34753,7 +34873,7 @@ diff -urN linux-7.0.12/tools/hardening/recovery-metadata.conf linux-7.0.12-hdn/t
 +recovery package-repair message Run the product package repair transaction.
 +recovery package-repair consequence The protected system mount is temporarily writable and then resealed.
 +recovery package-repair risk repair
-diff -urN linux-7.0.12/tools/hardening/recovery-portal.conf linux-7.0.12-hdn/tools/hardening/recovery-portal.conf
+diff -ruN linux-7.0.12/tools/hardening/recovery-portal.conf linux-7.0.12-hdn/tools/hardening/recovery-portal.conf
 --- linux-7.0.12/tools/hardening/recovery-portal.conf	1969-12-31 18:00:00.000000000 -0600
 +++ linux-7.0.12-hdn/tools/hardening/recovery-portal.conf	2026-06-25 19:57:17.133317665 -0500
 @@ -0,0 +1,16 @@
@@ -34773,7 +34893,7 @@ diff -urN linux-7.0.12/tools/hardening/recovery-portal.conf linux-7.0.12-hdn/too
 +session-helper /usr/libexec/hdn-recovery-session
 +action rollback-policy policy-rollback
 +action repair-system package-repair
-diff -urN linux-7.0.12/tools/hardening/recovery-session.conf linux-7.0.12-hdn/tools/hardening/recovery-session.conf
+diff -ruN linux-7.0.12/tools/hardening/recovery-session.conf linux-7.0.12-hdn/tools/hardening/recovery-session.conf
 --- linux-7.0.12/tools/hardening/recovery-session.conf	1969-12-31 18:00:00.000000000 -0600
 +++ linux-7.0.12-hdn/tools/hardening/recovery-session.conf	2026-06-25 19:17:24.816754621 -0500
 @@ -0,0 +1,8 @@
@@ -34785,7 +34905,7 @@ diff -urN linux-7.0.12/tools/hardening/recovery-session.conf linux-7.0.12-hdn/to
 +describe-helper /usr/libexec/hdn-recovery-describe
 +confirm-helper /usr/libexec/hdn-recovery-prompt
 +action-helper /usr/libexec/hdn-recovery-action
-diff -urN linux-7.0.12/tools/hardening/system-transactions.conf linux-7.0.12-hdn/tools/hardening/system-transactions.conf
+diff -ruN linux-7.0.12/tools/hardening/system-transactions.conf linux-7.0.12-hdn/tools/hardening/system-transactions.conf
 --- linux-7.0.12/tools/hardening/system-transactions.conf	1969-12-31 18:00:00.000000000 -0600
 +++ linux-7.0.12-hdn/tools/hardening/system-transactions.conf	2026-06-25 14:41:52.922953728 -0500
 @@ -0,0 +1,12 @@
@@ -34801,7 +34921,7 @@ diff -urN linux-7.0.12/tools/hardening/system-transactions.conf linux-7.0.12-hdn
 +#
 +# Additional product-specific operations can be added by the distro image:
 +# transaction image-update /usr /usr/libexec/hdn-image-updater
-diff -urN linux-7.0.12/tools/testing/selftests/Makefile linux-7.0.12-hdn/tools/testing/selftests/Makefile
+diff -ruN linux-7.0.12/tools/testing/selftests/Makefile linux-7.0.12-hdn/tools/testing/selftests/Makefile
 --- linux-7.0.12/tools/testing/selftests/Makefile	2026-06-09 05:32:51.000000000 -0500
 +++ linux-7.0.12-hdn/tools/testing/selftests/Makefile	2026-06-22 18:32:24.069400531 -0500
 @@ -43,6 +43,7 @@
@@ -34812,7 +34932,7 @@ diff -urN linux-7.0.12/tools/testing/selftests/Makefile linux-7.0.12-hdn/tools/t
  TARGETS += hid
  TARGETS += intel_pstate
  TARGETS += iommu
-diff -urN linux-7.0.12/tools/testing/selftests/hardening/Makefile linux-7.0.12-hdn/tools/testing/selftests/hardening/Makefile
+diff -ruN linux-7.0.12/tools/testing/selftests/hardening/Makefile linux-7.0.12-hdn/tools/testing/selftests/hardening/Makefile
 --- linux-7.0.12/tools/testing/selftests/hardening/Makefile	1969-12-31 18:00:00.000000000 -0600
 +++ linux-7.0.12-hdn/tools/testing/selftests/hardening/Makefile	2026-06-26 11:00:53.087028708 -0500
 @@ -0,0 +1,9 @@
@@ -34825,7 +34945,7 @@ diff -urN linux-7.0.12/tools/testing/selftests/hardening/Makefile linux-7.0.12-h
 +LDLIBS += -pthread
 +
 +include ../lib.mk
-diff -urN linux-7.0.12/tools/testing/selftests/hardening/block-admin.policy linux-7.0.12-hdn/tools/testing/selftests/hardening/block-admin.policy
+diff -ruN linux-7.0.12/tools/testing/selftests/hardening/block-admin.policy linux-7.0.12-hdn/tools/testing/selftests/hardening/block-admin.policy
 --- linux-7.0.12/tools/testing/selftests/hardening/block-admin.policy	1969-12-31 18:00:00.000000000 -0600
 +++ linux-7.0.12-hdn/tools/testing/selftests/hardening/block-admin.policy	2026-06-25 13:26:51.536602410 -0500
 @@ -0,0 +1,13 @@
@@ -34842,7 +34962,7 @@ diff -urN linux-7.0.12/tools/testing/selftests/hardening/block-admin.policy linu
 +profile 2 block-inspector
 +
 +allow 2 POLICY_ADMIN CRED_CHANGE BLOCK_DEVICE_ACCESS
-diff -urN linux-7.0.12/tools/testing/selftests/hardening/chroot-mount.policy linux-7.0.12-hdn/tools/testing/selftests/hardening/chroot-mount.policy
+diff -ruN linux-7.0.12/tools/testing/selftests/hardening/chroot-mount.policy linux-7.0.12-hdn/tools/testing/selftests/hardening/chroot-mount.policy
 --- linux-7.0.12/tools/testing/selftests/hardening/chroot-mount.policy	1969-12-31 18:00:00.000000000 -0600
 +++ linux-7.0.12-hdn/tools/testing/selftests/hardening/chroot-mount.policy	2026-06-25 16:27:16.424639988 -0500
 @@ -0,0 +1,14 @@
@@ -34860,7 +34980,7 @@ diff -urN linux-7.0.12/tools/testing/selftests/hardening/chroot-mount.policy lin
 +
 +allow 2 MOUNT_ADMIN POLICY_ADMIN CRED_CHANGE
 +feature 2 CHROOT_CONTAINED
-diff -urN linux-7.0.12/tools/testing/selftests/hardening/cred-deny.policy linux-7.0.12-hdn/tools/testing/selftests/hardening/cred-deny.policy
+diff -ruN linux-7.0.12/tools/testing/selftests/hardening/cred-deny.policy linux-7.0.12-hdn/tools/testing/selftests/hardening/cred-deny.policy
 --- linux-7.0.12/tools/testing/selftests/hardening/cred-deny.policy	1969-12-31 18:00:00.000000000 -0600
 +++ linux-7.0.12-hdn/tools/testing/selftests/hardening/cred-deny.policy	2026-06-25 03:41:57.214835097 -0500
 @@ -0,0 +1,13 @@
@@ -34877,7 +34997,7 @@ diff -urN linux-7.0.12/tools/testing/selftests/hardening/cred-deny.policy linux-
 +profile 2 no-cred-change-root
 +
 +allow 2 POLICY_ADMIN
-diff -urN linux-7.0.12/tools/testing/selftests/hardening/execstack.policy linux-7.0.12-hdn/tools/testing/selftests/hardening/execstack.policy
+diff -ruN linux-7.0.12/tools/testing/selftests/hardening/execstack.policy linux-7.0.12-hdn/tools/testing/selftests/hardening/execstack.policy
 --- linux-7.0.12/tools/testing/selftests/hardening/execstack.policy	1969-12-31 18:00:00.000000000 -0600
 +++ linux-7.0.12-hdn/tools/testing/selftests/hardening/execstack.policy	2026-06-26 01:33:16.215782164 -0500
 @@ -0,0 +1,14 @@
@@ -34895,7 +35015,7 @@ diff -urN linux-7.0.12/tools/testing/selftests/hardening/execstack.policy linux-
 +
 +allow 2 POLICY_ADMIN CRED_CHANGE
 +mem 2 ALLOW_EXEC_STACK_ELF
-diff -urN linux-7.0.12/tools/testing/selftests/hardening/firmware.policy linux-7.0.12-hdn/tools/testing/selftests/hardening/firmware.policy
+diff -ruN linux-7.0.12/tools/testing/selftests/hardening/firmware.policy linux-7.0.12-hdn/tools/testing/selftests/hardening/firmware.policy
 --- linux-7.0.12/tools/testing/selftests/hardening/firmware.policy	1969-12-31 18:00:00.000000000 -0600
 +++ linux-7.0.12-hdn/tools/testing/selftests/hardening/firmware.policy	2026-06-25 04:19:26.915894030 -0500
 @@ -0,0 +1,16 @@
@@ -34915,7 +35035,7 @@ diff -urN linux-7.0.12/tools/testing/selftests/hardening/firmware.policy linux-7
 +audit 2 FIRMWARE_LOAD
 +
 +firmware 2 name hdn-allowed-fw.bin
-diff -urN linux-7.0.12/tools/testing/selftests/hardening/hdn_elfnote_jit.c linux-7.0.12-hdn/tools/testing/selftests/hardening/hdn_elfnote_jit.c
+diff -ruN linux-7.0.12/tools/testing/selftests/hardening/hdn_elfnote_jit.c linux-7.0.12-hdn/tools/testing/selftests/hardening/hdn_elfnote_jit.c
 --- linux-7.0.12/tools/testing/selftests/hardening/hdn_elfnote_jit.c	1969-12-31 18:00:00.000000000 -0600
 +++ linux-7.0.12-hdn/tools/testing/selftests/hardening/hdn_elfnote_jit.c	2026-06-26 11:12:01.046968436 -0500
 @@ -0,0 +1,318 @@
@@ -35237,10 +35357,10 @@ diff -urN linux-7.0.12/tools/testing/selftests/hardening/hdn_elfnote_jit.c linux
 +
 +	return 2;
 +}
-diff -urN linux-7.0.12/tools/testing/selftests/hardening/hdn_smoke.c linux-7.0.12-hdn/tools/testing/selftests/hardening/hdn_smoke.c
+diff -ruN linux-7.0.12/tools/testing/selftests/hardening/hdn_smoke.c linux-7.0.12-hdn/tools/testing/selftests/hardening/hdn_smoke.c
 --- linux-7.0.12/tools/testing/selftests/hardening/hdn_smoke.c	1969-12-31 18:00:00.000000000 -0600
-+++ linux-7.0.12-hdn/tools/testing/selftests/hardening/hdn_smoke.c	2026-06-26 17:46:21.232821188 -0500
-@@ -0,0 +1,23608 @@
++++ linux-7.0.12-hdn/tools/testing/selftests/hardening/hdn_smoke.c	2026-06-26 18:05:30.700717036 -0500
+@@ -0,0 +1,23692 @@
 +// SPDX-License-Identifier: GPL-2.0-only
 +
 +#define _GNU_SOURCE
@@ -35447,6 +35567,7 @@ diff -urN linux-7.0.12/tools/testing/selftests/hardening/hdn_smoke.c linux-7.0.1
 +#define HDN_MODPROBE_PATH "/proc/sys/kernel/modprobe"
 +#define HDN_KEXEC_LOAD_DISABLED "/proc/sys/kernel/kexec_load_disabled"
 +#define HDN_MODULES_DISABLED "/proc/sys/kernel/modules_disabled"
++#define HDN_MODPROBE_CONTEXT_CAPTURE "/hdn-modprobe-context"
 +#define HDN_MODPROBE_UNSAFE_DIR "/hdn-modprobe-unsafe"
 +#define HDN_MODPROBE_UNSAFE_PATH HDN_MODPROBE_UNSAFE_DIR "/modprobe"
 +#define HDN_SIGNED_POLICY "/default.hdn"
@@ -38843,6 +38964,47 @@ diff -urN linux-7.0.12/tools/testing/selftests/hardening/hdn_smoke.c linux-7.0.1
 +
 +	buf[len] = '\0';
 +	return 0;
++}
++
++static bool hdn_is_modprobe_invocation(int argc, char **argv)
++{
++	const char *name;
++
++	if (argc < 4 || !argv[0] || !argv[1] || !argv[2] || !argv[3])
++		return false;
++
++	name = strrchr(argv[0], '/');
++	name = name ? name + 1 : argv[0];
++
++	return !strcmp(name, "modprobe") &&
++	       !strcmp(argv[1], "-q") &&
++	       !strcmp(argv[2], "--");
++}
++
++static int hdn_modprobe_capture_main(int argc, char **argv)
++{
++	const char *request = getenv("HDN_MODULE_REQUEST");
++	const char *uid = getenv("HDN_MODULE_UID");
++	const char *euid = getenv("HDN_MODULE_EUID");
++	const char *profile = getenv("HDN_MODULE_PROFILE");
++	int fd;
++
++	fd = open(HDN_MODPROBE_CONTEXT_CAPTURE,
++		  O_WRONLY | O_CREAT | O_TRUNC | O_CLOEXEC, 0600);
++	if (fd < 0)
++		return 125;
++
++	dprintf(fd, "argc=%d\n", argc);
++	dprintf(fd, "argv1=%s\n", argv[1]);
++	dprintf(fd, "argv2=%s\n", argv[2]);
++	dprintf(fd, "argv3=%s\n", argv[3]);
++	dprintf(fd, "HDN_MODULE_REQUEST=%s\n", request ? request : "");
++	dprintf(fd, "HDN_MODULE_UID=%s\n", uid ? uid : "");
++	dprintf(fd, "HDN_MODULE_EUID=%s\n", euid ? euid : "");
++	dprintf(fd, "HDN_MODULE_PROFILE=%s\n", profile ? profile : "");
++	close(fd);
++
++	return 1;
 +}
 +
 +static int directory_entry_count(const char *path, unsigned int *count)
@@ -43630,6 +43792,42 @@ diff -urN linux-7.0.12/tools/testing/selftests/hardening/hdn_smoke.c linux-7.0.1
 +		return 2;
 +	return securityfs_events_count("authority=37 transition=43") > before ?
 +	       0 : 2;
++}
++
++static int module_autoload_context_reported(void)
++{
++	char buf[1024];
++	int saved_errno;
++	int fd;
++	int ret;
++
++	(void)unlink(HDN_MODPROBE_CONTEXT_CAPTURE);
++
++	errno = 0;
++	fd = socket(AF_INET, SOCK_STREAM | SOCK_CLOEXEC, IPPROTO_SCTP);
++	saved_errno = errno;
++	if (fd >= 0) {
++		close(fd);
++		return 1;
++	}
++	if (saved_errno != EPROTONOSUPPORT &&
++	    saved_errno != ESOCKTNOSUPPORT &&
++	    saved_errno != EAFNOSUPPORT)
++		return 2;
++
++	ret = read_text_file_small(HDN_MODPROBE_CONTEXT_CAPTURE, buf,
++				   sizeof(buf));
++	(void)unlink(HDN_MODPROBE_CONTEXT_CAPTURE);
++	if (ret)
++		return 2;
++
++	return strstr(buf, "argv1=-q\n") &&
++	       strstr(buf, "argv2=--\n") &&
++	       strstr(buf, "argv3=net-pf-2-proto-132") &&
++	       strstr(buf, "HDN_MODULE_REQUEST=net-pf-2-proto-132") &&
++	       strstr(buf, "HDN_MODULE_UID=0\n") &&
++	       strstr(buf, "HDN_MODULE_EUID=0\n") &&
++	       strstr(buf, "HDN_MODULE_PROFILE=2\n") ? 0 : 1;
 +}
 +
 +static int debugfs_access_denied(void)
@@ -58409,6 +58607,8 @@ diff -urN linux-7.0.12/tools/testing/selftests/hardening/hdn_smoke.c linux-7.0.1
 +
 +int main(int argc, char **argv)
 +{
++	if (hdn_is_modprobe_invocation(argc, argv))
++		return hdn_modprobe_capture_main(argc, argv);
 +	if (argc == 2 && !strcmp(argv[1], "--exec-sentinel"))
 +		return 42;
 +	if (argc >= 2 && !strcmp(argv[1], "--exec-args-sentinel"))
@@ -58468,7 +58668,7 @@ diff -urN linux-7.0.12/tools/testing/selftests/hardening/hdn_smoke.c linux-7.0.1
 +	if (access(HDN_STATUS, R_OK))
 +		ksft_exit_skip("hardening securityfs status not present\n");
 +
-+	ksft_set_plan(808);
++	ksft_set_plan(810);
 +	test_securityfs_status();
 +	test_symbol_test_module_load();
 +	test_securityfs_status_contains("abi_version: 77",
@@ -58541,6 +58741,10 @@ diff -urN linux-7.0.12/tools/testing/selftests/hardening/hdn_smoke.c linux-7.0.1
 +					"hardening status reports one-way module disable sysctl");
 +	test_securityfs_status_contains("mitigation_module_request_name: 1",
 +					"hardening status reports exact module request names");
++	test_securityfs_status_contains("mitigation_module_autoload_context: 1",
++					"hardening status reports module autoload context");
++	report_child_result(module_autoload_context_reported(),
++			    "modprobe helper receives bounded autoload context");
 +	test_securityfs_status_contains("mitigation_privexec_arg_stack_limits: 1",
 +					"hardening status reports privileged exec argument and stack limits");
 +	test_int_file_equals(HDN_SUID_DUMPABLE, 0,
@@ -58849,7 +59053,7 @@ diff -urN linux-7.0.12/tools/testing/selftests/hardening/hdn_smoke.c linux-7.0.1
 +
 +	ksft_finished();
 +}
-diff -urN linux-7.0.12/tools/testing/selftests/hardening/identity.policy linux-7.0.12-hdn/tools/testing/selftests/hardening/identity.policy
+diff -ruN linux-7.0.12/tools/testing/selftests/hardening/identity.policy linux-7.0.12-hdn/tools/testing/selftests/hardening/identity.policy
 --- linux-7.0.12/tools/testing/selftests/hardening/identity.policy	1969-12-31 18:00:00.000000000 -0600
 +++ linux-7.0.12-hdn/tools/testing/selftests/hardening/identity.policy	2026-06-26 14:00:44.546042427 -0500
 @@ -0,0 +1,25 @@
@@ -58878,7 +59082,7 @@ diff -urN linux-7.0.12/tools/testing/selftests/hardening/identity.policy linux-7
 +
 +exec 3 path /hdn-identity-trusted
 +exec 4 interpreter-path /hdn_smoke original-path /hdn-identity-script
-diff -urN linux-7.0.12/tools/testing/selftests/hardening/jit.policy linux-7.0.12-hdn/tools/testing/selftests/hardening/jit.policy
+diff -ruN linux-7.0.12/tools/testing/selftests/hardening/jit.policy linux-7.0.12-hdn/tools/testing/selftests/hardening/jit.policy
 --- linux-7.0.12/tools/testing/selftests/hardening/jit.policy	1969-12-31 18:00:00.000000000 -0600
 +++ linux-7.0.12-hdn/tools/testing/selftests/hardening/jit.policy	2026-06-25 03:29:42.910876294 -0500
 @@ -0,0 +1,14 @@
@@ -58896,7 +59100,7 @@ diff -urN linux-7.0.12/tools/testing/selftests/hardening/jit.policy linux-7.0.12
 +
 +allow 2 POLICY_ADMIN CRED_CHANGE
 +mem 2 ALLOW_JIT_EXEC_AFTER_WRITE
-diff -urN linux-7.0.12/tools/testing/selftests/hardening/kill.policy linux-7.0.12-hdn/tools/testing/selftests/hardening/kill.policy
+diff -ruN linux-7.0.12/tools/testing/selftests/hardening/kill.policy linux-7.0.12-hdn/tools/testing/selftests/hardening/kill.policy
 --- linux-7.0.12/tools/testing/selftests/hardening/kill.policy	1969-12-31 18:00:00.000000000 -0600
 +++ linux-7.0.12-hdn/tools/testing/selftests/hardening/kill.policy	2026-06-25 03:35:59.591001895 -0500
 @@ -0,0 +1,14 @@
@@ -58914,7 +59118,7 @@ diff -urN linux-7.0.12/tools/testing/selftests/hardening/kill.policy linux-7.0.1
 +
 +allow 2 POLICY_ADMIN CRED_CHANGE
 +response 2 KILL_MEMORY
-diff -urN linux-7.0.12/tools/testing/selftests/hardening/module-path.policy linux-7.0.12-hdn/tools/testing/selftests/hardening/module-path.policy
+diff -ruN linux-7.0.12/tools/testing/selftests/hardening/module-path.policy linux-7.0.12-hdn/tools/testing/selftests/hardening/module-path.policy
 --- linux-7.0.12/tools/testing/selftests/hardening/module-path.policy	1969-12-31 18:00:00.000000000 -0600
 +++ linux-7.0.12-hdn/tools/testing/selftests/hardening/module-path.policy	2026-06-26 14:00:44.546042427 -0500
 @@ -0,0 +1,23 @@
@@ -58941,7 +59145,7 @@ diff -urN linux-7.0.12/tools/testing/selftests/hardening/module-path.policy linu
 +audit 2 MODULE_LOAD
 +
 +module 2 path /hdn-known-module
-diff -urN linux-7.0.12/tools/testing/selftests/hardening/mount-policy.policy linux-7.0.12-hdn/tools/testing/selftests/hardening/mount-policy.policy
+diff -ruN linux-7.0.12/tools/testing/selftests/hardening/mount-policy.policy linux-7.0.12-hdn/tools/testing/selftests/hardening/mount-policy.policy
 --- linux-7.0.12/tools/testing/selftests/hardening/mount-policy.policy	1969-12-31 18:00:00.000000000 -0600
 +++ linux-7.0.12-hdn/tools/testing/selftests/hardening/mount-policy.policy	2026-06-25 05:16:38.567790001 -0500
 @@ -0,0 +1,13 @@
@@ -58958,7 +59162,7 @@ diff -urN linux-7.0.12/tools/testing/selftests/hardening/mount-policy.policy lin
 +profile 2 mount-root
 +
 +allow 2 MOUNT_ADMIN POLICY_ADMIN CRED_CHANGE
-diff -urN linux-7.0.12/tools/testing/selftests/hardening/mount-ro-policy.policy linux-7.0.12-hdn/tools/testing/selftests/hardening/mount-ro-policy.policy
+diff -ruN linux-7.0.12/tools/testing/selftests/hardening/mount-ro-policy.policy linux-7.0.12-hdn/tools/testing/selftests/hardening/mount-ro-policy.policy
 --- linux-7.0.12/tools/testing/selftests/hardening/mount-ro-policy.policy	1969-12-31 18:00:00.000000000 -0600
 +++ linux-7.0.12-hdn/tools/testing/selftests/hardening/mount-ro-policy.policy	2026-06-25 13:36:07.549563694 -0500
 @@ -0,0 +1,33 @@
@@ -58995,7 +59199,7 @@ diff -urN linux-7.0.12/tools/testing/selftests/hardening/mount-ro-policy.policy 
 +exec 6 path /hdn-admin-broker parent 2
 +exec 4 path /hdn-rofs-apply parent 6
 +exec 5 path /hdn-rofs-transaction parent 6
-diff -urN linux-7.0.12/tools/testing/selftests/hardening/namespace-only.policy linux-7.0.12-hdn/tools/testing/selftests/hardening/namespace-only.policy
+diff -ruN linux-7.0.12/tools/testing/selftests/hardening/namespace-only.policy linux-7.0.12-hdn/tools/testing/selftests/hardening/namespace-only.policy
 --- linux-7.0.12/tools/testing/selftests/hardening/namespace-only.policy	1969-12-31 18:00:00.000000000 -0600
 +++ linux-7.0.12-hdn/tools/testing/selftests/hardening/namespace-only.policy	2026-06-26 04:12:46.694901695 -0500
 @@ -0,0 +1,13 @@
@@ -59012,7 +59216,7 @@ diff -urN linux-7.0.12/tools/testing/selftests/hardening/namespace-only.policy l
 +profile 2 namespace-root
 +
 +allow 2 POLICY_ADMIN CRED_CHANGE PTRACE NAMESPACE_ADMIN
-diff -urN linux-7.0.12/tools/testing/selftests/hardening/namespace-proc-task.policy linux-7.0.12-hdn/tools/testing/selftests/hardening/namespace-proc-task.policy
+diff -ruN linux-7.0.12/tools/testing/selftests/hardening/namespace-proc-task.policy linux-7.0.12-hdn/tools/testing/selftests/hardening/namespace-proc-task.policy
 --- linux-7.0.12/tools/testing/selftests/hardening/namespace-proc-task.policy	1969-12-31 18:00:00.000000000 -0600
 +++ linux-7.0.12-hdn/tools/testing/selftests/hardening/namespace-proc-task.policy	2026-06-26 04:12:46.698901694 -0500
 @@ -0,0 +1,13 @@
@@ -59029,7 +59233,7 @@ diff -urN linux-7.0.12/tools/testing/selftests/hardening/namespace-proc-task.pol
 +profile 2 namespace-proc-task-root
 +
 +allow 2 POLICY_ADMIN CRED_CHANGE PTRACE NAMESPACE_ADMIN PROC_TASK_VIEW
-diff -urN linux-7.0.12/tools/testing/selftests/hardening/object-write.policy linux-7.0.12-hdn/tools/testing/selftests/hardening/object-write.policy
+diff -ruN linux-7.0.12/tools/testing/selftests/hardening/object-write.policy linux-7.0.12-hdn/tools/testing/selftests/hardening/object-write.policy
 --- linux-7.0.12/tools/testing/selftests/hardening/object-write.policy	1969-12-31 18:00:00.000000000 -0600
 +++ linux-7.0.12-hdn/tools/testing/selftests/hardening/object-write.policy	2026-06-26 08:56:46.223690300 -0500
 @@ -0,0 +1,69 @@
@@ -59102,7 +59306,7 @@ diff -urN linux-7.0.12/tools/testing/selftests/hardening/object-write.policy lin
 +object 2 deny-list tree /hdn-object-tree-protected
 +object 2 deny-find tree /hdn-object-tree-protected
 +object 2 deny-find tree /hdn-object-find-tree
-diff -urN linux-7.0.12/tools/testing/selftests/hardening/privexec-deny.policy linux-7.0.12-hdn/tools/testing/selftests/hardening/privexec-deny.policy
+diff -ruN linux-7.0.12/tools/testing/selftests/hardening/privexec-deny.policy linux-7.0.12-hdn/tools/testing/selftests/hardening/privexec-deny.policy
 --- linux-7.0.12/tools/testing/selftests/hardening/privexec-deny.policy	1969-12-31 18:00:00.000000000 -0600
 +++ linux-7.0.12-hdn/tools/testing/selftests/hardening/privexec-deny.policy	2026-06-25 07:01:22.208724766 -0500
 @@ -0,0 +1,15 @@
@@ -59121,7 +59325,7 @@ diff -urN linux-7.0.12/tools/testing/selftests/hardening/privexec-deny.policy li
 +
 +allow 2 POLICY_ADMIN CRED_CHANGE
 +feature 2 DENY_UNPRIVILEGED_PRIVEXEC
-diff -urN linux-7.0.12/tools/testing/selftests/hardening/proc-task.policy linux-7.0.12-hdn/tools/testing/selftests/hardening/proc-task.policy
+diff -ruN linux-7.0.12/tools/testing/selftests/hardening/proc-task.policy linux-7.0.12-hdn/tools/testing/selftests/hardening/proc-task.policy
 --- linux-7.0.12/tools/testing/selftests/hardening/proc-task.policy	1969-12-31 18:00:00.000000000 -0600
 +++ linux-7.0.12-hdn/tools/testing/selftests/hardening/proc-task.policy	2026-06-25 06:53:11.763274032 -0500
 @@ -0,0 +1,13 @@
@@ -59138,7 +59342,7 @@ diff -urN linux-7.0.12/tools/testing/selftests/hardening/proc-task.policy linux-
 +profile 2 proc-task-root
 +
 +allow 2 POLICY_ADMIN CRED_CHANGE PROC_TASK_VIEW
-diff -urN linux-7.0.12/tools/testing/selftests/hardening/process-account.policy linux-7.0.12-hdn/tools/testing/selftests/hardening/process-account.policy
+diff -ruN linux-7.0.12/tools/testing/selftests/hardening/process-account.policy linux-7.0.12-hdn/tools/testing/selftests/hardening/process-account.policy
 --- linux-7.0.12/tools/testing/selftests/hardening/process-account.policy	1969-12-31 18:00:00.000000000 -0600
 +++ linux-7.0.12-hdn/tools/testing/selftests/hardening/process-account.policy	2026-06-26 09:08:18.587625430 -0500
 @@ -0,0 +1,11 @@
@@ -59153,7 +59357,7 @@ diff -urN linux-7.0.12/tools/testing/selftests/hardening/process-account.policy 
 +
 +allow 2 POLICY_ADMIN
 +feature 2 AUDIT_PROCESS_ACCOUNT
-diff -urN linux-7.0.12/tools/testing/selftests/hardening/restricted.policy linux-7.0.12-hdn/tools/testing/selftests/hardening/restricted.policy
+diff -ruN linux-7.0.12/tools/testing/selftests/hardening/restricted.policy linux-7.0.12-hdn/tools/testing/selftests/hardening/restricted.policy
 --- linux-7.0.12/tools/testing/selftests/hardening/restricted.policy	1969-12-31 18:00:00.000000000 -0600
 +++ linux-7.0.12-hdn/tools/testing/selftests/hardening/restricted.policy	2026-06-25 18:48:38.323128269 -0500
 @@ -0,0 +1,15 @@
@@ -59172,7 +59376,7 @@ diff -urN linux-7.0.12/tools/testing/selftests/hardening/restricted.policy linux
 +allow 2 POLICY_ADMIN CRED_CHANGE
 +feature 1 DENY_UNTRUSTED_USER_EXEC
 +feature 2 ENFORCE_TRUSTED_EXEC CHROOT_CONTAINED
-diff -urN linux-7.0.12/tools/testing/selftests/hardening/role.policy linux-7.0.12-hdn/tools/testing/selftests/hardening/role.policy
+diff -ruN linux-7.0.12/tools/testing/selftests/hardening/role.policy linux-7.0.12-hdn/tools/testing/selftests/hardening/role.policy
 --- linux-7.0.12/tools/testing/selftests/hardening/role.policy	1969-12-31 18:00:00.000000000 -0600
 +++ linux-7.0.12-hdn/tools/testing/selftests/hardening/role.policy	2026-06-25 21:12:56.514647776 -0500
 @@ -0,0 +1,14 @@
@@ -59190,9 +59394,9 @@ diff -urN linux-7.0.12/tools/testing/selftests/hardening/role.policy linux-7.0.1
 +role desktop-admin include policy-admin credential-admin policy-audit
 +
 +use-role 2 desktop-admin
-diff -urN linux-7.0.12/tools/testing/selftests/hardening/run-qemu-smoke.sh linux-7.0.12-hdn/tools/testing/selftests/hardening/run-qemu-smoke.sh
+diff -ruN linux-7.0.12/tools/testing/selftests/hardening/run-qemu-smoke.sh linux-7.0.12-hdn/tools/testing/selftests/hardening/run-qemu-smoke.sh
 --- linux-7.0.12/tools/testing/selftests/hardening/run-qemu-smoke.sh	1969-12-31 18:00:00.000000000 -0600
-+++ linux-7.0.12-hdn/tools/testing/selftests/hardening/run-qemu-smoke.sh	2026-06-26 17:46:27.284820641 -0500
++++ linux-7.0.12-hdn/tools/testing/selftests/hardening/run-qemu-smoke.sh	2026-06-26 18:05:42.768715958 -0500
 @@ -0,0 +1,1056 @@
 +#!/bin/sh
 +# SPDX-License-Identifier: GPL-2.0
@@ -59227,7 +59431,7 @@ diff -urN linux-7.0.12/tools/testing/selftests/hardening/run-qemu-smoke.sh linux
 +QEMU_MEMORY=${QEMU_MEMORY:-1024M}
 +QEMU_SMP=${QEMU_SMP:-2}
 +QEMU_MACHINE=${QEMU_MACHINE:-q35,accel=tcg}
-+HDN_SMOKE_EXPECTED_PASS=${HDN_SMOKE_EXPECTED_PASS:-808}
++HDN_SMOKE_EXPECTED_PASS=${HDN_SMOKE_EXPECTED_PASS:-810}
 +WORK=${HDN_QEMU_WORK:-"${TMPDIR:-/tmp}/hdn-qemu-smoke.$$"}
 +LOG=${HDN_QEMU_LOG:-"$WORK/qemu.log"}
 +QMP=${HDN_QEMU_QMP:-"$WORK/qmp.sock"}
@@ -60250,7 +60454,7 @@ diff -urN linux-7.0.12/tools/testing/selftests/hardening/run-qemu-smoke.sh linux
 +fi
 +
 +echo "HDN_QEMU_SMOKE_PASS log=$LOG"
-diff -urN linux-7.0.12/tools/testing/selftests/hardening/socket-policy.policy linux-7.0.12-hdn/tools/testing/selftests/hardening/socket-policy.policy
+diff -ruN linux-7.0.12/tools/testing/selftests/hardening/socket-policy.policy linux-7.0.12-hdn/tools/testing/selftests/hardening/socket-policy.policy
 --- linux-7.0.12/tools/testing/selftests/hardening/socket-policy.policy	1969-12-31 18:00:00.000000000 -0600
 +++ linux-7.0.12-hdn/tools/testing/selftests/hardening/socket-policy.policy	2026-06-25 06:25:46.631499536 -0500
 @@ -0,0 +1,13 @@
@@ -60267,7 +60471,7 @@ diff -urN linux-7.0.12/tools/testing/selftests/hardening/socket-policy.policy li
 +profile 2 socket-root
 +
 +allow 2 POLICY_ADMIN CRED_CHANGE SOCKET_CREATE
-diff -urN linux-7.0.12/tools/testing/selftests/hardening/subject.policy linux-7.0.12-hdn/tools/testing/selftests/hardening/subject.policy
+diff -ruN linux-7.0.12/tools/testing/selftests/hardening/subject.policy linux-7.0.12-hdn/tools/testing/selftests/hardening/subject.policy
 --- linux-7.0.12/tools/testing/selftests/hardening/subject.policy	1969-12-31 18:00:00.000000000 -0600
 +++ linux-7.0.12-hdn/tools/testing/selftests/hardening/subject.policy	2026-06-25 20:12:44.713122559 -0500
 @@ -0,0 +1,17 @@
@@ -60288,7 +60492,7 @@ diff -urN linux-7.0.12/tools/testing/selftests/hardening/subject.policy linux-7.
 +allow 2 POLICY_ADMIN CRED_CHANGE
 +subject uid 65534 7
 +subject gid 65534 8
-diff -urN linux-7.0.12/tools/testing/selftests/hardening/textrel.policy linux-7.0.12-hdn/tools/testing/selftests/hardening/textrel.policy
+diff -ruN linux-7.0.12/tools/testing/selftests/hardening/textrel.policy linux-7.0.12-hdn/tools/testing/selftests/hardening/textrel.policy
 --- linux-7.0.12/tools/testing/selftests/hardening/textrel.policy	1969-12-31 18:00:00.000000000 -0600
 +++ linux-7.0.12-hdn/tools/testing/selftests/hardening/textrel.policy	2026-06-26 01:45:52.671708044 -0500
 @@ -0,0 +1,14 @@
@@ -60306,7 +60510,7 @@ diff -urN linux-7.0.12/tools/testing/selftests/hardening/textrel.policy linux-7.
 +
 +allow 2 POLICY_ADMIN CRED_CHANGE
 +mem 2 ALLOW_TEXTREL_MPROTECT
-diff -urN linux-7.0.12/tools/testing/selftests/hardening/trace-symbol.policy linux-7.0.12-hdn/tools/testing/selftests/hardening/trace-symbol.policy
+diff -ruN linux-7.0.12/tools/testing/selftests/hardening/trace-symbol.policy linux-7.0.12-hdn/tools/testing/selftests/hardening/trace-symbol.policy
 --- linux-7.0.12/tools/testing/selftests/hardening/trace-symbol.policy	1969-12-31 18:00:00.000000000 -0600
 +++ linux-7.0.12-hdn/tools/testing/selftests/hardening/trace-symbol.policy	2026-06-26 12:07:58.418651266 -0500
 @@ -0,0 +1,13 @@
@@ -60323,7 +60527,7 @@ diff -urN linux-7.0.12/tools/testing/selftests/hardening/trace-symbol.policy lin
 +profile 2 trace-symbol-root
 +
 +allow 2 POLICY_ADMIN CRED_CHANGE DEBUGFS BPF_LOAD
-diff -urN linux-7.0.12/tools/testing/selftests/hardening/vm_init.c linux-7.0.12-hdn/tools/testing/selftests/hardening/vm_init.c
+diff -ruN linux-7.0.12/tools/testing/selftests/hardening/vm_init.c linux-7.0.12-hdn/tools/testing/selftests/hardening/vm_init.c
 --- linux-7.0.12/tools/testing/selftests/hardening/vm_init.c	1969-12-31 18:00:00.000000000 -0600
 +++ linux-7.0.12-hdn/tools/testing/selftests/hardening/vm_init.c	2026-06-25 08:39:35.578566901 -0500
 @@ -0,0 +1,99 @@

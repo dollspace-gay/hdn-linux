@@ -611,6 +611,8 @@ Default rules:
   grant.
 - One-argument `request_module(name)` calls are exact module aliases, not
   printf format strings; formatted calls must pass explicit varargs.
+- Authorized modprobe helpers receive bounded HDN context in the environment:
+  requested alias, requesting uid/euid, and current HDN profile id.
 - The `kernel.modprobe` helper path cannot be changed unless the caller is in
   policy-admin context and has `AUTH_MODULE_AUTOLOAD`, preventing restricted
   root profiles from redirecting future autoload execution.
@@ -1217,6 +1219,7 @@ mm/mmap.c and mm/mprotect paths:
 kernel/module/:
   authorize module admission and seal module memory
   route one-argument request_module calls as exact names
+  provide bounded HDN context to authorized modprobe helpers
   report upstream module-load lockout availability
 
 drivers/base/firmware_loader/:
@@ -1605,6 +1608,7 @@ Core oracle groups:
 - unsigned module load denied
 - implicit module autoload denied without profile authority
 - exact-name request_module dispatch reported in sealed status
+- modprobe helper receives bounded autoload context
 - modprobe helper path writes denied without module-autoload authority
 - unsafe modprobe helper path writes denied even with module-autoload authority
 - one-way module and kexec load lockouts reported in sealed status
@@ -1756,6 +1760,8 @@ Core oracle groups:
   reported as available one-way code-loading lockouts when built
 - one-argument `request_module()` exact-name dispatch is reported in sealed
   status when module autoload support is built
+- bounded modprobe helper context is reported in sealed status and proved with
+  an authorized autoload fixture
 - `dev.tty.legacy_tiocsti` and `dev.tty.ldisc_autoload` are forced off while
   TTY injection hardening is enabled and cannot be re-enabled through sysctl
 - failed fork attempts emit a named `FORK_FAILED` audit reason and preserve the

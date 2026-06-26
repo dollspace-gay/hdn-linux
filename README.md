@@ -36,6 +36,9 @@ Upstream one-way module and kexec load disable sysctls are reported in sealed
 status and smoked for irreversible tightening after product policy flips them.
 One-argument `request_module(name)` calls now route exact module names instead
 of interpreting caller-provided aliases as printf format strings.
+Authorized modprobe helpers also receive bounded HDN context through
+`HDN_MODULE_REQUEST`, `HDN_MODULE_UID`, `HDN_MODULE_EUID`, and
+`HDN_MODULE_PROFILE`.
 USB monitor capture is now gated separately from USB attach so device brokers
 do not implicitly gain traffic-sniffing authority. Memfd defaults are now
 locked to enforced noexec mode, including rejection of explicit executable
@@ -109,16 +112,16 @@ The hardening smoke suite in the development tree is run under QEMU. Latest
 local result before this publication checkpoint:
 
 ```text
-QEMU hardening smoke: 808/808 pass
+QEMU hardening smoke: 810/810 pass
 ```
 
 Patch artifact at this checkpoint:
 
 ```text
 patch: patches/hdn-linux-7.0.12.patch
-lines: 60,428
-bytes: 1,776,015
-sha256: 320542813ad302ea4d766a87b81fa61cd07ab81f79e8355411cdb08f04722941
+lines: 60,632
+bytes: 1,782,003
+sha256: e8bff3ecbf1c439c5c4979dda7d0ba951196c194c8b09c169eb89ed0b284cd97
 ```
 
 ## Development Rule
