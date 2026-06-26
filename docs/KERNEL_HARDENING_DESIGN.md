@@ -144,6 +144,7 @@ Dangerous features are not scattered sysctls. They are named authorities:
 - `AUTH_PROC_DISCLOSE`
 - `AUTH_PROC_TASK_VIEW`
 - `AUTH_SYSFS_MUTATE`
+- `AUTH_SYSFS_READ`
 - `AUTH_IO_URING_RESTRICTED_OP`
 - `AUTH_KERNEL_LOG_READ`
 - `AUTH_FIRMWARE_LOAD`
@@ -446,7 +447,7 @@ Authority gates should cover:
   formatting, and trace symbol formatting, separate from plain tracefs/debugfs
   access.
 - procfs disclosure.
-- owner-only sysfs disclosure and sysfs mutation.
+- owner-only and sensitive sysfs disclosure plus sysfs mutation.
 - kernel log access.
 - io_uring operations that expand attack surface, including SQPOLL setup and
   privileged registration families.
@@ -1278,7 +1279,8 @@ kernel/locking/lockdep.c:
   redact lockdep key-name symbol reporting without disclosure authority
 
 fs/sysfs/ and driver core:
-  gate owner-only visibility and risky mutation surfaces
+  gate owner-only visibility, sensitive kernel metadata visibility, and risky
+  mutation surfaces
 
 kernel/kexec*:
   authorize kexec image load
@@ -1543,6 +1545,9 @@ Core oracle groups:
   `PROC_DISCLOSE`, while self reads and authorized admin reads remain usable
 - `/proc/ioports` and `/proc/iomem` address ranges redacted without
   `PROC_DISCLOSE`, while resource names remain visible for compatibility
+- owner-only sysfs attributes and sensitive world-readable sysfs metadata such
+  as `/sys/kernel/vmcoreinfo` are denied and hidden without `SYSFS_READ`, while
+  ordinary device-discovery sysfs entries remain visible
 - setuid privileged exec rejects oversized argv/env stacks and caps inherited
   stack rlimits before mmap layout selection
 - kernel logs redacted
