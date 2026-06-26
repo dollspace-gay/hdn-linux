@@ -467,6 +467,9 @@ counters; policy learning and rich presentation still belong to userspace.
 into stable `key=value` state for settings panels, desktop daemons, support
 bundles, and recovery UI, including decoded audit-flood action, authority,
 transition, and reason names.
+`hdn-control-center status` is the stable settings-shell entry point above that
+facade, so product UI can ask for status through one branded helper without
+parsing securityfs or depending on the raw status helper path.
 
 Event shape:
 
@@ -764,6 +767,27 @@ to the caller. QEMU proves unknown desktop actions and unsafe portal configs
 fail closed, and proves an approved desktop action reaches the authenticated
 prompt-session path, updates the sealed product mount, and reseals it
 read-only.
+`hdn-desktop-action` is the stable UI-verb facade above the prompt portal.
+Product UI code calls namespaced verbs such as `updates.install` from a
+root-owned desktop-action manifest instead of depending on prompt-portal action
+names or lower-level helper paths. QEMU proves unknown UI verbs and unsafe
+desktop-action configs fail closed, and proves an approved verb reaches the
+portal path, authenticates, updates the sealed product mount, and reseals it
+read-only.
+`hdn-desktop-daemon` is the root-side desktop action service above
+`hdn-desktop-action`. It can run one approved verb or stay attached to a
+supervised frontend through stdio; its root-owned daemon config allowlists UI
+verbs before any dispatch. QEMU proves unknown UI verbs and unsafe daemon
+configs fail closed, and proves an approved stdio `updates.install` action
+reaches desktop-action, authenticates, updates the sealed product mount, and
+reseals it read-only.
+`hdn-control-center` is the product-facing command surface above status and
+desktop actions. Settings panels and shells call `hdn-control-center status`
+for product health or `hdn-control-center action DESKTOP_ACTION` for an
+allowlisted UI verb; the helper validates absolute backend paths and safe action
+names and never invokes a shell. QEMU proves status routing, unknown UI action
+denial, and an approved `updates.install` action reaching the desktop daemon
+while preserving the read-only reseal invariant.
 `hdn-image-seal` is the installer/first-boot/image-updater facade for sealing
 the base image. Product config maps stable seal names to ordered brokered
 steps such as signed policy commit and read-only mount-list application, so
@@ -1635,6 +1659,13 @@ Core oracle groups:
 - the prompt portal helper rejects unknown desktop actions, rejects unsafe
   portal configs, and maps an approved desktop action to prompt-session without
   exposing token, broker, or helper command lines
+- the desktop-action helper rejects unknown UI verbs, rejects unsafe configs,
+  and maps an approved UI verb to prompt-portal without exposing lower helper
+  paths
+- the desktop-daemon helper rejects unknown UI verbs, rejects unsafe configs,
+  and runs an approved stdio UI action through desktop-action
+- the control-center helper reports product status through hdn-status, rejects
+  unknown UI actions, and runs an approved UI action through hdn-desktop-daemon
 - the image seal helper rejects unknown seal names, rejects unsafe image seal
   configs, and applies an approved brokered read-only mount list while leaving
   the sealed mount read-only
@@ -1669,7 +1700,8 @@ Core oracle groups:
   USB, coredumps, and sockets
 - the status helper maps raw hardening status to product-facing `key=value`
   state, reports policy readiness and mitigation totals, and decodes the latest
-  audit-flood action/authority/transition/reason IDs to UAPI names
+  audit-flood action/authority/transition/reason IDs to UAPI names; the
+  control-center status facade covers the settings-shell entry point above it
 - explicit denied W+X `mmap()` and `mprotect()` attempts also emit a dedicated
   `RWXMAP_DENIED` audit reason for grsec-class RWX-map telemetry without
   changing the existing `USER_WX_MAPPING` enforcement event
@@ -1813,12 +1845,13 @@ Core oracle groups:
 - Configure existing kernel hardening options.
 - Lock down BPF, perf, ptrace, user namespaces, debugfs, tracefs, procfs, module loading, kexec, and kernel logs through available upstream controls.
 - Integrate Secure Boot, module signing, fs-verity, IMA/IPE/AppArmor/SELinux/Landlock where appropriate.
-- Build the graphical prompt daemon on top of the prompt-portal contract for
-  normal desktop action requests, on the prompt-session contract when the
-  product frontend needs to select its own session backend, or on the
-  lower-level prompt-describe and prompt-dispatch contracts when the frontend
-  needs to own authentication directly. Keep metadata, token, and broker
-  details behind those root-side facades.
+- Build the graphical prompt daemon and settings panel on top of the
+  control-center and desktop-daemon contracts for normal desktop action
+  requests, on the prompt-session contract when the product frontend needs to
+  select its own session backend, or on the lower-level prompt-describe and
+  prompt-dispatch contracts when the frontend needs to own authentication
+  directly. Keep metadata, token, and broker details behind those root-side
+  facades.
 
 ### Phase 2: Authority Gates
 
