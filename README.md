@@ -43,6 +43,9 @@ turned back on while TTY injection hardening is active. Yama is now part of the
 baseline and `kernel.yama.ptrace_scope` cannot be lowered below relational
 mode. Setuid coredumps are locked off through `fs.suid_dumpable=0`, so
 privileged-helper core modes cannot be globally enabled after boot.
+Unprivileged userfaultfd kernel-fault handling is now unavailable by
+construction or locked behind `vm.unprivileged_userfaultfd=0`, while
+user-mode-only userfaultfd use remains available when the syscall is enabled.
 
 The largest remaining gaps are richer RBAC/userspace integration, full desktop
 and recovery UI around the admin broker, distro package/update wiring, deeper
@@ -72,16 +75,16 @@ The hardening smoke suite in the development tree is run under QEMU. Latest
 local result before this publication checkpoint:
 
 ```text
-QEMU hardening smoke: 775/775 pass
+QEMU hardening smoke: 780/780 pass
 ```
 
 Patch artifact at this checkpoint:
 
 ```text
 patch: patches/hdn-linux-7.0.12.patch
-lines: 56,433
-bytes: 1,654,140
-sha256: b45ff2fedf05da79636db2ae51958da2dd0a91e8a19f87b57b63475243af6c48
+lines: 56,596
+bytes: 1,659,270
+sha256: f2031899cd847034e8324bdcf4156c7cccc9a610bca65665a1b4cd65d6a4a629
 ```
 
 ## Development Rule

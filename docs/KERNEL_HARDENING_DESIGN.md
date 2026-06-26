@@ -59,7 +59,7 @@ The design assumes attackers may attempt:
 - ROP/JOP/COP style control-flow attacks.
 - Writable/executable memory abuse.
 - Kernel pointer and layout discovery.
-- Abuse of BPF, perf, ptrace, user namespaces, io_uring, debugfs, tracefs, procfs, sysfs, module loading, kexec, raw I/O, and similar attack surfaces.
+- Abuse of BPF, perf, ptrace, userfaultfd, user namespaces, io_uring, debugfs, tracefs, procfs, sysfs, module loading, kexec, raw I/O, and similar attack surfaces.
 - Credential transition abuse.
 - Policy confusion across exec, interpreter, script, and helper boundaries.
 - Persistence through startup units, privileged helpers, kernel modules, and policy changes.
@@ -1489,6 +1489,8 @@ Core oracle groups:
 - restricted profiles denied BPF map creation and metadata enumeration under
   `BPF_LOAD`, with denials audited
 - unauthorized perf kernel access denied
+- unprivileged userfaultfd kernel-fault handling unavailable or locked at
+  user-mode-only syscall semantics
 - ptrace constrained by profile
 - direct native and compat ptrace attach/seize attempts emit structured ptrace
   audit events after the profile gate, preserving success or later upstream
@@ -1649,6 +1651,8 @@ Core oracle groups:
   below that floor while the exploit-mitigation baseline is enabled
 - `fs.suid_dumpable` starts disabled and cannot be raised while the
   exploit-mitigation baseline is enabled
+- `vm.unprivileged_userfaultfd` cannot be raised when `CONFIG_USERFAULTFD` is
+  enabled; when that syscall is not built, the same attack surface is absent
 - `dev.tty.legacy_tiocsti` and `dev.tty.ldisc_autoload` are forced off while
   TTY injection hardening is enabled and cannot be re-enabled through sysctl
 - failed fork attempts emit a named `FORK_FAILED` audit reason and preserve the

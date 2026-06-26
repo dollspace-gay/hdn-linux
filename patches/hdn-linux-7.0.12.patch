@@ -3427,6 +3427,29 @@ diff -urN linux-7.0.12/fs/tracefs/inode.c linux-7.0.12-hdn/fs/tracefs/inode.c
  	return generic_permission(idmap, inode, mask);
  }
  
+diff -urN linux-7.0.12/fs/userfaultfd.c linux-7.0.12-hdn/fs/userfaultfd.c
+--- linux-7.0.12/fs/userfaultfd.c	2026-06-09 05:32:51.000000000 -0500
++++ linux-7.0.12-hdn/fs/userfaultfd.c	2026-06-26 15:07:12.105686607 -0500
+@@ -27,6 +27,7 @@
+ #include <linux/userfaultfd_k.h>
+ #include <linux/mempolicy.h>
+ #include <linux/ioctl.h>
++#include <linux/kconfig.h>
+ #include <linux/security.h>
+ #include <linux/hugetlb.h>
+ #include <linux/leafops.h>
+@@ -44,7 +45,11 @@
+ 		.mode		= 0644,
+ 		.proc_handler	= proc_dointvec_minmax,
+ 		.extra1		= SYSCTL_ZERO,
++#if IS_ENABLED(CONFIG_SECURITY_HARDENING_USERFAULTFD_RESTRICT)
++		.extra2		= SYSCTL_ZERO,
++#else
+ 		.extra2		= SYSCTL_ONE,
++#endif
+ 	},
+ };
+ #endif
 diff -urN linux-7.0.12/fs/xattr.c linux-7.0.12-hdn/fs/xattr.c
 --- linux-7.0.12/fs/xattr.c	2026-06-09 05:32:51.000000000 -0500
 +++ linux-7.0.12-hdn/fs/xattr.c	2026-06-26 08:09:47.133600717 -0500
@@ -9320,8 +9343,8 @@ diff -urN linux-7.0.12/security/commoncap.c linux-7.0.12-hdn/security/commoncap.
  }
 diff -urN linux-7.0.12/security/hardening/Kconfig linux-7.0.12-hdn/security/hardening/Kconfig
 --- linux-7.0.12/security/hardening/Kconfig	1969-12-31 18:00:00.000000000 -0600
-+++ linux-7.0.12-hdn/security/hardening/Kconfig	2026-06-26 14:59:06.357693428 -0500
-@@ -0,0 +1,588 @@
++++ linux-7.0.12-hdn/security/hardening/Kconfig	2026-06-26 15:07:12.105686607 -0500
+@@ -0,0 +1,600 @@
 +# SPDX-License-Identifier: GPL-2.0-only
 +menuconfig SECURITY_HARDENING
 +	bool "Hardening contract layer"
@@ -9882,6 +9905,17 @@ diff -urN linux-7.0.12/security/hardening/Kconfig linux-7.0.12-hdn/security/hard
 +	  entropy without requiring applications, package scripts, or users to
 +	  understand another runtime control.
 +
++config SECURITY_HARDENING_USERFAULTFD_RESTRICT
++	bool "Lock unprivileged userfaultfd kernel-fault handling off"
++	default y
++	depends on USERFAULTFD && SYSCTL
++	help
++	  Keep vm.unprivileged_userfaultfd pinned at 0 so unprivileged
++	  userfaultfd syscall users must request UFFD_USER_MODE_ONLY and cannot
++	  register handlers for faults taken from kernel mode. Access through
++	  /dev/userfaultfd remains controlled by normal device permissions for
++	  trusted virtualization and checkpoint/restore services.
++
 +config SECURITY_HARDENING_EXPLOIT_MITIGATIONS
 +	bool "Enable exploit mitigation baseline"
 +	default y
@@ -9901,7 +9935,8 @@ diff -urN linux-7.0.12/security/hardening/Kconfig linux-7.0.12-hdn/security/hard
 +	  strong stack protector, structure layout randomization, strict kernel
 +	  and module W^X, locked Yama relational ptrace scope, locked dmesg
 +	  restriction, locked setuid coredump suppression, kernel
-+	  pointer/symbol disclosure restriction, and kCFI when the selected
++	  pointer/symbol disclosure restriction, locked unprivileged
++	  userfaultfd kernel-fault handling, and kCFI when the selected
 +	  architecture and compiler support them.
 +
 +	  This is intentionally a build-time default layer rather than a policy
@@ -9919,8 +9954,8 @@ diff -urN linux-7.0.12/security/hardening/Makefile linux-7.0.12-hdn/security/har
 +obj-$(CONFIG_SECURITY_HARDENING) += core.o
 diff -urN linux-7.0.12/security/hardening/core.c linux-7.0.12-hdn/security/hardening/core.c
 --- linux-7.0.12/security/hardening/core.c	1969-12-31 18:00:00.000000000 -0600
-+++ linux-7.0.12-hdn/security/hardening/core.c	2026-06-26 14:09:56.565987770 -0500
-@@ -0,0 +1,7320 @@
++++ linux-7.0.12-hdn/security/hardening/core.c	2026-06-26 15:10:22.229671098 -0500
+@@ -0,0 +1,7345 @@
 +// SPDX-License-Identifier: GPL-2.0-only
 +
 +#include <linux/binfmts.h>
@@ -10068,10 +10103,13 @@ diff -urN linux-7.0.12/security/hardening/core.c linux-7.0.12-hdn/security/harde
 +#define HDN_MITIGATION_KERNEL_LOCKOUT		(1ULL << 62)
 +#define HDN_MITIGATION_PROC_MEMMAP_REDACT	(1ULL << 63)
 +
++#define HDN_MITIGATION2_USERFAULTFD_RESTRICT	(1ULL << 0)
++
 +struct hdn_mitigation_state {
 +	u32 abi_version;
 +	u32 sealed_pages;
 +	u64 flags;
++	u64 flags2;
 +	bool sealed;
 +};
 +
@@ -10385,9 +10423,25 @@ diff -urN linux-7.0.12/security/hardening/core.c linux-7.0.12-hdn/security/harde
 +	return flags;
 +}
 +
++static u64 hdn_build_mitigation_flags2(void)
++{
++	u64 flags = 0;
++
++	if (!IS_ENABLED(CONFIG_USERFAULTFD) ||
++	    IS_ENABLED(CONFIG_SECURITY_HARDENING_USERFAULTFD_RESTRICT))
++		flags |= HDN_MITIGATION2_USERFAULTFD_RESTRICT;
++
++	return flags;
++}
++
 +static bool hdn_mitigation_enabled(u64 flag)
 +{
 +	return hdn_mitigations && (hdn_mitigations->flags & flag);
++}
++
++static bool hdn_mitigation2_enabled(u64 flag)
++{
++	return hdn_mitigations && (hdn_mitigations->flags2 & flag);
 +}
 +
 +static int __init hdn_mitigations_init(void)
@@ -10402,6 +10456,7 @@ diff -urN linux-7.0.12/security/hardening/core.c linux-7.0.12-hdn/security/harde
 +	state->abi_version = HDN_POLICY_ABI_VERSION;
 +	state->sealed_pages = 1;
 +	state->flags = hdn_build_mitigation_flags();
++	state->flags2 = hdn_build_mitigation_flags2();
 +	state->sealed = true;
 +
 +	set_vm_flush_reset_perms(state);
@@ -16771,6 +16826,9 @@ diff -urN linux-7.0.12/security/hardening/core.c linux-7.0.12-hdn/security/harde
 +	seq_printf(m, "mitigation_flags: 0x%llx\n",
 +		   hdn_mitigations ?
 +		   (unsigned long long)hdn_mitigations->flags : 0);
++	seq_printf(m, "mitigation_flags2: 0x%llx\n",
++		   hdn_mitigations ?
++		   (unsigned long long)hdn_mitigations->flags2 : 0);
 +	seq_printf(m, "mitigation_hardened_usercopy: %u\n",
 +		   hdn_mitigation_enabled(HDN_MITIGATION_HARDENED_USERCOPY));
 +	seq_printf(m, "mitigation_init_on_alloc: %u\n",
@@ -16829,6 +16887,8 @@ diff -urN linux-7.0.12/security/hardening/core.c linux-7.0.12-hdn/security/harde
 +		   hdn_mitigation_enabled(HDN_MITIGATION_KERNEL_LOCKOUT));
 +	seq_printf(m, "mitigation_proc_memmap_redact: %u\n",
 +		   hdn_mitigation_enabled(HDN_MITIGATION_PROC_MEMMAP_REDACT));
++	seq_printf(m, "mitigation_userfaultfd_restrict: %u\n",
++		   hdn_mitigation2_enabled(HDN_MITIGATION2_USERFAULTFD_RESTRICT));
 +	seq_printf(m, "mitigation_privexec_arg_stack_limits: %u\n",
 +		   IS_ENABLED(CONFIG_SECURITY_HARDENING_PROC_MEMMAP));
 +	seq_printf(m, "mitigation_memfd_noexec: %u\n",
@@ -17447,8 +17507,8 @@ diff -urN linux-7.0.12/tools/hardening/Makefile linux-7.0.12-hdn/tools/hardening
 +.PHONY: all clean
 diff -urN linux-7.0.12/tools/hardening/README.rst linux-7.0.12-hdn/tools/hardening/README.rst
 --- linux-7.0.12/tools/hardening/README.rst	1969-12-31 18:00:00.000000000 -0600
-+++ linux-7.0.12-hdn/tools/hardening/README.rst	2026-06-26 14:59:28.565693108 -0500
-@@ -0,0 +1,1281 @@
++++ linux-7.0.12-hdn/tools/hardening/README.rst	2026-06-26 15:15:57.025610304 -0500
+@@ -0,0 +1,1292 @@
 +.. SPDX-License-Identifier: GPL-2.0-only
 +
 +Linux Hardening Policy Tools
@@ -18385,6 +18445,17 @@ diff -urN linux-7.0.12/tools/hardening/README.rst linux-7.0.12-hdn/tools/hardeni
 +kernel and namespace perf visibility behind the ``PERF_OPEN`` profile authority
 +for privileged service policy. QEMU proves the locked sysctl value, failed
 +lowering attempts, unprivileged kernel perf denial, and sealed status reporting.
++
++``CONFIG_SECURITY_HARDENING_USERFAULTFD_RESTRICT`` locks
++``/proc/sys/vm/unprivileged_userfaultfd`` at ``0`` whenever the selected kernel
++build enables ``CONFIG_USERFAULTFD``. This leaves unprivileged
++``UFFD_USER_MODE_ONLY`` syscall users usable while preventing unprivileged
++handlers for kernel-mode faults; if the syscall is not built at all, HDN reports
++the same mitigation as unavailable-by-construction. ``/dev/userfaultfd`` remains
++governed by ordinary device permissions for trusted virtualization and
++checkpoint/restore services. QEMU proves the sealed status bit, the locked or
++unavailable sysctl state, failed enable attempts, unprivileged kernel-fault UFFD
++denial, and user-mode-only UFFD allowance or syscall absence.
 +
 +HDN keeps selected io_uring attack-surface expansion paths behind the
 +``IO_URING_RESTRICTED_OP`` profile authority while leaving ordinary rings
@@ -32400,8 +32471,8 @@ diff -urN linux-7.0.12/tools/testing/selftests/hardening/hdn_elfnote_jit.c linux
 +}
 diff -urN linux-7.0.12/tools/testing/selftests/hardening/hdn_smoke.c linux-7.0.12-hdn/tools/testing/selftests/hardening/hdn_smoke.c
 --- linux-7.0.12/tools/testing/selftests/hardening/hdn_smoke.c	1969-12-31 18:00:00.000000000 -0600
-+++ linux-7.0.12-hdn/tools/testing/selftests/hardening/hdn_smoke.c	2026-06-26 14:58:50.693700553 -0500
-@@ -0,0 +1,22491 @@
++++ linux-7.0.12-hdn/tools/testing/selftests/hardening/hdn_smoke.c	2026-06-26 15:10:35.621667584 -0500
+@@ -0,0 +1,22583 @@
 +// SPDX-License-Identifier: GPL-2.0-only
 +
 +#define _GNU_SOURCE
@@ -32423,6 +32494,7 @@ diff -urN linux-7.0.12/tools/testing/selftests/hardening/hdn_smoke.c linux-7.0.1
 +#include <linux/perf_event.h>
 +#include <linux/tcp.h>
 +#include <linux/udp.h>
++#include <linux/userfaultfd.h>
 +#include <linux/xattr.h>
 +#include <limits.h>
 +#include <mqueue.h>
@@ -32561,6 +32633,11 @@ diff -urN linux-7.0.12/tools/testing/selftests/hardening/hdn_smoke.c linux-7.0.1
 +#ifndef __NR_move_pages
 +#define __NR_move_pages 279
 +#endif
++#ifndef __NR_userfaultfd
++#ifdef SYS_userfaultfd
++#define __NR_userfaultfd SYS_userfaultfd
++#endif
++#endif
 +#ifndef MADV_COLD
 +#define MADV_COLD 20
 +#endif
@@ -32593,6 +32670,7 @@ diff -urN linux-7.0.12/tools/testing/selftests/hardening/hdn_smoke.c linux-7.0.1
 +#define HDN_DMESG_RESTRICT "/proc/sys/kernel/dmesg_restrict"
 +#define HDN_KPTR_RESTRICT "/proc/sys/kernel/kptr_restrict"
 +#define HDN_MEMFD_NOEXEC "/proc/sys/vm/memfd_noexec"
++#define HDN_UNPRIV_USERFAULTFD "/proc/sys/vm/unprivileged_userfaultfd"
 +#define HDN_LEGACY_TIOCSTI "/proc/sys/dev/tty/legacy_tiocsti"
 +#define HDN_LDISC_AUTOLOAD "/proc/sys/dev/tty/ldisc_autoload"
 +#define HDN_MODPROBE_PATH "/proc/sys/kernel/modprobe"
@@ -53975,6 +54053,55 @@ diff -urN linux-7.0.12/tools/testing/selftests/hardening/hdn_smoke.c linux-7.0.1
 +#endif
 +}
 +
++static int unprivileged_userfaultfd_kernel_denied(void)
++{
++#ifdef __NR_userfaultfd
++	int fd;
++
++	errno = 0;
++	fd = syscall(__NR_userfaultfd, 0);
++	if (fd >= 0) {
++		close(fd);
++		return 1;
++	}
++	if (errno == ENOSYS)
++		return 0;
++
++	return errno_is_denial(errno) ? 0 : 2;
++#else
++	return 0;
++#endif
++}
++
++static int unprivileged_userfaultfd_user_mode_allowed_or_unavailable(void)
++{
++#ifdef __NR_userfaultfd
++	int fd;
++
++	fd = syscall(__NR_userfaultfd, UFFD_USER_MODE_ONLY | O_CLOEXEC);
++	if (fd < 0)
++		return errno == ENOSYS ? 0 : 1;
++
++	close(fd);
++	return 0;
++#else
++	return 0;
++#endif
++}
++
++static void test_unprivileged_userfaultfd_restricted(void)
++{
++#ifdef __NR_userfaultfd
++	run_as_unprivileged(unprivileged_userfaultfd_kernel_denied,
++			    "unprivileged kernel-fault userfaultfd is denied or unavailable");
++	run_as_unprivileged(unprivileged_userfaultfd_user_mode_allowed_or_unavailable,
++			    "unprivileged user-mode-only userfaultfd is allowed or unavailable");
++#else
++	ksft_test_result_pass("userfaultfd syscall number unavailable\n");
++	ksft_test_result_pass("userfaultfd syscall number unavailable\n");
++#endif
++}
++
 +static int unprivileged_bpf_sysctl_locked(void)
 +{
 +	int ret;
@@ -54073,6 +54200,35 @@ diff -urN linux-7.0.12/tools/testing/selftests/hardening/hdn_smoke.c linux-7.0.1
 +		return KSFT_SKIP;
 +
 +	return ret == -EINVAL || errno_is_denial(-ret) ? 0 : 2;
++}
++
++static int unprivileged_userfaultfd_sysctl_locked(void)
++{
++	int ret;
++
++	ret = write_text_file(HDN_UNPRIV_USERFAULTFD, "1\n");
++	if (!ret) {
++		(void)write_text_file(HDN_UNPRIV_USERFAULTFD, "0\n");
++		return 1;
++	}
++	if (ret == -ENOENT)
++		return 0;
++
++	return ret == -EINVAL || errno_is_denial(-ret) ? 0 : 2;
++}
++
++static int unprivileged_userfaultfd_disabled_or_unavailable(void)
++{
++	long value;
++	int ret;
++
++	ret = read_long_file(HDN_UNPRIV_USERFAULTFD, &value);
++	if (ret == -ENOENT)
++		return 0;
++	if (ret)
++		return 2;
++
++	return value == 0 ? 0 : 1;
 +}
 +
 +static int kptr_restrict_sysctl_locked(void)
@@ -54559,7 +54715,7 @@ diff -urN linux-7.0.12/tools/testing/selftests/hardening/hdn_smoke.c linux-7.0.1
 +	if (access(HDN_STATUS, R_OK))
 +		ksft_exit_skip("hardening securityfs status not present\n");
 +
-+	ksft_set_plan(775);
++	ksft_set_plan(780);
 +	test_securityfs_status();
 +	test_symbol_test_module_load();
 +	test_securityfs_status_contains("abi_version: 77",
@@ -54612,6 +54768,8 @@ diff -urN linux-7.0.12/tools/testing/selftests/hardening/hdn_smoke.c linux-7.0.1
 +					"hardening status reports proc mem restriction");
 +	test_securityfs_status_contains("mitigation_proc_memmap_redact: 1",
 +					"hardening status reports proc memmap redaction");
++	test_securityfs_status_contains("mitigation_userfaultfd_restrict: 1",
++					"hardening status reports userfaultfd restriction");
 +	test_securityfs_status_contains("mitigation_privexec_arg_stack_limits: 1",
 +					"hardening status reports privileged exec argument and stack limits");
 +	test_int_file_equals(HDN_SUID_DUMPABLE, 0,
@@ -54838,6 +54996,11 @@ diff -urN linux-7.0.12/tools/testing/selftests/hardening/hdn_smoke.c linux-7.0.1
 +	test_fixed_anonymous_exec_denied();
 +	test_read_implies_exec_rewritten();
 +	test_unprivileged_userns_denied();
++	report_child_result(unprivileged_userfaultfd_disabled_or_unavailable(),
++			    "unprivileged userfaultfd sysctl is disabled or unavailable");
++	report_child_result(unprivileged_userfaultfd_sysctl_locked(),
++			    "unprivileged userfaultfd sysctl cannot be enabled or is unavailable");
++	test_unprivileged_userfaultfd_restricted();
 +	test_int_file_equals(HDN_UNPRIV_BPF_DISABLED, 1,
 +			     "unprivileged BPF sysctl is locked disabled");
 +	report_child_result(unprivileged_bpf_sysctl_locked(),
@@ -55236,7 +55399,7 @@ diff -urN linux-7.0.12/tools/testing/selftests/hardening/role.policy linux-7.0.1
 +use-role 2 desktop-admin
 diff -urN linux-7.0.12/tools/testing/selftests/hardening/run-qemu-smoke.sh linux-7.0.12-hdn/tools/testing/selftests/hardening/run-qemu-smoke.sh
 --- linux-7.0.12/tools/testing/selftests/hardening/run-qemu-smoke.sh	1969-12-31 18:00:00.000000000 -0600
-+++ linux-7.0.12-hdn/tools/testing/selftests/hardening/run-qemu-smoke.sh	2026-06-26 14:58:57.501695780 -0500
++++ linux-7.0.12-hdn/tools/testing/selftests/hardening/run-qemu-smoke.sh	2026-06-26 15:08:49.201677077 -0500
 @@ -0,0 +1,1017 @@
 +#!/bin/sh
 +# SPDX-License-Identifier: GPL-2.0
@@ -55271,7 +55434,7 @@ diff -urN linux-7.0.12/tools/testing/selftests/hardening/run-qemu-smoke.sh linux
 +QEMU_MEMORY=${QEMU_MEMORY:-1024M}
 +QEMU_SMP=${QEMU_SMP:-2}
 +QEMU_MACHINE=${QEMU_MACHINE:-q35,accel=tcg}
-+HDN_SMOKE_EXPECTED_PASS=${HDN_SMOKE_EXPECTED_PASS:-775}
++HDN_SMOKE_EXPECTED_PASS=${HDN_SMOKE_EXPECTED_PASS:-780}
 +WORK=${HDN_QEMU_WORK:-"${TMPDIR:-/tmp}/hdn-qemu-smoke.$$"}
 +LOG=${HDN_QEMU_LOG:-"$WORK/qemu.log"}
 +QMP=${HDN_QEMU_QMP:-"$WORK/qmp.sock"}
