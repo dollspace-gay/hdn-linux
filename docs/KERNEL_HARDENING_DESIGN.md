@@ -152,6 +152,7 @@ Dangerous features are not scattered sysctls. They are named authorities:
 - `AUTH_FUSE_MOUNT`
 - `AUTH_ROFS_RELAX`
 - `AUTH_USB_ATTACH`
+- `AUTH_USB_MONITOR`
 - `AUTH_SOCKET_CREATE`
 - `AUTH_SOCKET_CONNECT`
 - `AUTH_SOCKET_SERVER`
@@ -448,7 +449,7 @@ Authority gates should cover:
 - owner-only sysfs disclosure and sysfs mutation.
 - kernel log access.
 - io_uring operations that expand attack surface.
-- new USB device attachment.
+- new USB device attachment and usbmon capture.
 - non-local socket creation, outbound connections, and server-side bind/listen/accept.
 
 ### 5. Audit and Event Layer
@@ -1659,6 +1660,8 @@ Core oracle groups:
 - direct raw block-device opens denied without block-device authority
 - raw block-device query can be allowed without granting block-device admin
   ioctls or block io_uring discard
+- new USB device attachment denied without USB attach authority
+- usbmon capture denied without USB monitor authority
 - cross-profile signal sends denied without signal authority
 - system time mutation denied without time administration authority
 - hard resource-limit raises denied without resource administration authority

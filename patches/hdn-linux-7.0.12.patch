@@ -577,6 +577,48 @@ diff -urN linux-7.0.12/drivers/usb/core/hub.c linux-7.0.12-hdn/drivers/usb/core/
  	if (hub_is_superspeed(hub->hdev))
  		unit_load = 150;
  	else
+diff -urN linux-7.0.12/drivers/usb/mon/mon_bin.c linux-7.0.12-hdn/drivers/usb/mon/mon_bin.c
+--- linux-7.0.12/drivers/usb/mon/mon_bin.c	2026-06-09 05:32:51.000000000 -0500
++++ linux-7.0.12-hdn/drivers/usb/mon/mon_bin.c	2026-06-26 14:00:18.562044428 -0500
+@@ -17,6 +17,7 @@
+ #include <linux/usb.h>
+ #include <linux/poll.h>
+ #include <linux/compat.h>
++#include <linux/hardening.h>
+ #include <linux/mm.h>
+ #include <linux/scatterlist.h>
+ #include <linux/slab.h>
+@@ -693,6 +694,9 @@
+ 		mutex_unlock(&mon_lock);
+ 		return -ENODEV;
+ 	}
++	rc = hdn_authorize_usb_monitor(mbus->u_bus ? mbus->u_bus->busnum : 0);
++	if (rc)
++		goto err_alloc;
+ 
+ 	rp = kzalloc_obj(struct mon_reader_bin);
+ 	if (rp == NULL) {
+diff -urN linux-7.0.12/drivers/usb/mon/mon_text.c linux-7.0.12-hdn/drivers/usb/mon/mon_text.c
+--- linux-7.0.12/drivers/usb/mon/mon_text.c	2026-06-09 05:32:51.000000000 -0500
++++ linux-7.0.12-hdn/drivers/usb/mon/mon_text.c	2026-06-26 14:00:12.798044867 -0500
+@@ -15,6 +15,7 @@
+ #include <linux/export.h>
+ #include <linux/mutex.h>
+ #include <linux/debugfs.h>
++#include <linux/hardening.h>
+ #include <linux/scatterlist.h>
+ #include <linux/uaccess.h>
+ 
+@@ -329,6 +330,9 @@
+ 
+ 	mutex_lock(&mon_lock);
+ 	mbus = inode->i_private;
++	rc = hdn_authorize_usb_monitor(mbus->u_bus ? mbus->u_bus->busnum : 0);
++	if (rc)
++		goto err_alloc;
+ 
+ 	rp = kzalloc_obj(struct mon_reader_text);
+ 	if (rp == NULL) {
 diff -urN linux-7.0.12/fs/aio.c linux-7.0.12-hdn/fs/aio.c
 --- linux-7.0.12/fs/aio.c	2026-06-09 05:32:51.000000000 -0500
 +++ linux-7.0.12-hdn/fs/aio.c	2026-06-26 05:08:01.214608553 -0500
@@ -3350,8 +3392,8 @@ diff -urN linux-7.0.12/include/linux/btf.h linux-7.0.12-hdn/include/linux/btf.h
  
 diff -urN linux-7.0.12/include/linux/hardening.h linux-7.0.12-hdn/include/linux/hardening.h
 --- linux-7.0.12/include/linux/hardening.h	1969-12-31 18:00:00.000000000 -0600
-+++ linux-7.0.12-hdn/include/linux/hardening.h	2026-06-26 13:11:08.486315197 -0500
-@@ -0,0 +1,939 @@
++++ linux-7.0.12-hdn/include/linux/hardening.h	2026-06-26 13:59:31.110042885 -0500
+@@ -0,0 +1,945 @@
 +/* SPDX-License-Identifier: GPL-2.0-only */
 +#ifndef _LINUX_HARDENING_H
 +#define _LINUX_HARDENING_H
@@ -3579,6 +3621,7 @@ diff -urN linux-7.0.12/include/linux/hardening.h linux-7.0.12-hdn/include/linux/
 +				   bool currently_readonly,
 +				   bool requested_readonly);
 +int hdn_authorize_usb_attach(unsigned int busnum, unsigned int portnum);
++int hdn_authorize_usb_monitor(unsigned int busnum);
 +int hdn_authorize_socket_create(int family, int type, int protocol,
 +				bool kernel);
 +int hdn_authorize_socket_connect(const struct socket *sock,
@@ -4208,6 +4251,11 @@ diff -urN linux-7.0.12/include/linux/hardening.h linux-7.0.12-hdn/include/linux/
 +	return 0;
 +}
 +
++static inline int hdn_authorize_usb_monitor(unsigned int busnum)
++{
++	return 0;
++}
++
 +static inline int hdn_authorize_socket_create(int family, int type,
 +					      int protocol, bool kernel)
 +{
@@ -4435,15 +4483,15 @@ diff -urN linux-7.0.12/include/trace/events/mmap.h linux-7.0.12-hdn/include/trac
  TRACE_EVENT(exit_mmap,
 diff -urN linux-7.0.12/include/uapi/linux/hardening.h linux-7.0.12-hdn/include/uapi/linux/hardening.h
 --- linux-7.0.12/include/uapi/linux/hardening.h	1969-12-31 18:00:00.000000000 -0600
-+++ linux-7.0.12-hdn/include/uapi/linux/hardening.h	2026-06-26 10:08:20.255289882 -0500
-@@ -0,0 +1,585 @@
++++ linux-7.0.12-hdn/include/uapi/linux/hardening.h	2026-06-26 13:59:23.866041588 -0500
+@@ -0,0 +1,588 @@
 +/* SPDX-License-Identifier: GPL-2.0 WITH Linux-syscall-note */
 +#ifndef _UAPI_LINUX_HARDENING_H
 +#define _UAPI_LINUX_HARDENING_H
 +
 +#include <linux/types.h>
 +
-+#define HDN_POLICY_ABI_VERSION 76
++#define HDN_POLICY_ABI_VERSION 77
 +#define HDN_POLICY_MAGIC 0x48444e50 /* "HDNP" */
 +#define HDN_PROFILE_NAME_LEN 32
 +#define HDN_POLICY_PATH_LEN 256
@@ -4551,6 +4599,7 @@ diff -urN linux-7.0.12/include/uapi/linux/hardening.h linux-7.0.12-hdn/include/u
 +	HDN_AUTH_OBJECT_SYMLINK = 75,
 +	HDN_AUTH_OBJECT_UNLINK = 76,
 +	HDN_AUTH_OBJECT_RMDIR = 77,
++	HDN_AUTH_USB_MONITOR = 78,
 +	HDN_AUTH__MAX,
 +};
 +
@@ -4645,6 +4694,7 @@ diff -urN linux-7.0.12/include/uapi/linux/hardening.h linux-7.0.12-hdn/include/u
 +	HDN_TRANS_COREDUMP = 87,
 +	HDN_TRANS_EXEC_ARGS = 88,
 +	HDN_TRANS_KERNEL_LOCKOUT = 89,
++	HDN_TRANS_USB_MONITOR = 90,
 +	HDN_TRANS__MAX,
 +};
 +
@@ -4739,6 +4789,7 @@ diff -urN linux-7.0.12/include/uapi/linux/hardening.h linux-7.0.12-hdn/include/u
 +	HDN_EVENT_ID_COREDUMP = HDN_TRANS_COREDUMP,
 +	HDN_EVENT_ID_EXEC_ARGS = HDN_TRANS_EXEC_ARGS,
 +	HDN_EVENT_ID_KERNEL_LOCKOUT = HDN_TRANS_KERNEL_LOCKOUT,
++	HDN_EVENT_ID_USB_MONITOR = HDN_TRANS_USB_MONITOR,
 +};
 +
 +enum hdn_decision_action {
@@ -9053,8 +9104,8 @@ diff -urN linux-7.0.12/security/commoncap.c linux-7.0.12-hdn/security/commoncap.
  }
 diff -urN linux-7.0.12/security/hardening/Kconfig linux-7.0.12-hdn/security/hardening/Kconfig
 --- linux-7.0.12/security/hardening/Kconfig	1969-12-31 18:00:00.000000000 -0600
-+++ linux-7.0.12-hdn/security/hardening/Kconfig	2026-06-26 12:30:56.158521870 -0500
-@@ -0,0 +1,570 @@
++++ linux-7.0.12-hdn/security/hardening/Kconfig	2026-06-26 14:00:02.922045612 -0500
+@@ -0,0 +1,572 @@
 +# SPDX-License-Identifier: GPL-2.0-only
 +menuconfig SECURITY_HARDENING
 +	bool "Hardening contract layer"
@@ -9495,15 +9546,17 @@ diff -urN linux-7.0.12/security/hardening/Kconfig linux-7.0.12-hdn/security/hard
 +	  a narrow compatibility bypass for trusted update tooling.
 +
 +config SECURITY_HARDENING_USB_RESTRICT
-+	bool "Gate new USB device attachment"
++	bool "Gate new USB device attachment and monitoring"
 +	default y
 +	depends on USB_SUPPORT
 +	help
 +	  Require USB_ATTACH profile authority before newly connected USB
-+	  devices are enumerated. Root hubs and devices already discovered
-+	  before policy commit remain governed by the normal USB core state;
-+	  runtime insertions are blocked early in the hub attach path unless a
-+	  trusted profile, broker, or boot policy grants the authority.
++	  devices are enumerated, and USB_MONITOR profile authority before a
++	  task can open usbmon capture interfaces. Root hubs and devices
++	  already discovered before policy commit remain governed by the normal
++	  USB core state; runtime insertions are blocked early in the hub
++	  attach path unless a trusted profile, broker, or boot policy grants
++	  the authority.
 +
 +config SECURITY_HARDENING_SOCKET_RESTRICT
 +	bool "Gate non-local socket operations by profile"
@@ -9634,8 +9687,8 @@ diff -urN linux-7.0.12/security/hardening/Makefile linux-7.0.12-hdn/security/har
 +obj-$(CONFIG_SECURITY_HARDENING) += core.o
 diff -urN linux-7.0.12/security/hardening/core.c linux-7.0.12-hdn/security/hardening/core.c
 --- linux-7.0.12/security/hardening/core.c	1969-12-31 18:00:00.000000000 -0600
-+++ linux-7.0.12-hdn/security/hardening/core.c	2026-06-26 13:11:15.826314538 -0500
-@@ -0,0 +1,7302 @@
++++ linux-7.0.12-hdn/security/hardening/core.c	2026-06-26 13:59:54.090044790 -0500
+@@ -0,0 +1,7318 @@
 +// SPDX-License-Identifier: GPL-2.0-only
 +
 +#include <linux/binfmts.h>
@@ -9909,6 +9962,8 @@ diff -urN linux-7.0.12/security/hardening/core.c linux-7.0.12-hdn/security/harde
 +			HDN_AUTHORITY_MASK(HDN_AUTH_PROCESS_MEMORY) |
 +			HDN_AUTHORITY_MASK(HDN_AUTH_MEMORY_MIGRATE) |
 +			HDN_AUTHORITY_MASK(HDN_AUTH_PROCESS_FD),
++		.authority_allow_hi =
++			HDN_AUTHORITY_MASK(HDN_AUTH_USB_MONITOR),
 +		.name = "privileged",
 +	},
 +};
@@ -10446,6 +10501,7 @@ diff -urN linux-7.0.12/security/hardening/core.c linux-7.0.12-hdn/security/harde
 +	case HDN_AUTH_FUSE_MOUNT:
 +	case HDN_AUTH_ROFS_RELAX:
 +	case HDN_AUTH_USB_ATTACH:
++	case HDN_AUTH_USB_MONITOR:
 +	case HDN_AUTH_SOCKET_CREATE:
 +	case HDN_AUTH_SOCKET_CONNECT:
 +	case HDN_AUTH_SOCKET_SERVER:
@@ -15108,6 +15164,17 @@ diff -urN linux-7.0.12/security/hardening/core.c linux-7.0.12-hdn/security/harde
 +			       object_id);
 +}
 +
++int hdn_authorize_usb_monitor(unsigned int busnum)
++{
++	if (!IS_ENABLED(CONFIG_SECURITY_HARDENING_USB_RESTRICT))
++		return 0;
++	if (hdn_profile_allows(HDN_AUTH_USB_MONITOR, HDN_TRANS_USB_MONITOR))
++		return 0;
++
++	return hdn_deny_object(HDN_AUTH_USB_MONITOR, HDN_TRANS_USB_MONITOR,
++			       HDN_REASON_PROFILE_DENIED, -EPERM, busnum);
++}
++
 +static bool hdn_socket_family_is_local(int family)
 +{
 +	return family == AF_UNSPEC || family == AF_UNIX || family == AF_LOCAL;
@@ -16550,6 +16617,8 @@ diff -urN linux-7.0.12/security/hardening/core.c linux-7.0.12-hdn/security/harde
 +		   hdn_mitigation_enabled(HDN_MITIGATION_PROC_HIDE));
 +	seq_printf(m, "mitigation_usb_restrict: %u\n",
 +		   hdn_mitigation_enabled(HDN_MITIGATION_USB_RESTRICT));
++	seq_printf(m, "mitigation_usb_monitor_restrict: %u\n",
++		   hdn_mitigation_enabled(HDN_MITIGATION_USB_RESTRICT));
 +	seq_printf(m, "mitigation_socket_restrict: %u\n",
 +		   hdn_mitigation_enabled(HDN_MITIGATION_SOCKET_RESTRICT));
 +	seq_printf(m, "mitigation_net_blackhole: %u\n",
@@ -17112,8 +17181,8 @@ diff -urN linux-7.0.12/tools/hardening/Makefile linux-7.0.12-hdn/tools/hardening
 +.PHONY: all clean
 diff -urN linux-7.0.12/tools/hardening/README.rst linux-7.0.12-hdn/tools/hardening/README.rst
 --- linux-7.0.12/tools/hardening/README.rst	1969-12-31 18:00:00.000000000 -0600
-+++ linux-7.0.12-hdn/tools/hardening/README.rst	2026-06-26 09:28:25.351508951 -0500
-@@ -0,0 +1,1233 @@
++++ linux-7.0.12-hdn/tools/hardening/README.rst	2026-06-26 14:04:10.046023294 -0500
+@@ -0,0 +1,1239 @@
 +.. SPDX-License-Identifier: GPL-2.0-only
 +
 +Linux Hardening Policy Tools
@@ -17456,7 +17525,7 @@ diff -urN linux-7.0.12/tools/hardening/README.rst linux-7.0.12-hdn/tools/hardeni
 +  allow 2 KEXEC_LOAD FIRMWARE_LOAD IO_URING_RESTRICTED_OP
 +  allow 2 KERNEL_LOG_READ RAW_IO MOUNT_ADMIN POLICY_ADMIN
 +  allow 2 NAMESPACE_ADMIN CRED_CHANGE CHROOT_ADMIN TRUSTED_EXEC_BYPASS
-+  allow 2 IPC_ADMIN TTY_INJECT FUSE_MOUNT ROFS_RELAX USB_ATTACH
++  allow 2 IPC_ADMIN TTY_INJECT FUSE_MOUNT ROFS_RELAX USB_ATTACH USB_MONITOR
 +  allow 2 SOCKET_CREATE SOCKET_CONNECT SOCKET_SERVER TIME_ADMIN RESOURCE_ADMIN
 +  allow 2 BLOCK_DEVICE_ACCESS BLOCK_DEVICE_ADMIN SIGNAL PROCESS_MEMORY MEMORY_MIGRATE PROCESS_FD
 +  audit 2 MODULE_LOAD KEXEC_LOAD
@@ -17572,7 +17641,8 @@ diff -urN linux-7.0.12/tools/hardening/README.rst linux-7.0.12-hdn/tools/hardeni
 +module loading, ptrace, ptrace execute-only reads, proc disclosure, debugfs,
 +owner-only sysfs reads, sysfs mutation, kexec, firmware loading, kernel logs,
 +raw I/O, mount administration, namespace administration, chroot administration,
-+USB attachment, and non-local socket creation/client/server operations.
++USB attachment, USB monitor capture, and non-local socket
++creation/client/server operations.
 +Denials still return the original error and emit events; kill responses add
 +``HDN_EVENT_RESPONSE_KILL_TASK`` to the event ``flags`` field. The QEMU smoke
 +suite also stages a signed
@@ -17870,9 +17940,14 @@ diff -urN linux-7.0.12/tools/hardening/README.rst linux-7.0.12-hdn/tools/hardeni
 +active. The gate runs in the USB hub attach path before enumeration and driver
 +binding, so profiles without the authority cannot introduce a newly connected
 +USB device into the kernel driver surface. Root hubs and devices already
-+discovered before policy commit remain governed by normal USB core state. The
-+QEMU smoke suite uses runtime USB hotplug through QMP ``device_add`` to prove a
-+restricted profile denies new attachment and records the ``USB_ATTACH`` event.
++discovered before policy commit remain governed by normal USB core state.
++``USB_MONITOR`` authority separately covers usbmon text and binary capture
++interfaces, so a profile can be allowed to approve devices without being able
++to sniff USB control, HID, or bulk traffic. The QEMU smoke suite uses runtime
++USB hotplug through QMP ``device_add`` to prove a restricted profile denies new
++attachment and records the ``USB_ATTACH`` event, and opens ``/dev/usbmon0`` to
++prove the same restricted profile denies monitor capture and records the
++``USB_MONITOR`` event.
 +
 +``SOCKET_CREATE``, ``SOCKET_CONNECT``, and ``SOCKET_SERVER`` authority cover
 +non-local socket creation, outbound connection attempts, and server-side
@@ -18383,7 +18458,7 @@ diff -urN linux-7.0.12/tools/hardening/admin-broker.conf linux-7.0.12-hdn/tools/
 +allow-policy-rollback
 diff -urN linux-7.0.12/tools/hardening/default.policy linux-7.0.12-hdn/tools/hardening/default.policy
 --- linux-7.0.12/tools/hardening/default.policy	1969-12-31 18:00:00.000000000 -0600
-+++ linux-7.0.12-hdn/tools/hardening/default.policy	2026-06-26 03:37:04.247104097 -0500
++++ linux-7.0.12-hdn/tools/hardening/default.policy	2026-06-26 14:00:44.542042427 -0500
 @@ -0,0 +1,19 @@
 +# Built-in-style starter policy for the hardening profile loader.
 +
@@ -18400,7 +18475,7 @@ diff -urN linux-7.0.12/tools/hardening/default.policy linux-7.0.12-hdn/tools/har
 +allow 2 KEXEC_LOAD FIRMWARE_LOAD IO_URING_RESTRICTED_OP
 +allow 2 KERNEL_LOG_READ RAW_IO MOUNT_ADMIN POLICY_ADMIN
 +allow 2 NAMESPACE_ADMIN CRED_CHANGE CHROOT_ADMIN TRUSTED_EXEC_BYPASS
-+allow 2 IPC_ADMIN TTY_INJECT FUSE_MOUNT ROFS_RELAX USB_ATTACH
++allow 2 IPC_ADMIN TTY_INJECT FUSE_MOUNT ROFS_RELAX USB_ATTACH USB_MONITOR
 +allow 2 SOCKET_CREATE SOCKET_CONNECT SOCKET_SERVER TIME_ADMIN RESOURCE_ADMIN
 +allow 2 BLOCK_DEVICE_ACCESS BLOCK_DEVICE_ADMIN SIGNAL PROCESS_MEMORY MEMORY_MIGRATE PROCESS_FD
 +audit 2 MODULE_LOAD KEXEC_LOAD
@@ -21070,8 +21145,8 @@ diff -urN linux-7.0.12/tools/hardening/hdn-desktop-daemon.c linux-7.0.12-hdn/too
 +}
 diff -urN linux-7.0.12/tools/hardening/hdn-event-decode.c linux-7.0.12-hdn/tools/hardening/hdn-event-decode.c
 --- linux-7.0.12/tools/hardening/hdn-event-decode.c	1969-12-31 18:00:00.000000000 -0600
-+++ linux-7.0.12-hdn/tools/hardening/hdn-event-decode.c	2026-06-26 10:08:27.311292219 -0500
-@@ -0,0 +1,682 @@
++++ linux-7.0.12-hdn/tools/hardening/hdn-event-decode.c	2026-06-26 14:00:35.178043147 -0500
+@@ -0,0 +1,684 @@
 +// SPDX-License-Identifier: GPL-2.0-only
 +
 +#define _GNU_SOURCE
@@ -21154,6 +21229,7 @@ diff -urN linux-7.0.12/tools/hardening/hdn-event-decode.c linux-7.0.12-hdn/tools
 +	{ HDN_AUTH_FUSE_MOUNT, "FUSE_MOUNT" },
 +	{ HDN_AUTH_ROFS_RELAX, "ROFS_RELAX" },
 +	{ HDN_AUTH_USB_ATTACH, "USB_ATTACH" },
++	{ HDN_AUTH_USB_MONITOR, "USB_MONITOR" },
 +	{ HDN_AUTH_SOCKET_CREATE, "SOCKET_CREATE" },
 +	{ HDN_AUTH_SOCKET_CONNECT, "SOCKET_CONNECT" },
 +	{ HDN_AUTH_SOCKET_SERVER, "SOCKET_SERVER" },
@@ -21240,6 +21316,7 @@ diff -urN linux-7.0.12/tools/hardening/hdn-event-decode.c linux-7.0.12-hdn/tools
 +	{ HDN_TRANS_FUSE_MOUNT, "FUSE_MOUNT" },
 +	{ HDN_TRANS_ROFS_RELAX, "ROFS_RELAX" },
 +	{ HDN_TRANS_USB_ATTACH, "USB_ATTACH" },
++	{ HDN_TRANS_USB_MONITOR, "USB_MONITOR" },
 +	{ HDN_TRANS_SOCKET_CREATE, "SOCKET_CREATE" },
 +	{ HDN_TRANS_SOCKET_CONNECT, "SOCKET_CONNECT" },
 +	{ HDN_TRANS_SOCKET_SERVER, "SOCKET_SERVER" },
@@ -22601,8 +22678,8 @@ diff -urN linux-7.0.12/tools/hardening/hdn-package-hook.c linux-7.0.12-hdn/tools
 +}
 diff -urN linux-7.0.12/tools/hardening/hdn-policy-learn.c linux-7.0.12-hdn/tools/hardening/hdn-policy-learn.c
 --- linux-7.0.12/tools/hardening/hdn-policy-learn.c	1969-12-31 18:00:00.000000000 -0600
-+++ linux-7.0.12-hdn/tools/hardening/hdn-policy-learn.c	2026-06-26 10:08:35.719317718 -0500
-@@ -0,0 +1,844 @@
++++ linux-7.0.12-hdn/tools/hardening/hdn-policy-learn.c	2026-06-26 14:00:35.182043147 -0500
+@@ -0,0 +1,846 @@
 +// SPDX-License-Identifier: GPL-2.0-only
 +
 +#define _GNU_SOURCE
@@ -22692,6 +22769,7 @@ diff -urN linux-7.0.12/tools/hardening/hdn-policy-learn.c linux-7.0.12-hdn/tools
 +	{ HDN_AUTH_FUSE_MOUNT, "FUSE_MOUNT" },
 +	{ HDN_AUTH_ROFS_RELAX, "ROFS_RELAX" },
 +	{ HDN_AUTH_USB_ATTACH, "USB_ATTACH" },
++	{ HDN_AUTH_USB_MONITOR, "USB_MONITOR" },
 +	{ HDN_AUTH_SOCKET_CREATE, "SOCKET_CREATE" },
 +	{ HDN_AUTH_SOCKET_CONNECT, "SOCKET_CONNECT" },
 +	{ HDN_AUTH_SOCKET_SERVER, "SOCKET_SERVER" },
@@ -22778,6 +22856,7 @@ diff -urN linux-7.0.12/tools/hardening/hdn-policy-learn.c linux-7.0.12-hdn/tools
 +	{ HDN_TRANS_FUSE_MOUNT, "FUSE_MOUNT" },
 +	{ HDN_TRANS_ROFS_RELAX, "ROFS_RELAX" },
 +	{ HDN_TRANS_USB_ATTACH, "USB_ATTACH" },
++	{ HDN_TRANS_USB_MONITOR, "USB_MONITOR" },
 +	{ HDN_TRANS_SOCKET_CREATE, "SOCKET_CREATE" },
 +	{ HDN_TRANS_SOCKET_CONNECT, "SOCKET_CONNECT" },
 +	{ HDN_TRANS_SOCKET_SERVER, "SOCKET_SERVER" },
@@ -23449,8 +23528,8 @@ diff -urN linux-7.0.12/tools/hardening/hdn-policy-learn.c linux-7.0.12-hdn/tools
 +}
 diff -urN linux-7.0.12/tools/hardening/hdn-policy-merge.c linux-7.0.12-hdn/tools/hardening/hdn-policy-merge.c
 --- linux-7.0.12/tools/hardening/hdn-policy-merge.c	1969-12-31 18:00:00.000000000 -0600
-+++ linux-7.0.12-hdn/tools/hardening/hdn-policy-merge.c	2026-06-26 07:20:34.545872063 -0500
-@@ -0,0 +1,632 @@
++++ linux-7.0.12-hdn/tools/hardening/hdn-policy-merge.c	2026-06-26 14:00:35.178043147 -0500
+@@ -0,0 +1,633 @@
 +// SPDX-License-Identifier: GPL-2.0-only
 +
 +#define _GNU_SOURCE
@@ -23513,6 +23592,7 @@ diff -urN linux-7.0.12/tools/hardening/hdn-policy-merge.c linux-7.0.12-hdn/tools
 +	{ "FUSE_MOUNT", HDN_AUTH_FUSE_MOUNT },
 +	{ "ROFS_RELAX", HDN_AUTH_ROFS_RELAX },
 +	{ "USB_ATTACH", HDN_AUTH_USB_ATTACH },
++	{ "USB_MONITOR", HDN_AUTH_USB_MONITOR },
 +	{ "SOCKET_CREATE", HDN_AUTH_SOCKET_CREATE },
 +	{ "SOCKET_CONNECT", HDN_AUTH_SOCKET_CONNECT },
 +	{ "SOCKET_SERVER", HDN_AUTH_SOCKET_SERVER },
@@ -24085,8 +24165,8 @@ diff -urN linux-7.0.12/tools/hardening/hdn-policy-merge.c linux-7.0.12-hdn/tools
 +}
 diff -urN linux-7.0.12/tools/hardening/hdn-policy.c linux-7.0.12-hdn/tools/hardening/hdn-policy.c
 --- linux-7.0.12/tools/hardening/hdn-policy.c	1969-12-31 18:00:00.000000000 -0600
-+++ linux-7.0.12-hdn/tools/hardening/hdn-policy.c	2026-06-26 09:07:56.827626628 -0500
-@@ -0,0 +1,2046 @@
++++ linux-7.0.12-hdn/tools/hardening/hdn-policy.c	2026-06-26 14:00:35.178043147 -0500
+@@ -0,0 +1,2047 @@
 +// SPDX-License-Identifier: GPL-2.0-only
 +
 +#include <ctype.h>
@@ -24196,6 +24276,7 @@ diff -urN linux-7.0.12/tools/hardening/hdn-policy.c linux-7.0.12-hdn/tools/harde
 +	{ "FUSE_MOUNT", HDN_AUTH_FUSE_MOUNT },
 +	{ "ROFS_RELAX", HDN_AUTH_ROFS_RELAX },
 +	{ "USB_ATTACH", HDN_AUTH_USB_ATTACH },
++	{ "USB_MONITOR", HDN_AUTH_USB_MONITOR },
 +	{ "SOCKET_CREATE", HDN_AUTH_SOCKET_CREATE },
 +	{ "SOCKET_CONNECT", HDN_AUTH_SOCKET_CONNECT },
 +	{ "SOCKET_SERVER", HDN_AUTH_SOCKET_SERVER },
@@ -32011,8 +32092,8 @@ diff -urN linux-7.0.12/tools/testing/selftests/hardening/hdn_elfnote_jit.c linux
 +}
 diff -urN linux-7.0.12/tools/testing/selftests/hardening/hdn_smoke.c linux-7.0.12-hdn/tools/testing/selftests/hardening/hdn_smoke.c
 --- linux-7.0.12/tools/testing/selftests/hardening/hdn_smoke.c	1969-12-31 18:00:00.000000000 -0600
-+++ linux-7.0.12-hdn/tools/testing/selftests/hardening/hdn_smoke.c	2026-06-26 13:52:04.726086784 -0500
-@@ -0,0 +1,22257 @@
++++ linux-7.0.12-hdn/tools/testing/selftests/hardening/hdn_smoke.c	2026-06-26 14:01:13.874040124 -0500
+@@ -0,0 +1,22281 @@
 +// SPDX-License-Identifier: GPL-2.0-only
 +
 +#define _GNU_SOURCE
@@ -32231,6 +32312,7 @@ diff -urN linux-7.0.12/tools/testing/selftests/hardening/hdn_smoke.c linux-7.0.1
 +#define HDN_SYSFS_RCU_EXPEDITED "/sys/kernel/rcu_expedited"
 +#define HDN_SYSFS_SLAB_DIR "/sys/kernel/slab"
 +#define HDN_DEV_PORT "/dev/port"
++#define HDN_DEV_USBMON0 "/dev/usbmon0"
 +#define HDN_DEV_CPU_DIR "/dev/cpu"
 +#define HDN_DEV_CPU0_DIR "/dev/cpu/0"
 +#define HDN_DEV_CPU_MSR "/dev/cpu/0/msr"
@@ -48555,6 +48637,20 @@ diff -urN linux-7.0.12/tools/testing/selftests/hardening/hdn_smoke.c linux-7.0.1
 +	       0 : 1;
 +}
 +
++static int usb_monitor_without_authority_denied(void)
++{
++	int fd;
++
++	errno = 0;
++	fd = open(HDN_DEV_USBMON0, O_RDONLY | O_CLOEXEC);
++	if (fd >= 0) {
++		close(fd);
++		return 1;
++	}
++
++	return errno_is_denial(errno) ? 0 : 2;
++}
++
 +static void test_signed_policy_transaction(void)
 +{
 +	bool staged = false;
@@ -48875,6 +48971,7 @@ diff -urN linux-7.0.12/tools/testing/selftests/hardening/hdn_smoke.c linux-7.0.1
 +		ksft_test_result_skip("restricted profile denies non-local socket creation\n");
 +		ksft_test_result_skip("restricted profile allows local socket creation\n");
 +		ksft_test_result_skip("restricted profile denies runtime USB hotplug\n");
++		ksft_test_result_skip("restricted profile denies USB monitor capture\n");
 +		ksft_test_result_skip("restricted profile denies system time change\n");
 +		ksft_test_result_skip("restricted resource-limit hard raise denied\n");
 +		ksft_test_result_skip("restricted raw block-device access denied\n");
@@ -49768,6 +49865,10 @@ diff -urN linux-7.0.12/tools/testing/selftests/hardening/hdn_smoke.c linux-7.0.1
 +				    "restricted profile allows local socket creation");
 +		report_child_result(usb_hotplug_without_authority_denied(),
 +				    "restricted profile denies runtime USB hotplug");
++		report_child_result(usb_monitor_without_authority_denied(),
++				    "restricted profile denies USB monitor capture");
++		test_securityfs_events_contains("authority=78",
++						"hardening events report USB monitor denial");
 +		report_child_result(time_change_without_authority_denied(),
 +				    "restricted profile denies system time change");
 +		report_forked_child_result(resource_limit_without_authority_denied,
@@ -49807,6 +49908,8 @@ diff -urN linux-7.0.12/tools/testing/selftests/hardening/hdn_smoke.c linux-7.0.1
 +					    "restricted profile allows local socket creation");
 +			report_child_result(2,
 +					    "restricted profile denies runtime USB hotplug");
++			report_child_result(2,
++					    "restricted profile denies USB monitor capture");
 +			report_child_result(2,
 +					    "restricted profile denies system time change");
 +			report_child_result(2,
@@ -53979,11 +54082,11 @@ diff -urN linux-7.0.12/tools/testing/selftests/hardening/hdn_smoke.c linux-7.0.1
 +	if (access(HDN_STATUS, R_OK))
 +		ksft_exit_skip("hardening securityfs status not present\n");
 +
-+	ksft_set_plan(752);
++	ksft_set_plan(755);
 +	test_securityfs_status();
 +	test_symbol_test_module_load();
-+	test_securityfs_status_contains("abi_version: 76",
-+					"hardening status reports policy ABI 76");
++	test_securityfs_status_contains("abi_version: 77",
++					"hardening status reports policy ABI 77");
 +	test_securityfs_status_contains("phase:",
 +					"hardening status reports sealing phase");
 +	test_securityfs_status_contains("policy_staged:",
@@ -54078,6 +54181,8 @@ diff -urN linux-7.0.12/tools/testing/selftests/hardening/hdn_smoke.c linux-7.0.1
 +					"hardening status reports proc task hiding");
 +	test_securityfs_status_contains("mitigation_usb_restrict: 1",
 +					"hardening status reports USB attach restriction");
++	test_securityfs_status_contains("mitigation_usb_monitor_restrict: 1",
++					"hardening status reports USB monitor restriction");
 +	test_securityfs_status_contains("mitigation_socket_restrict: 1",
 +					"hardening status reports socket restriction");
 +	test_securityfs_status_contains("mitigation_net_blackhole: 1",
@@ -54272,7 +54377,7 @@ diff -urN linux-7.0.12/tools/testing/selftests/hardening/hdn_smoke.c linux-7.0.1
 +}
 diff -urN linux-7.0.12/tools/testing/selftests/hardening/identity.policy linux-7.0.12-hdn/tools/testing/selftests/hardening/identity.policy
 --- linux-7.0.12/tools/testing/selftests/hardening/identity.policy	1969-12-31 18:00:00.000000000 -0600
-+++ linux-7.0.12-hdn/tools/testing/selftests/hardening/identity.policy	2026-06-26 03:37:04.247104097 -0500
++++ linux-7.0.12-hdn/tools/testing/selftests/hardening/identity.policy	2026-06-26 14:00:44.546042427 -0500
 @@ -0,0 +1,25 @@
 +# SPDX-License-Identifier: GPL-2.0-only
 +# Policy used by the QEMU smoke test to prove runtime path resolution for
@@ -54293,7 +54398,7 @@ diff -urN linux-7.0.12/tools/testing/selftests/hardening/identity.policy linux-7
 +allow 2 KEXEC_LOAD FIRMWARE_LOAD IO_URING_RESTRICTED_OP
 +allow 2 KERNEL_LOG_READ RAW_IO MOUNT_ADMIN POLICY_ADMIN
 +allow 2 NAMESPACE_ADMIN CRED_CHANGE CHROOT_ADMIN TRUSTED_EXEC_BYPASS
-+allow 2 IPC_ADMIN TTY_INJECT FUSE_MOUNT ROFS_RELAX USB_ATTACH
++allow 2 IPC_ADMIN TTY_INJECT FUSE_MOUNT ROFS_RELAX USB_ATTACH USB_MONITOR
 +allow 2 SOCKET_CREATE SOCKET_CONNECT SOCKET_SERVER TIME_ADMIN RESOURCE_ADMIN
 +allow 2 BLOCK_DEVICE_ACCESS BLOCK_DEVICE_ADMIN SIGNAL PROCESS_MEMORY MEMORY_MIGRATE PROCESS_FD
 +
@@ -54337,7 +54442,7 @@ diff -urN linux-7.0.12/tools/testing/selftests/hardening/kill.policy linux-7.0.1
 +response 2 KILL_MEMORY
 diff -urN linux-7.0.12/tools/testing/selftests/hardening/module-path.policy linux-7.0.12-hdn/tools/testing/selftests/hardening/module-path.policy
 --- linux-7.0.12/tools/testing/selftests/hardening/module-path.policy	1969-12-31 18:00:00.000000000 -0600
-+++ linux-7.0.12-hdn/tools/testing/selftests/hardening/module-path.policy	2026-06-26 03:37:04.247104097 -0500
++++ linux-7.0.12-hdn/tools/testing/selftests/hardening/module-path.policy	2026-06-26 14:00:44.546042427 -0500
 @@ -0,0 +1,23 @@
 +# SPDX-License-Identifier: GPL-2.0-only
 +# Policy used by the QEMU smoke test to prove runtime path resolution for
@@ -54356,7 +54461,7 @@ diff -urN linux-7.0.12/tools/testing/selftests/hardening/module-path.policy linu
 +allow 2 KEXEC_LOAD FIRMWARE_LOAD IO_URING_RESTRICTED_OP
 +allow 2 KERNEL_LOG_READ RAW_IO MOUNT_ADMIN POLICY_ADMIN
 +allow 2 NAMESPACE_ADMIN CRED_CHANGE CHROOT_ADMIN TRUSTED_EXEC_BYPASS
-+allow 2 IPC_ADMIN TTY_INJECT FUSE_MOUNT ROFS_RELAX USB_ATTACH
++allow 2 IPC_ADMIN TTY_INJECT FUSE_MOUNT ROFS_RELAX USB_ATTACH USB_MONITOR
 +allow 2 SOCKET_CREATE SOCKET_CONNECT SOCKET_SERVER TIME_ADMIN RESOURCE_ADMIN
 +allow 2 BLOCK_DEVICE_ACCESS BLOCK_DEVICE_ADMIN SIGNAL PROCESS_MEMORY MEMORY_MIGRATE PROCESS_FD
 +audit 2 MODULE_LOAD
@@ -54613,7 +54718,7 @@ diff -urN linux-7.0.12/tools/testing/selftests/hardening/role.policy linux-7.0.1
 +use-role 2 desktop-admin
 diff -urN linux-7.0.12/tools/testing/selftests/hardening/run-qemu-smoke.sh linux-7.0.12-hdn/tools/testing/selftests/hardening/run-qemu-smoke.sh
 --- linux-7.0.12/tools/testing/selftests/hardening/run-qemu-smoke.sh	1969-12-31 18:00:00.000000000 -0600
-+++ linux-7.0.12-hdn/tools/testing/selftests/hardening/run-qemu-smoke.sh	2026-06-26 13:51:16.006083755 -0500
++++ linux-7.0.12-hdn/tools/testing/selftests/hardening/run-qemu-smoke.sh	2026-06-26 14:01:19.998039637 -0500
 @@ -0,0 +1,1017 @@
 +#!/bin/sh
 +# SPDX-License-Identifier: GPL-2.0
@@ -54648,7 +54753,7 @@ diff -urN linux-7.0.12/tools/testing/selftests/hardening/run-qemu-smoke.sh linux
 +QEMU_MEMORY=${QEMU_MEMORY:-1024M}
 +QEMU_SMP=${QEMU_SMP:-2}
 +QEMU_MACHINE=${QEMU_MACHINE:-q35,accel=tcg}
-+HDN_SMOKE_EXPECTED_PASS=${HDN_SMOKE_EXPECTED_PASS:-752}
++HDN_SMOKE_EXPECTED_PASS=${HDN_SMOKE_EXPECTED_PASS:-755}
 +WORK=${HDN_QEMU_WORK:-"${TMPDIR:-/tmp}/hdn-qemu-smoke.$$"}
 +LOG=${HDN_QEMU_LOG:-"$WORK/qemu.log"}
 +QMP=${HDN_QEMU_QMP:-"$WORK/qmp.sock"}
