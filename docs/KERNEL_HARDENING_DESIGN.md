@@ -609,6 +609,8 @@ Default rules:
 - Unknown signed modules do not load without broker approval.
 - Kernel-triggered module autoload does not run modprobe without a profile
   grant.
+- One-argument `request_module(name)` calls are exact module aliases, not
+  printf format strings; formatted calls must pass explicit varargs.
 - The `kernel.modprobe` helper path cannot be changed unless the caller is in
   policy-admin context and has `AUTH_MODULE_AUTOLOAD`, preventing restricted
   root profiles from redirecting future autoload execution.
@@ -1214,6 +1216,7 @@ mm/mmap.c and mm/mprotect paths:
 
 kernel/module/:
   authorize module admission and seal module memory
+  route one-argument request_module calls as exact names
   report upstream module-load lockout availability
 
 drivers/base/firmware_loader/:
@@ -1601,6 +1604,7 @@ Core oracle groups:
 - kernel logs redacted
 - unsigned module load denied
 - implicit module autoload denied without profile authority
+- exact-name request_module dispatch reported in sealed status
 - modprobe helper path writes denied without module-autoload authority
 - unsafe modprobe helper path writes denied even with module-autoload authority
 - one-way module and kexec load lockouts reported in sealed status
@@ -1750,6 +1754,8 @@ Core oracle groups:
   enabled; when that syscall is not built, the same attack surface is absent
 - upstream `kernel.modules_disabled` and `kernel.kexec_load_disabled` are
   reported as available one-way code-loading lockouts when built
+- one-argument `request_module()` exact-name dispatch is reported in sealed
+  status when module autoload support is built
 - `dev.tty.legacy_tiocsti` and `dev.tty.ldisc_autoload` are forced off while
   TTY injection hardening is enabled and cannot be re-enabled through sysctl
 - failed fork attempts emit a named `FORK_FAILED` audit reason and preserve the

@@ -4517,6 +4517,48 @@ diff -urN linux-7.0.12/include/linux/hardening.h linux-7.0.12-hdn/include/linux/
 +#endif
 +
 +#endif /* _LINUX_HARDENING_H */
+diff -urN linux-7.0.12/include/linux/kmod.h linux-7.0.12-hdn/include/linux/kmod.h
+--- linux-7.0.12/include/linux/kmod.h	2026-06-09 05:32:51.000000000 -0500
++++ linux-7.0.12-hdn/include/linux/kmod.h	2026-06-26 17:55:58.928767669 -0500
+@@ -7,6 +7,7 @@
+  */
+ 
+ #include <linux/umh.h>
++#include <linux/args.h>
+ #include <linux/gfp.h>
+ #include <linux/stddef.h>
+ #include <linux/errno.h>
+@@ -19,10 +20,27 @@
+  * usually useless though. */
+ extern __printf(2, 3)
+ int __request_module(bool wait, const char *name, ...);
+-#define request_module(mod...) __request_module(true, mod)
+-#define request_module_nowait(mod...) __request_module(false, mod)
++int __request_module_name(bool wait, const char *name);
++
++/*
++ * One-argument request_module() calls are exact aliases/names. Calls with
++ * extra arguments keep the printf-style formatting contract.
++ */
++#define __request_module_select(has_args) \
++	CONCATENATE(__request_module_select_, has_args)
++#define __request_module_select_(wait, name) \
++	__request_module_name(wait, name)
++#define __request_module_select_1(wait, fmt, ...) \
++	__request_module(wait, fmt, __VA_ARGS__)
++
++#define request_module(name, ...) \
++	__request_module_select(__VA_OPT__(1))(true, name __VA_OPT__(,) \
++					       __VA_ARGS__)
++#define request_module_nowait(name, ...) \
++	__request_module_select(__VA_OPT__(1))(false, name __VA_OPT__(,) \
++					       __VA_ARGS__)
+ #define try_then_request_module(x, mod...) \
+-	((x) ?: (__request_module(true, mod), (x)))
++	((x) ?: (request_module(mod), (x)))
+ #else
+ static inline int request_module(const char *name, ...) { return -ENOSYS; }
+ static inline int request_module_nowait(const char *name, ...) { return -ENOSYS; }
 diff -urN linux-7.0.12/include/linux/mm.h linux-7.0.12-hdn/include/linux/mm.h
 --- linux-7.0.12/include/linux/mm.h	2026-06-09 05:32:51.000000000 -0500
 +++ linux-7.0.12-hdn/include/linux/mm.h	2026-06-25 13:56:50.890255247 -0500
@@ -6586,7 +6628,7 @@ diff -urN linux-7.0.12/kernel/locking/lockdep.c linux-7.0.12-hdn/kernel/locking/
  
 diff -urN linux-7.0.12/kernel/module/kmod.c linux-7.0.12-hdn/kernel/module/kmod.c
 --- linux-7.0.12/kernel/module/kmod.c	2026-06-09 05:32:51.000000000 -0500
-+++ linux-7.0.12-hdn/kernel/module/kmod.c	2026-06-25 09:08:07.748234781 -0500
++++ linux-7.0.12-hdn/kernel/module/kmod.c	2026-06-26 17:45:58.132823286 -0500
 @@ -18,6 +18,7 @@
  #include <linux/file.h>
  #include <linux/workqueue.h>
@@ -6595,7 +6637,64 @@ diff -urN linux-7.0.12/kernel/module/kmod.c linux-7.0.12-hdn/kernel/module/kmod.
  #include <linux/mount.h>
  #include <linux/kernel.h>
  #include <linux/init.h>
-@@ -156,6 +157,10 @@
+@@ -28,6 +29,7 @@
+ #include <linux/ptrace.h>
+ #include <linux/async.h>
+ #include <linux/uaccess.h>
++#include <linux/string.h>
+ 
+ #include <trace/events/module.h>
+ #include "internal.h"
+@@ -113,28 +115,8 @@
+ 	return -ENOMEM;
+ }
+ 
+-/**
+- * __request_module - try to load a kernel module
+- * @wait: wait (or not) for the operation to complete
+- * @fmt: printf style format string for the name of the module
+- * @...: arguments as specified in the format string
+- *
+- * Load a module using the user mode module loader. The function returns
+- * zero on success or a negative errno code or positive exit code from
+- * "modprobe" on failure. Note that a successful module load does not mean
+- * the module did not then unload and exit on an error of its own. Callers
+- * must check that the service they requested is now available not blindly
+- * invoke it.
+- *
+- * If module auto-loading support is disabled then this function
+- * simply returns -ENOENT.
+- */
+-int __request_module(bool wait, const char *fmt, ...)
++static int request_module_preflight(bool wait)
+ {
+-	va_list args;
+-	char module_name[MODULE_NAME_LEN];
+-	int ret, dup_ret;
+-
+ 	/*
+ 	 * We don't allow synchronous module loading from async.  Module
+ 	 * init may invoke async_synchronize_full() which will end up
+@@ -146,16 +128,24 @@
+ 	if (!modprobe_path[0])
+ 		return -ENOENT;
+ 
+-	va_start(args, fmt);
+-	ret = vsnprintf(module_name, MODULE_NAME_LEN, fmt, args);
+-	va_end(args);
+-	if (ret >= MODULE_NAME_LEN)
+-		return -ENAMETOOLONG;
++	return 0;
++}
++
++static int request_module_run(bool wait, char *module_name)
++{
++	int ret, dup_ret;
++
++	if (!module_name[0])
++		return -EINVAL;
+ 
+ 	ret = security_kernel_module_request(module_name);
  	if (ret)
  		return ret;
  
@@ -6606,6 +6705,78 @@ diff -urN linux-7.0.12/kernel/module/kmod.c linux-7.0.12-hdn/kernel/module/kmod.
  	ret = down_timeout(&kmod_concurrent_max, MAX_KMOD_ALL_BUSY_TIMEOUT * HZ);
  	if (ret) {
  		pr_warn_ratelimited("request_module: modprobe %s cannot be processed, kmod busy with %d threads for more than %d seconds now",
+@@ -177,4 +167,71 @@
+ 
+ 	return ret;
+ }
++
++/**
++ * __request_module_name - try to load an exact kernel module name
++ * @wait: wait (or not) for the operation to complete
++ * @name: literal module alias/name, not a printf format string
++ *
++ * Load a module using the user mode module loader. The function returns
++ * zero on success or a negative errno code or positive exit code from
++ * "modprobe" on failure.
++ */
++int __request_module_name(bool wait, const char *name)
++{
++	char module_name[MODULE_NAME_LEN];
++	int ret;
++
++	ret = request_module_preflight(wait);
++	if (ret)
++		return ret;
++	if (!name)
++		return -EINVAL;
++
++	ret = strscpy(module_name, name, sizeof(module_name));
++	if (ret < 0)
++		return -ENAMETOOLONG;
++
++	return request_module_run(wait, module_name);
++}
++EXPORT_SYMBOL(__request_module_name);
++
++/**
++ * __request_module - try to load a formatted kernel module name
++ * @wait: wait (or not) for the operation to complete
++ * @fmt: printf style format string for the name of the module
++ * @...: arguments as specified in the format string
++ *
++ * Load a module using the user mode module loader. The function returns
++ * zero on success or a negative errno code or positive exit code from
++ * "modprobe" on failure. Note that a successful module load does not mean
++ * the module did not then unload and exit on an error of its own. Callers
++ * must check that the service they requested is now available not blindly
++ * invoke it.
++ *
++ * If module auto-loading support is disabled then this function
++ * simply returns -ENOENT.
++ */
++int __request_module(bool wait, const char *fmt, ...)
++{
++	va_list args;
++	char module_name[MODULE_NAME_LEN];
++	int ret;
++
++	ret = request_module_preflight(wait);
++	if (ret)
++		return ret;
++	if (!fmt)
++		return -EINVAL;
++
++	va_start(args, fmt);
++	ret = vsnprintf(module_name, MODULE_NAME_LEN, fmt, args);
++	va_end(args);
++	if (ret < 0)
++		return ret;
++	if (ret >= MODULE_NAME_LEN)
++		return -ENAMETOOLONG;
++
++	return request_module_run(wait, module_name);
++}
+ EXPORT_SYMBOL(__request_module);
 diff -urN linux-7.0.12/kernel/module/main.c linux-7.0.12-hdn/kernel/module/main.c
 --- linux-7.0.12/kernel/module/main.c	2026-06-09 05:32:51.000000000 -0500
 +++ linux-7.0.12-hdn/kernel/module/main.c	2026-06-26 17:28:20.328916464 -0500
@@ -10194,8 +10365,8 @@ diff -urN linux-7.0.12/security/hardening/Makefile linux-7.0.12-hdn/security/har
 +obj-$(CONFIG_SECURITY_HARDENING) += core.o
 diff -urN linux-7.0.12/security/hardening/core.c linux-7.0.12-hdn/security/hardening/core.c
 --- linux-7.0.12/security/hardening/core.c	1969-12-31 18:00:00.000000000 -0600
-+++ linux-7.0.12-hdn/security/hardening/core.c	2026-06-26 17:36:57.968872546 -0500
-@@ -0,0 +1,7381 @@
++++ linux-7.0.12-hdn/security/hardening/core.c	2026-06-26 17:46:12.356821992 -0500
+@@ -0,0 +1,7387 @@
 +// SPDX-License-Identifier: GPL-2.0-only
 +
 +#include <linux/binfmts.h>
@@ -10350,6 +10521,7 @@ diff -urN linux-7.0.12/security/hardening/core.c linux-7.0.12-hdn/security/harde
 +#define HDN_MITIGATION2_MODULE_AUTOLOAD_PATH	(1ULL << 4)
 +#define HDN_MITIGATION2_KEXEC_LOAD_DISABLE	(1ULL << 5)
 +#define HDN_MITIGATION2_MODULE_LOAD_DISABLE	(1ULL << 6)
++#define HDN_MITIGATION2_MODULE_REQUEST_NAME	(1ULL << 7)
 +
 +struct hdn_mitigation_state {
 +	u32 abi_version;
@@ -10688,6 +10860,8 @@ diff -urN linux-7.0.12/security/hardening/core.c linux-7.0.12-hdn/security/harde
 +		flags |= HDN_MITIGATION2_KEXEC_LOAD_DISABLE;
 +	if (IS_ENABLED(CONFIG_MODULES) && IS_ENABLED(CONFIG_SYSCTL))
 +		flags |= HDN_MITIGATION2_MODULE_LOAD_DISABLE;
++	if (IS_ENABLED(CONFIG_MODULES))
++		flags |= HDN_MITIGATION2_MODULE_REQUEST_NAME;
 +
 +	return flags;
 +}
@@ -17163,6 +17337,9 @@ diff -urN linux-7.0.12/security/hardening/core.c linux-7.0.12-hdn/security/harde
 +	seq_printf(m, "mitigation_module_load_disable: %u\n",
 +		   hdn_mitigation2_enabled(
 +			   HDN_MITIGATION2_MODULE_LOAD_DISABLE));
++	seq_printf(m, "mitigation_module_request_name: %u\n",
++		   hdn_mitigation2_enabled(
++			   HDN_MITIGATION2_MODULE_REQUEST_NAME));
 +	seq_printf(m, "mitigation_privexec_arg_stack_limits: %u\n",
 +		   IS_ENABLED(CONFIG_SECURITY_HARDENING_PROC_MEMMAP));
 +	seq_printf(m, "mitigation_memfd_noexec: %u\n",
@@ -17926,8 +18103,8 @@ diff -urN linux-7.0.12/tools/hardening/Makefile linux-7.0.12-hdn/tools/hardening
 +.PHONY: all clean install
 diff -urN linux-7.0.12/tools/hardening/README.rst linux-7.0.12-hdn/tools/hardening/README.rst
 --- linux-7.0.12/tools/hardening/README.rst	1969-12-31 18:00:00.000000000 -0600
-+++ linux-7.0.12-hdn/tools/hardening/README.rst	2026-06-26 17:10:07.884992823 -0500
-@@ -0,0 +1,1360 @@
++++ linux-7.0.12-hdn/tools/hardening/README.rst	2026-06-26 17:55:58.928767669 -0500
+@@ -0,0 +1,1362 @@
 +.. SPDX-License-Identifier: GPL-2.0-only
 +
 +Linux Hardening Policy Tools
@@ -19247,7 +19424,9 @@ diff -urN linux-7.0.12/tools/hardening/README.rst linux-7.0.12-hdn/tools/hardeni
 +record. Implicit kernel autoload requests use the separate
 +``MODULE_AUTOLOAD`` authority before modprobe is invoked, so product policy can
 +distinguish explicit package-manager module installation from request_module()
-+alias expansion. Supported syntax is::
++alias expansion. One-argument ``request_module(name)`` calls are routed as
++exact aliases instead of treating ``name`` as a printf format string; formatted
++requests must pass explicit arguments. Supported syntax is::
 +
 +  module 2 path /lib/modules/example.ko
 +  module 2 path /lib/modules/example.ko verity sha256 0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef
@@ -35060,8 +35239,8 @@ diff -urN linux-7.0.12/tools/testing/selftests/hardening/hdn_elfnote_jit.c linux
 +}
 diff -urN linux-7.0.12/tools/testing/selftests/hardening/hdn_smoke.c linux-7.0.12-hdn/tools/testing/selftests/hardening/hdn_smoke.c
 --- linux-7.0.12/tools/testing/selftests/hardening/hdn_smoke.c	1969-12-31 18:00:00.000000000 -0600
-+++ linux-7.0.12-hdn/tools/testing/selftests/hardening/hdn_smoke.c	2026-06-26 17:36:57.980872544 -0500
-@@ -0,0 +1,23606 @@
++++ linux-7.0.12-hdn/tools/testing/selftests/hardening/hdn_smoke.c	2026-06-26 17:46:21.232821188 -0500
+@@ -0,0 +1,23608 @@
 +// SPDX-License-Identifier: GPL-2.0-only
 +
 +#define _GNU_SOURCE
@@ -58289,7 +58468,7 @@ diff -urN linux-7.0.12/tools/testing/selftests/hardening/hdn_smoke.c linux-7.0.1
 +	if (access(HDN_STATUS, R_OK))
 +		ksft_exit_skip("hardening securityfs status not present\n");
 +
-+	ksft_set_plan(807);
++	ksft_set_plan(808);
 +	test_securityfs_status();
 +	test_symbol_test_module_load();
 +	test_securityfs_status_contains("abi_version: 77",
@@ -58360,6 +58539,8 @@ diff -urN linux-7.0.12/tools/testing/selftests/hardening/hdn_smoke.c linux-7.0.1
 +					"hardening status reports one-way kexec disable sysctl");
 +	test_securityfs_status_contains("mitigation_module_load_disable: 1",
 +					"hardening status reports one-way module disable sysctl");
++	test_securityfs_status_contains("mitigation_module_request_name: 1",
++					"hardening status reports exact module request names");
 +	test_securityfs_status_contains("mitigation_privexec_arg_stack_limits: 1",
 +					"hardening status reports privileged exec argument and stack limits");
 +	test_int_file_equals(HDN_SUID_DUMPABLE, 0,
@@ -59011,7 +59192,7 @@ diff -urN linux-7.0.12/tools/testing/selftests/hardening/role.policy linux-7.0.1
 +use-role 2 desktop-admin
 diff -urN linux-7.0.12/tools/testing/selftests/hardening/run-qemu-smoke.sh linux-7.0.12-hdn/tools/testing/selftests/hardening/run-qemu-smoke.sh
 --- linux-7.0.12/tools/testing/selftests/hardening/run-qemu-smoke.sh	1969-12-31 18:00:00.000000000 -0600
-+++ linux-7.0.12-hdn/tools/testing/selftests/hardening/run-qemu-smoke.sh	2026-06-26 17:36:57.980872544 -0500
++++ linux-7.0.12-hdn/tools/testing/selftests/hardening/run-qemu-smoke.sh	2026-06-26 17:46:27.284820641 -0500
 @@ -0,0 +1,1056 @@
 +#!/bin/sh
 +# SPDX-License-Identifier: GPL-2.0
@@ -59046,7 +59227,7 @@ diff -urN linux-7.0.12/tools/testing/selftests/hardening/run-qemu-smoke.sh linux
 +QEMU_MEMORY=${QEMU_MEMORY:-1024M}
 +QEMU_SMP=${QEMU_SMP:-2}
 +QEMU_MACHINE=${QEMU_MACHINE:-q35,accel=tcg}
-+HDN_SMOKE_EXPECTED_PASS=${HDN_SMOKE_EXPECTED_PASS:-807}
++HDN_SMOKE_EXPECTED_PASS=${HDN_SMOKE_EXPECTED_PASS:-808}
 +WORK=${HDN_QEMU_WORK:-"${TMPDIR:-/tmp}/hdn-qemu-smoke.$$"}
 +LOG=${HDN_QEMU_LOG:-"$WORK/qemu.log"}
 +QMP=${HDN_QEMU_QMP:-"$WORK/qmp.sock"}

@@ -34,6 +34,8 @@ Authorized `kernel.modprobe` writes now also validate the helper path as an
 absolute, symlink-free, root-owned executable through non-writable ancestry.
 Upstream one-way module and kexec load disable sysctls are reported in sealed
 status and smoked for irreversible tightening after product policy flips them.
+One-argument `request_module(name)` calls now route exact module names instead
+of interpreting caller-provided aliases as printf format strings.
 USB monitor capture is now gated separately from USB attach so device brokers
 do not implicitly gain traffic-sniffing authority. Memfd defaults are now
 locked to enforced noexec mode, including rejection of explicit executable
@@ -107,16 +109,16 @@ The hardening smoke suite in the development tree is run under QEMU. Latest
 local result before this publication checkpoint:
 
 ```text
-QEMU hardening smoke: 807/807 pass
+QEMU hardening smoke: 808/808 pass
 ```
 
 Patch artifact at this checkpoint:
 
 ```text
 patch: patches/hdn-linux-7.0.12.patch
-lines: 60,247
-bytes: 1,770,013
-sha256: 1480167e6bf884e8efd04dd5726b0d2e11217608aa6cec28784e150e398cfc14
+lines: 60,428
+bytes: 1,776,015
+sha256: 320542813ad302ea4d766a87b81fa61cd07ab81f79e8355411cdb08f04722941
 ```
 
 ## Development Rule
