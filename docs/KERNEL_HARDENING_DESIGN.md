@@ -1164,8 +1164,9 @@ drivers/base/firmware_loader/:
   authorize firmware admission
 
 kernel/bpf/:
-  authorize BPF program load, map/BTF/link/token creation, and attach/update
-  operations
+  authorize BPF program load, map/BTF/link/token creation, attach/update,
+  fd-by-id acquisition, ID enumeration, metadata queries, map operations,
+  pin/get operations, test-run, iter, stats, token, and struct-ops operations
   require disclosure authority before the BPF kallsyms lookup helper resolves
   user-provided symbol names
   require disclosure authority before the BPF verifier resolves pseudo-BTF
@@ -1476,7 +1477,8 @@ Core oracle groups:
 ### Attack Surface
 
 - unprivileged BPF denied
-- restricted profiles denied BPF map creation and audited under `BPF_LOAD`
+- restricted profiles denied BPF map creation and metadata enumeration under
+  `BPF_LOAD`, with denials audited
 - unauthorized perf kernel access denied
 - ptrace constrained by profile
 - direct native and compat ptrace attach/seize attempts emit structured ptrace

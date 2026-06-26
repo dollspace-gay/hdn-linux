@@ -5335,7 +5335,7 @@ diff -urN linux-7.0.12/kernel/bpf/core.c linux-7.0.12-hdn/kernel/bpf/core.c
  
 diff -urN linux-7.0.12/kernel/bpf/syscall.c linux-7.0.12-hdn/kernel/bpf/syscall.c
 --- linux-7.0.12/kernel/bpf/syscall.c	2026-06-09 05:32:51.000000000 -0500
-+++ linux-7.0.12-hdn/kernel/bpf/syscall.c	2026-06-26 12:07:58.414651267 -0500
++++ linux-7.0.12-hdn/kernel/bpf/syscall.c	2026-06-26 13:51:15.994083756 -0500
 @@ -19,6 +19,7 @@
  #include <linux/fdtable.h>
  #include <linux/file.h>
@@ -5364,7 +5364,7 @@ diff -urN linux-7.0.12/kernel/bpf/syscall.c linux-7.0.12-hdn/kernel/bpf/syscall.
  	if (!IS_ENABLED(CONFIG_HAVE_EFFICIENT_UNALIGNED_ACCESS) &&
  	    (attr->prog_flags & BPF_F_ANY_ALIGNMENT) &&
  	    !bpf_cap)
-@@ -6224,6 +6231,28 @@
+@@ -6224,6 +6231,53 @@
  	return ret;
  }
  
@@ -5372,17 +5372,42 @@ diff -urN linux-7.0.12/kernel/bpf/syscall.c linux-7.0.12-hdn/kernel/bpf/syscall.
 +{
 +	switch (cmd) {
 +	case BPF_MAP_CREATE:
++	case BPF_MAP_LOOKUP_ELEM:
++	case BPF_MAP_UPDATE_ELEM:
++	case BPF_MAP_DELETE_ELEM:
++	case BPF_MAP_GET_NEXT_KEY:
++	case BPF_MAP_FREEZE:
++	case BPF_OBJ_PIN:
++	case BPF_OBJ_GET:
 +	case BPF_BTF_LOAD:
 +	case BPF_RAW_TRACEPOINT_OPEN:
 +	case BPF_PROG_ATTACH:
 +	case BPF_PROG_DETACH:
++	case BPF_PROG_QUERY:
++	case BPF_PROG_TEST_RUN:
++	case BPF_PROG_GET_NEXT_ID:
++	case BPF_MAP_GET_NEXT_ID:
++	case BPF_BTF_GET_NEXT_ID:
++	case BPF_PROG_GET_FD_BY_ID:
++	case BPF_MAP_GET_FD_BY_ID:
++	case BPF_OBJ_GET_INFO_BY_FD:
++	case BPF_BTF_GET_FD_BY_ID:
++	case BPF_TASK_FD_QUERY:
++	case BPF_MAP_LOOKUP_AND_DELETE_ELEM:
++	case BPF_MAP_LOOKUP_BATCH:
++	case BPF_MAP_LOOKUP_AND_DELETE_BATCH:
++	case BPF_MAP_UPDATE_BATCH:
++	case BPF_MAP_DELETE_BATCH:
 +	case BPF_LINK_CREATE:
 +	case BPF_LINK_UPDATE:
++	case BPF_LINK_GET_FD_BY_ID:
++	case BPF_LINK_GET_NEXT_ID:
 +	case BPF_LINK_DETACH:
 +	case BPF_ENABLE_STATS:
 +	case BPF_ITER_CREATE:
 +	case BPF_PROG_BIND_MAP:
 +	case BPF_TOKEN_CREATE:
++	case BPF_PROG_STREAM_READ_BY_FD:
 +	case BPF_PROG_ASSOC_STRUCT_OPS:
 +		return true;
 +	default:
@@ -5393,7 +5418,7 @@ diff -urN linux-7.0.12/kernel/bpf/syscall.c linux-7.0.12-hdn/kernel/bpf/syscall.
  static int __sys_bpf(enum bpf_cmd cmd, bpfptr_t uattr, unsigned int size)
  {
  	union bpf_attr attr;
-@@ -6243,6 +6272,12 @@
+@@ -6243,6 +6297,12 @@
  	if (err < 0)
  		return err;
  
@@ -5406,7 +5431,7 @@ diff -urN linux-7.0.12/kernel/bpf/syscall.c linux-7.0.12-hdn/kernel/bpf/syscall.
  	switch (cmd) {
  	case BPF_MAP_CREATE:
  		err = map_create(&attr, uattr);
-@@ -6494,6 +6529,8 @@
+@@ -6494,6 +6554,8 @@
  
  BPF_CALL_4(bpf_kallsyms_lookup_name, const char *, name, int, name_sz, int, flags, u64 *, res)
  {
@@ -5415,7 +5440,7 @@ diff -urN linux-7.0.12/kernel/bpf/syscall.c linux-7.0.12-hdn/kernel/bpf/syscall.
  	*res = 0;
  	if (flags)
  		return -EINVAL;
-@@ -6501,6 +6538,10 @@
+@@ -6501,6 +6563,10 @@
  	if (name_sz <= 1 || name[name_sz - 1])
  		return -EINVAL;
  
@@ -5426,7 +5451,7 @@ diff -urN linux-7.0.12/kernel/bpf/syscall.c linux-7.0.12-hdn/kernel/bpf/syscall.
  	if (!bpf_dump_raw_ok(current_cred()))
  		return -EPERM;
  
-@@ -6613,7 +6654,11 @@
+@@ -6613,7 +6679,11 @@
  		.maxlen		= sizeof(sysctl_unprivileged_bpf_disabled),
  		.mode		= 0644,
  		.proc_handler	= bpf_unpriv_handler,
@@ -31986,8 +32011,8 @@ diff -urN linux-7.0.12/tools/testing/selftests/hardening/hdn_elfnote_jit.c linux
 +}
 diff -urN linux-7.0.12/tools/testing/selftests/hardening/hdn_smoke.c linux-7.0.12-hdn/tools/testing/selftests/hardening/hdn_smoke.c
 --- linux-7.0.12/tools/testing/selftests/hardening/hdn_smoke.c	1969-12-31 18:00:00.000000000 -0600
-+++ linux-7.0.12-hdn/tools/testing/selftests/hardening/hdn_smoke.c	2026-06-26 13:43:52.378135979 -0500
-@@ -0,0 +1,22223 @@
++++ linux-7.0.12-hdn/tools/testing/selftests/hardening/hdn_smoke.c	2026-06-26 13:52:04.726086784 -0500
+@@ -0,0 +1,22257 @@
 +// SPDX-License-Identifier: GPL-2.0-only
 +
 +#define _GNU_SOURCE
@@ -39290,6 +39315,36 @@ diff -urN linux-7.0.12/tools/testing/selftests/hardening/hdn_smoke.c linux-7.0.1
 +	}
 +
 +	return errno_is_denial(errno) ? 0 : 2;
++#else
++	return KSFT_SKIP;
++#endif
++}
++
++static int bpf_metadata_without_authority_denied(void)
++{
++#ifdef __NR_bpf
++	static const int cmds[] = {
++		BPF_PROG_GET_NEXT_ID,
++		BPF_MAP_GET_NEXT_ID,
++		BPF_BTF_GET_NEXT_ID,
++		BPF_LINK_GET_NEXT_ID,
++	};
++	size_t i;
++
++	for (i = 0; i < ARRAY_SIZE(cmds); i++) {
++		union bpf_attr attr = {};
++		int ret;
++
++		attr.start_id = 0;
++		errno = 0;
++		ret = syscall(__NR_bpf, cmds[i], &attr, sizeof(attr));
++		if (!ret)
++			return 1;
++		if (!errno_is_denial(errno))
++			return 2;
++	}
++
++	return 0;
 +#else
 +	return KSFT_SKIP;
 +#endif
@@ -48793,6 +48848,7 @@ diff -urN linux-7.0.12/tools/testing/selftests/hardening/hdn_smoke.c linux-7.0.1
 +		ksft_test_result_skip("restricted profile denies debugfs access\n");
 +		ksft_test_result_skip("restricted profile denies tracefs access\n");
 +		ksft_test_result_skip("restricted profile denies BPF map creation\n");
++		ksft_test_result_skip("restricted profile denies BPF metadata enumeration\n");
 +		ksft_test_result_skip("restricted profile denies untrusted executable path\n");
 +		ksft_test_result_skip("restricted TPE denies untrusted mountpoint\n");
 +		ksft_test_result_skip("restricted profile TPE denies non-root-owned exec directory\n");
@@ -49580,6 +49636,9 @@ diff -urN linux-7.0.12/tools/testing/selftests/hardening/hdn_smoke.c linux-7.0.1
 +	report_child_result(restricted_committed ?
 +			    bpf_map_create_without_authority_denied() : 2,
 +			    "restricted profile denies BPF map creation");
++	report_child_result(restricted_committed ?
++			    bpf_metadata_without_authority_denied() : 2,
++			    "restricted profile denies BPF metadata enumeration");
 +	report_child_result(restricted_committed ? mount_admin_denied() : 2,
 +			    "restricted profile denies mount administration");
 +	report_child_result(restricted_committed ? raw_io_device_denied() : 2,
@@ -53920,7 +53979,7 @@ diff -urN linux-7.0.12/tools/testing/selftests/hardening/hdn_smoke.c linux-7.0.1
 +	if (access(HDN_STATUS, R_OK))
 +		ksft_exit_skip("hardening securityfs status not present\n");
 +
-+	ksft_set_plan(751);
++	ksft_set_plan(752);
 +	test_securityfs_status();
 +	test_symbol_test_module_load();
 +	test_securityfs_status_contains("abi_version: 76",
@@ -54554,7 +54613,7 @@ diff -urN linux-7.0.12/tools/testing/selftests/hardening/role.policy linux-7.0.1
 +use-role 2 desktop-admin
 diff -urN linux-7.0.12/tools/testing/selftests/hardening/run-qemu-smoke.sh linux-7.0.12-hdn/tools/testing/selftests/hardening/run-qemu-smoke.sh
 --- linux-7.0.12/tools/testing/selftests/hardening/run-qemu-smoke.sh	1969-12-31 18:00:00.000000000 -0600
-+++ linux-7.0.12-hdn/tools/testing/selftests/hardening/run-qemu-smoke.sh	2026-06-26 13:43:33.538137653 -0500
++++ linux-7.0.12-hdn/tools/testing/selftests/hardening/run-qemu-smoke.sh	2026-06-26 13:51:16.006083755 -0500
 @@ -0,0 +1,1017 @@
 +#!/bin/sh
 +# SPDX-License-Identifier: GPL-2.0
@@ -54589,7 +54648,7 @@ diff -urN linux-7.0.12/tools/testing/selftests/hardening/run-qemu-smoke.sh linux
 +QEMU_MEMORY=${QEMU_MEMORY:-1024M}
 +QEMU_SMP=${QEMU_SMP:-2}
 +QEMU_MACHINE=${QEMU_MACHINE:-q35,accel=tcg}
-+HDN_SMOKE_EXPECTED_PASS=${HDN_SMOKE_EXPECTED_PASS:-751}
++HDN_SMOKE_EXPECTED_PASS=${HDN_SMOKE_EXPECTED_PASS:-752}
 +WORK=${HDN_QEMU_WORK:-"${TMPDIR:-/tmp}/hdn-qemu-smoke.$$"}
 +LOG=${HDN_QEMU_LOG:-"$WORK/qemu.log"}
 +QMP=${HDN_QEMU_QMP:-"$WORK/qmp.sock"}
