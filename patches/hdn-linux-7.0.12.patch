@@ -7154,6 +7154,97 @@ diff -urN linux-7.0.12/kernel/time/timekeeping.c linux-7.0.12-hdn/kernel/time/ti
  
  	return ret;
  }
+diff -urN linux-7.0.12/kernel/time/timer_list.c linux-7.0.12-hdn/kernel/time/timer_list.c
+--- linux-7.0.12/kernel/time/timer_list.c	2026-06-09 05:32:51.000000000 -0500
++++ linux-7.0.12-hdn/kernel/time/timer_list.c	2026-06-26 13:43:17.486139070 -0500
+@@ -7,6 +7,7 @@
+ 
+ #include <linux/proc_fs.h>
+ #include <linux/module.h>
++#include <linux/hardening.h>
+ #include <linux/spinlock.h>
+ #include <linux/sched.h>
+ #include <linux/seq_file.h>
+@@ -42,11 +43,20 @@
+ 	va_end(args);
+ }
+ 
++#define SEQ_print_symbol(m, prefix, sym)				\
++	do {								\
++		if (hdn_kernel_symbol_disclose_allowed())		\
++			SEQ_printf(m, "%s%ps", prefix, sym);		\
++		else							\
++			SEQ_printf(m, "%s[hidden]", prefix);		\
++	} while (0)
++
+ static void
+ print_timer(struct seq_file *m, struct hrtimer *taddr, struct hrtimer *timer,
+ 	    int idx, u64 now)
+ {
+-	SEQ_printf(m, " #%d: <%p>, %ps", idx, taddr, ACCESS_PRIVATE(timer, function));
++	SEQ_printf(m, " #%d: <%p>,", idx, taddr);
++	SEQ_print_symbol(m, " ", ACCESS_PRIVATE(timer, function));
+ 	SEQ_printf(m, ", S:%02x", timer->state);
+ 	SEQ_printf(m, "\n");
+ 	SEQ_printf(m, " # expires at %Lu-%Lu nsecs [in %Ld to %Ld nsecs]\n",
+@@ -205,29 +215,40 @@
+ 	SEQ_printf(m, " next_event:     %Ld nsecs\n",
+ 		   (unsigned long long) ktime_to_ns(dev->next_event));
+ 
+-	SEQ_printf(m, " set_next_event: %ps\n", dev->set_next_event);
++	SEQ_print_symbol(m, " set_next_event: ", dev->set_next_event);
++	SEQ_printf(m, "\n");
+ 
+-	if (dev->set_state_shutdown)
+-		SEQ_printf(m, " shutdown:       %ps\n",
+-			dev->set_state_shutdown);
++	if (dev->set_state_shutdown) {
++		SEQ_print_symbol(m, " shutdown:       ",
++				 dev->set_state_shutdown);
++		SEQ_printf(m, "\n");
++	}
+ 
+-	if (dev->set_state_periodic)
+-		SEQ_printf(m, " periodic:       %ps\n",
+-			dev->set_state_periodic);
++	if (dev->set_state_periodic) {
++		SEQ_print_symbol(m, " periodic:       ",
++				 dev->set_state_periodic);
++		SEQ_printf(m, "\n");
++	}
+ 
+-	if (dev->set_state_oneshot)
+-		SEQ_printf(m, " oneshot:        %ps\n",
+-			dev->set_state_oneshot);
++	if (dev->set_state_oneshot) {
++		SEQ_print_symbol(m, " oneshot:        ",
++				 dev->set_state_oneshot);
++		SEQ_printf(m, "\n");
++	}
+ 
+-	if (dev->set_state_oneshot_stopped)
+-		SEQ_printf(m, " oneshot stopped: %ps\n",
+-			dev->set_state_oneshot_stopped);
++	if (dev->set_state_oneshot_stopped) {
++		SEQ_print_symbol(m, " oneshot stopped: ",
++				 dev->set_state_oneshot_stopped);
++		SEQ_printf(m, "\n");
++	}
+ 
+-	if (dev->tick_resume)
+-		SEQ_printf(m, " resume:         %ps\n",
+-			dev->tick_resume);
++	if (dev->tick_resume) {
++		SEQ_print_symbol(m, " resume:         ", dev->tick_resume);
++		SEQ_printf(m, "\n");
++	}
+ 
+-	SEQ_printf(m, " event_handler:  %ps\n", dev->event_handler);
++	SEQ_print_symbol(m, " event_handler:  ", dev->event_handler);
++	SEQ_printf(m, "\n");
+ 	SEQ_printf(m, "\n");
+ 	SEQ_printf(m, " retries:        %lu\n", dev->retries);
+ 
 diff -urN linux-7.0.12/kernel/trace/bpf_trace.c linux-7.0.12-hdn/kernel/trace/bpf_trace.c
 --- linux-7.0.12/kernel/trace/bpf_trace.c	2026-06-09 05:32:51.000000000 -0500
 +++ linux-7.0.12-hdn/kernel/trace/bpf_trace.c	2026-06-26 12:07:58.418651266 -0500
@@ -31895,8 +31986,8 @@ diff -urN linux-7.0.12/tools/testing/selftests/hardening/hdn_elfnote_jit.c linux
 +}
 diff -urN linux-7.0.12/tools/testing/selftests/hardening/hdn_smoke.c linux-7.0.12-hdn/tools/testing/selftests/hardening/hdn_smoke.c
 --- linux-7.0.12/tools/testing/selftests/hardening/hdn_smoke.c	1969-12-31 18:00:00.000000000 -0600
-+++ linux-7.0.12-hdn/tools/testing/selftests/hardening/hdn_smoke.c	2026-06-26 13:37:43.094169253 -0500
-@@ -0,0 +1,22169 @@
++++ linux-7.0.12-hdn/tools/testing/selftests/hardening/hdn_smoke.c	2026-06-26 13:43:52.378135979 -0500
+@@ -0,0 +1,22223 @@
 +// SPDX-License-Identifier: GPL-2.0-only
 +
 +#define _GNU_SOURCE
@@ -32127,6 +32218,7 @@ diff -urN linux-7.0.12/tools/testing/selftests/hardening/hdn_smoke.c linux-7.0.1
 +#define HDN_PROC_IOMEM "/proc/iomem"
 +#define HDN_PROC_VMALLOCINFO "/proc/vmallocinfo"
 +#define HDN_PROC_NET_PTYPE "/proc/net/ptype"
++#define HDN_PROC_TIMER_LIST "/proc/timer_list"
 +#define HDN_SIGNAL_CRASH_EXEC "/hdn-signal-crash"
 +#define HDN_MOUNT_TEST_DIR "/hdn-mount-test"
 +#define HDN_PROC_GID_MOUNT "/hdn-proc-gid"
@@ -39763,6 +39855,56 @@ diff -urN linux-7.0.12/tools/testing/selftests/hardening/hdn_smoke.c linux-7.0.1
 +
 +	fclose(stream);
 +	return saw_entry ? 0 : KSFT_SKIP;
++}
++
++static bool proc_timer_list_symbol_line(const char *line)
++{
++	static const char * const prefixes[] = {
++		" set_next_event:",
++		" shutdown:",
++		" periodic:",
++		" oneshot:",
++		" oneshot stopped:",
++		" resume:",
++		" event_handler:",
++	};
++	size_t i;
++
++	if (line[0] == ' ' && line[1] == '#' &&
++	    line[2] >= '0' && line[2] <= '9')
++		return true;
++
++	for (i = 0; i < ARRAY_SIZE(prefixes); i++) {
++		if (!strncmp(line, prefixes[i], strlen(prefixes[i])))
++			return true;
++	}
++
++	return false;
++}
++
++static int proc_timer_list_symbols_hidden(void)
++{
++	char line[512];
++	bool saw_symbol_line = false;
++	FILE *stream;
++
++	stream = fopen(HDN_PROC_TIMER_LIST, "r");
++	if (!stream)
++		return errno == ENOENT || errno == ENOTDIR ? KSFT_SKIP : 2;
++
++	while (fgets(line, sizeof(line), stream)) {
++		if (!proc_timer_list_symbol_line(line))
++			continue;
++
++		saw_symbol_line = true;
++		if (!strstr(line, "[hidden]")) {
++			fclose(stream);
++			return 1;
++		}
++	}
++
++	fclose(stream);
++	return saw_symbol_line ? 0 : KSFT_SKIP;
 +}
 +
 +static int module_helper_path_write_current_value(void)
@@ -49662,6 +49804,9 @@ diff -urN linux-7.0.12/tools/testing/selftests/hardening/hdn_smoke.c linux-7.0.1
 +			    proc_net_ptype_symbols_hidden() : 2,
 +			    "trace-symbol policy redacts proc net packet handler symbols");
 +	report_child_result(trace_symbol_committed ?
++			    proc_timer_list_symbols_hidden() : 2,
++			    "trace-symbol policy redacts proc timer callback symbols");
++	report_child_result(trace_symbol_committed ?
 +			    bpf_kallsyms_lookup_without_disclosure_denied() : 2,
 +			    "trace-symbol policy denies BPF kallsyms helper lookup");
 +	report_child_result(trace_symbol_committed ?
@@ -53775,7 +53920,7 @@ diff -urN linux-7.0.12/tools/testing/selftests/hardening/hdn_smoke.c linux-7.0.1
 +	if (access(HDN_STATUS, R_OK))
 +		ksft_exit_skip("hardening securityfs status not present\n");
 +
-+	ksft_set_plan(750);
++	ksft_set_plan(751);
 +	test_securityfs_status();
 +	test_symbol_test_module_load();
 +	test_securityfs_status_contains("abi_version: 76",
@@ -54409,7 +54554,7 @@ diff -urN linux-7.0.12/tools/testing/selftests/hardening/role.policy linux-7.0.1
 +use-role 2 desktop-admin
 diff -urN linux-7.0.12/tools/testing/selftests/hardening/run-qemu-smoke.sh linux-7.0.12-hdn/tools/testing/selftests/hardening/run-qemu-smoke.sh
 --- linux-7.0.12/tools/testing/selftests/hardening/run-qemu-smoke.sh	1969-12-31 18:00:00.000000000 -0600
-+++ linux-7.0.12-hdn/tools/testing/selftests/hardening/run-qemu-smoke.sh	2026-06-26 13:37:43.094169253 -0500
++++ linux-7.0.12-hdn/tools/testing/selftests/hardening/run-qemu-smoke.sh	2026-06-26 13:43:33.538137653 -0500
 @@ -0,0 +1,1017 @@
 +#!/bin/sh
 +# SPDX-License-Identifier: GPL-2.0
@@ -54444,7 +54589,7 @@ diff -urN linux-7.0.12/tools/testing/selftests/hardening/run-qemu-smoke.sh linux
 +QEMU_MEMORY=${QEMU_MEMORY:-1024M}
 +QEMU_SMP=${QEMU_SMP:-2}
 +QEMU_MACHINE=${QEMU_MACHINE:-q35,accel=tcg}
-+HDN_SMOKE_EXPECTED_PASS=${HDN_SMOKE_EXPECTED_PASS:-750}
++HDN_SMOKE_EXPECTED_PASS=${HDN_SMOKE_EXPECTED_PASS:-751}
 +WORK=${HDN_QEMU_WORK:-"${TMPDIR:-/tmp}/hdn-qemu-smoke.$$"}
 +LOG=${HDN_QEMU_LOG:-"$WORK/qemu.log"}
 +QMP=${HDN_QEMU_QMP:-"$WORK/qmp.sock"}

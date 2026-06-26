@@ -1180,6 +1180,10 @@ net/core/net-procfs.c:
   redact packet handler function symbols in /proc/net/ptype without disclosure
   authority
 
+kernel/time/timer_list.c:
+  redact timer and clock-event callback symbols in /proc/timer_list without
+  disclosure authority
+
 kernel/events/:
   authorize perf access
 
@@ -1487,6 +1491,8 @@ Core oracle groups:
 - `/proc/vmallocinfo`, slab constructor sysfs, and SLUB debugfs trace symbols
   redacted without `PROC_DISCLOSE`
 - `/proc/net/ptype` packet-handler function symbols redacted without
+  `PROC_DISCLOSE`
+- `/proc/timer_list` timer and clock-event callback symbols redacted without
   `PROC_DISCLOSE`
 - function-error-injection debugfs entry names pseudonymized and its symbol
   resolution/listing/injectable catalog denied or redacted without
