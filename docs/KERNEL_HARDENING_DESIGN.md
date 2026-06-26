@@ -514,7 +514,13 @@ Default rules:
 - JIT engines require a profile grant.
 - JIT grants are app-specific and may require dual mapping, write-xor-execute discipline, or runtime broker approval.
 - Fixed-address executable mappings are denied unless the profile grants a compatibility exception.
+- `memfd_create()` defaults to noexec/sealed behavior, explicit executable memfd creation is denied, and the sysctl floor cannot be lowered from enforced noexec mode.
 - Trusted executables may carry a versioned HDN ELF memory note for narrow compatibility hints. The note can grant private anonymous exec-after-write, executable-stack ELF mapping, and textrel-style `mprotect` compatibility to that executable only. The flags are copied to the new `mm` during exec and ignored unless the executable is root-owned and not group/world-writable.
+
+Memfd executable state is deliberately not another authority. It is a baseline
+kernel invariant because anonymous executable file descriptors are mostly an
+exploit/JIT primitive, and legitimate JIT compatibility is already handled by
+profile-scoped or trusted-executable memory grants.
 
 Profile options:
 
@@ -1633,6 +1639,8 @@ Core oracle groups:
   markings emit named `TEXTREL_MPROTECT` audit events on RX-to-RW or RW-to-RX
   mprotect transitions, covering the remaining grsec-class textrel RWX-map
   logging signal without changing HDN's mprotect enforcement decisions
+- `vm.memfd_noexec` starts at enforced noexec mode, cannot be lowered below
+  that floor, and explicit `MFD_EXEC` memfd creation is rejected
 - failed fork attempts emit a named `FORK_FAILED` audit reason and preserve the
   errno that caused process creation to fail
 - upstream protected symlink, hardlink, FIFO, and regular-file sticky-directory
@@ -1781,6 +1789,7 @@ Core oracle groups:
 
 - Add `mmap`/`mprotect` request rewrite hooks.
 - Enforce W^X and JIT profiles.
+- Lock anonymous memfd execution defaults to enforced noexec mode.
 - Implement compatibility exceptions as explicit profile grants or trusted, versioned executable metadata.
 
 ### Phase 5: Sealing

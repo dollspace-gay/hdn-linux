@@ -22,7 +22,7 @@ The current patch is carried as a generated diff against upstream Linux
 This is not a finished distro kernel yet. Current rough parity estimates:
 
 - Strict grsecurity/PaX-style patch feature parity: about 38%.
-- Practical daily-driver hardening equivalence: about 60%.
+- Practical daily-driver hardening equivalence: about 61%.
 
 Recent coverage includes signed/sealed HDN policy, authority-gated BPF/perf/proc
 disclosure, module admission hardening, read-only mount controls, object policy
@@ -31,7 +31,9 @@ hardening, privileged-exec restrictions, RWX/textrel/exec-stack controls,
 thread-stack placement randomization, proc-visible kernel symbol redaction,
 expanded BPF metadata/query gating, and broad audit/event decoding.
 USB monitor capture is now gated separately from USB attach so device brokers
-do not implicitly gain traffic-sniffing authority.
+do not implicitly gain traffic-sniffing authority. Memfd defaults are now
+locked to enforced noexec mode, including rejection of explicit executable
+memfd creation.
 
 The largest remaining gaps are richer RBAC/userspace integration, full desktop
 and recovery UI around the admin broker, distro package/update wiring, deeper
@@ -61,16 +63,16 @@ The hardening smoke suite in the development tree is run under QEMU. Latest
 local result before this publication checkpoint:
 
 ```text
-QEMU hardening smoke: 755/755 pass
+QEMU hardening smoke: 759/759 pass
 ```
 
 Patch artifact at this checkpoint:
 
 ```text
 patch: patches/hdn-linux-7.0.12.patch
-lines: 55,915
-bytes: 1,637,556
-sha256: 45439632805ff2875e6977850b06d92311a4f1c717d3908d067235f4126aae0f
+lines: 56,026
+bytes: 1,641,388
+sha256: 81ed647d388605b2f207bedb11e7d002895fb386d8fd97306837ccbcb4e86bf3
 ```
 
 ## Development Rule

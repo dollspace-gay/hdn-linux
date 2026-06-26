@@ -6508,7 +6508,7 @@ diff -urN linux-7.0.12/kernel/nsproxy.c linux-7.0.12-hdn/kernel/nsproxy.c
  		perf_event_namespaces(current);
 diff -urN linux-7.0.12/kernel/pid.c linux-7.0.12-hdn/kernel/pid.c
 --- linux-7.0.12/kernel/pid.c	2026-06-09 05:32:51.000000000 -0500
-+++ linux-7.0.12-hdn/kernel/pid.c	2026-06-26 03:51:35.243023673 -0500
++++ linux-7.0.12-hdn/kernel/pid.c	2026-06-26 14:09:04.497996754 -0500
 @@ -37,6 +37,7 @@
  #include <linux/init_task.h>
  #include <linux/syscalls.h>
@@ -6517,7 +6517,20 @@ diff -urN linux-7.0.12/kernel/pid.c linux-7.0.12-hdn/kernel/pid.c
  #include <linux/refcount.h>
  #include <linux/anon_inodes.h>
  #include <linux/sched/signal.h>
-@@ -473,9 +474,16 @@
+@@ -78,8 +79,12 @@
+ 	.user_ns = &init_user_ns,
+ 	.pid_max = PID_MAX_DEFAULT,
+ #if defined(CONFIG_SYSCTL) && defined(CONFIG_MEMFD_CREATE)
++#ifdef CONFIG_SECURITY_HARDENING_MEMFD_NOEXEC
++	.memfd_noexec_scope = MEMFD_NOEXEC_SCOPE_NOEXEC_ENFORCED,
++#else
+ 	.memfd_noexec_scope = MEMFD_NOEXEC_SCOPE_EXEC,
+ #endif
++#endif
+ };
+ EXPORT_SYMBOL_GPL(init_pid_ns);
+ 
+@@ -473,9 +478,16 @@
   */
  struct task_struct *find_task_by_pid_ns(pid_t nr, struct pid_namespace *ns)
  {
@@ -6535,7 +6548,7 @@ diff -urN linux-7.0.12/kernel/pid.c linux-7.0.12-hdn/kernel/pid.c
  }
  
  struct task_struct *find_task_by_vpid(pid_t vnr)
-@@ -687,8 +695,11 @@
+@@ -687,8 +699,11 @@
   */
  SYSCALL_DEFINE2(pidfd_open, pid_t, pid, unsigned int, flags)
  {
@@ -6547,7 +6560,7 @@ diff -urN linux-7.0.12/kernel/pid.c linux-7.0.12-hdn/kernel/pid.c
  
  	if (flags & ~(PIDFD_NONBLOCK | PIDFD_THREAD))
  		return -EINVAL;
-@@ -700,6 +711,17 @@
+@@ -700,6 +715,17 @@
  	if (!p)
  		return -ESRCH;
  
@@ -6565,7 +6578,7 @@ diff -urN linux-7.0.12/kernel/pid.c linux-7.0.12-hdn/kernel/pid.c
  	fd = pidfd_create(p, flags);
  
  	put_pid(p);
-@@ -878,10 +900,16 @@
+@@ -878,10 +904,16 @@
  	if (ret)
  		return ERR_PTR(ret);
  
@@ -6584,6 +6597,31 @@ diff -urN linux-7.0.12/kernel/pid.c linux-7.0.12-hdn/kernel/pid.c
 +	}
  
  	up_read(&task->signal->exec_update_lock);
+ 
+diff -urN linux-7.0.12/kernel/pid_sysctl.h linux-7.0.12-hdn/kernel/pid_sysctl.h
+--- linux-7.0.12/kernel/pid_sysctl.h	2026-06-09 05:32:51.000000000 -0500
++++ linux-7.0.12-hdn/kernel/pid_sysctl.h	2026-06-26 14:09:04.497996754 -0500
+@@ -10,15 +10,19 @@
+ {
+ 	struct pid_namespace *ns = task_active_pid_ns(current);
+ 	struct ctl_table table_copy;
+-	int err, scope, parent_scope;
++	int err, scope, parent_scope, floor_scope = MEMFD_NOEXEC_SCOPE_EXEC;
+ 
+ 	if (write && !ns_capable(ns->user_ns, CAP_SYS_ADMIN))
+ 		return -EPERM;
+ 
+ 	table_copy = *table;
+ 
++#ifdef CONFIG_SECURITY_HARDENING_MEMFD_NOEXEC
++	floor_scope = MEMFD_NOEXEC_SCOPE_NOEXEC_ENFORCED;
++#endif
++
+ 	/* You cannot set a lower enforcement value than your parent. */
+-	parent_scope = pidns_memfd_noexec_scope(ns->parent);
++	parent_scope = max(pidns_memfd_noexec_scope(ns->parent), floor_scope);
+ 	/* Equivalent to pidns_memfd_noexec_scope(ns). */
+ 	scope = max(READ_ONCE(ns->memfd_noexec_scope), parent_scope);
  
 diff -urN linux-7.0.12/kernel/printk/printk.c linux-7.0.12-hdn/kernel/printk/printk.c
 --- linux-7.0.12/kernel/printk/printk.c	2026-06-09 05:32:51.000000000 -0500
@@ -9104,8 +9142,8 @@ diff -urN linux-7.0.12/security/commoncap.c linux-7.0.12-hdn/security/commoncap.
  }
 diff -urN linux-7.0.12/security/hardening/Kconfig linux-7.0.12-hdn/security/hardening/Kconfig
 --- linux-7.0.12/security/hardening/Kconfig	1969-12-31 18:00:00.000000000 -0600
-+++ linux-7.0.12-hdn/security/hardening/Kconfig	2026-06-26 14:00:02.922045612 -0500
-@@ -0,0 +1,572 @@
++++ linux-7.0.12-hdn/security/hardening/Kconfig	2026-06-26 14:08:52.349997447 -0500
+@@ -0,0 +1,584 @@
 +# SPDX-License-Identifier: GPL-2.0-only
 +menuconfig SECURITY_HARDENING
 +	bool "Hardening contract layer"
@@ -9193,6 +9231,18 @@ diff -urN linux-7.0.12/security/hardening/Kconfig linux-7.0.12-hdn/security/hard
 +	  Profiles can grant a narrow JIT exception for private anonymous
 +	  write-to-execute transitions without allowing simultaneous W+X.
 +	  This option provides the default no-ambient-WX baseline.
++
++config SECURITY_HARDENING_MEMFD_NOEXEC
++	bool "Force non-executable memfd defaults"
++	default y
++	depends on MEMFD_CREATE && SYSCTL
++	help
++	  Force vm.memfd_noexec to the enforced no-exec mode. Unflagged
++	  memfd_create() calls receive MFD_NOEXEC_SEAL semantics, explicit
++	  MFD_EXEC requests are rejected, and the sysctl cannot be lowered by a
++	  descendant pid namespace. This removes an ambient file-backed
++	  executable-memory source while leaving explicit HDN JIT compatibility
++	  policy in charge of legitimate executable memory transitions.
 +
 +config SECURITY_HARDENING_RWXMAP_AUDIT
 +	bool "Record denied writable-executable mapping attempts"
@@ -9687,8 +9737,8 @@ diff -urN linux-7.0.12/security/hardening/Makefile linux-7.0.12-hdn/security/har
 +obj-$(CONFIG_SECURITY_HARDENING) += core.o
 diff -urN linux-7.0.12/security/hardening/core.c linux-7.0.12-hdn/security/hardening/core.c
 --- linux-7.0.12/security/hardening/core.c	1969-12-31 18:00:00.000000000 -0600
-+++ linux-7.0.12-hdn/security/hardening/core.c	2026-06-26 13:59:54.090044790 -0500
-@@ -0,0 +1,7318 @@
++++ linux-7.0.12-hdn/security/hardening/core.c	2026-06-26 14:09:56.565987770 -0500
+@@ -0,0 +1,7320 @@
 +// SPDX-License-Identifier: GPL-2.0-only
 +
 +#include <linux/binfmts.h>
@@ -16599,6 +16649,8 @@ diff -urN linux-7.0.12/security/hardening/core.c linux-7.0.12-hdn/security/harde
 +		   hdn_mitigation_enabled(HDN_MITIGATION_PROC_MEMMAP_REDACT));
 +	seq_printf(m, "mitigation_privexec_arg_stack_limits: %u\n",
 +		   IS_ENABLED(CONFIG_SECURITY_HARDENING_PROC_MEMMAP));
++	seq_printf(m, "mitigation_memfd_noexec: %u\n",
++		   IS_ENABLED(CONFIG_SECURITY_HARDENING_MEMFD_NOEXEC));
 +	seq_printf(m, "mitigation_kernel_symbol_lookup_gate: %u\n",
 +		   IS_ENABLED(CONFIG_SECURITY_HARDENING_SYMBOL_LOOKUP));
 +	seq_printf(m, "kernel_lockout_banned_uids: %u\n",
@@ -17181,8 +17233,8 @@ diff -urN linux-7.0.12/tools/hardening/Makefile linux-7.0.12-hdn/tools/hardening
 +.PHONY: all clean
 diff -urN linux-7.0.12/tools/hardening/README.rst linux-7.0.12-hdn/tools/hardening/README.rst
 --- linux-7.0.12/tools/hardening/README.rst	1969-12-31 18:00:00.000000000 -0600
-+++ linux-7.0.12-hdn/tools/hardening/README.rst	2026-06-26 14:04:10.046023294 -0500
-@@ -0,0 +1,1239 @@
++++ linux-7.0.12-hdn/tools/hardening/README.rst	2026-06-26 14:14:23.149957320 -0500
+@@ -0,0 +1,1249 @@
 +.. SPDX-License-Identifier: GPL-2.0-only
 +
 +Linux Hardening Policy Tools
@@ -17631,6 +17683,16 @@ diff -urN linux-7.0.12/tools/hardening/README.rst linux-7.0.12-hdn/tools/hardeni
 +executable-stack, and textrel policies to prove these grants allow only their
 +intended compatibility paths without becoming broader memory-execution
 +bypasses.
++
++When ``SECURITY_HARDENING_MEMFD_NOEXEC`` is enabled, HDN also treats
++executable memfds as a build-time memory-execution invariant instead of a
++promptable authority. ``vm.memfd_noexec`` starts and stays at the enforced
++no-exec level, unflagged ``memfd_create()`` calls receive upstream
++``MFD_NOEXEC_SEAL`` behavior, and explicit ``MFD_EXEC`` requests are rejected.
++Legitimate JIT and legacy executable-memory cases should use the profile and
++trusted-ELF compatibility paths above. The QEMU smoke suite proves the sealed
++status bit, the locked sysctl value, downgrade rejection, and explicit
++executable memfd denial.
 +
 +Response flags are explicit profile-level exploit responses. ``KILL_DENY``
 +sends ``SIGKILL`` to a userspace task after any hardening denial. ``KILL_MEMORY``
@@ -32092,8 +32154,8 @@ diff -urN linux-7.0.12/tools/testing/selftests/hardening/hdn_elfnote_jit.c linux
 +}
 diff -urN linux-7.0.12/tools/testing/selftests/hardening/hdn_smoke.c linux-7.0.12-hdn/tools/testing/selftests/hardening/hdn_smoke.c
 --- linux-7.0.12/tools/testing/selftests/hardening/hdn_smoke.c	1969-12-31 18:00:00.000000000 -0600
-+++ linux-7.0.12-hdn/tools/testing/selftests/hardening/hdn_smoke.c	2026-06-26 14:01:13.874040124 -0500
-@@ -0,0 +1,22281 @@
++++ linux-7.0.12-hdn/tools/testing/selftests/hardening/hdn_smoke.c	2026-06-26 14:10:29.169987501 -0500
+@@ -0,0 +1,22330 @@
 +// SPDX-License-Identifier: GPL-2.0-only
 +
 +#define _GNU_SOURCE
@@ -32184,6 +32246,12 @@ diff -urN linux-7.0.12/tools/testing/selftests/hardening/hdn_smoke.c linux-7.0.1
 +#endif
 +#ifndef PR_SPEC_NOT_AFFECTED
 +#define PR_SPEC_NOT_AFFECTED (1UL << 4)
++#endif
++#ifndef MFD_NOEXEC_SEAL
++#define MFD_NOEXEC_SEAL 0x0008U
++#endif
++#ifndef MFD_EXEC
++#define MFD_EXEC 0x0010U
 +#endif
 +#ifndef __NR_pidfd_open
 +#define __NR_pidfd_open 434
@@ -32276,6 +32344,7 @@ diff -urN linux-7.0.12/tools/testing/selftests/hardening/hdn_smoke.c linux-7.0.1
 +#define HDN_BPF_JIT_KALLSYMS "/proc/sys/net/core/bpf_jit_kallsyms"
 +#define HDN_PERF_EVENT_PARANOID "/proc/sys/kernel/perf_event_paranoid"
 +#define HDN_KPTR_RESTRICT "/proc/sys/kernel/kptr_restrict"
++#define HDN_MEMFD_NOEXEC "/proc/sys/vm/memfd_noexec"
 +#define HDN_MODPROBE_PATH "/proc/sys/kernel/modprobe"
 +#define HDN_SIGNED_POLICY "/default.hdn"
 +#define HDN_BROKER_SIGNED_POLICY "/hdn-policies/default.hdn"
@@ -53741,6 +53810,40 @@ diff -urN linux-7.0.12/tools/testing/selftests/hardening/hdn_smoke.c linux-7.0.1
 +	return 0;
 +}
 +
++static int memfd_noexec_sysctl_locked(void)
++{
++	int ret;
++
++	ret = write_text_file(HDN_MEMFD_NOEXEC, "1\n");
++	if (!ret) {
++		(void)write_text_file(HDN_MEMFD_NOEXEC, "2\n");
++		return 1;
++	}
++	if (ret == -ENOENT)
++		return KSFT_SKIP;
++
++	return ret == -EINVAL || errno_is_denial(-ret) ? 0 : 2;
++}
++
++static int memfd_exec_flag_denied(void)
++{
++#ifdef __NR_memfd_create
++	int fd;
++
++	errno = 0;
++	fd = syscall(__NR_memfd_create, "hdn-exec-memfd",
++		     MFD_CLOEXEC | MFD_EXEC);
++	if (fd >= 0) {
++		close(fd);
++		return 1;
++	}
++
++	return errno_is_denial(errno) ? 0 : 2;
++#else
++	return KSFT_SKIP;
++#endif
++}
++
 +#ifdef __NR_perf_event_open
 +static int unprivileged_perf_kernel_denied(void)
 +{
@@ -54082,7 +54185,7 @@ diff -urN linux-7.0.12/tools/testing/selftests/hardening/hdn_smoke.c linux-7.0.1
 +	if (access(HDN_STATUS, R_OK))
 +		ksft_exit_skip("hardening securityfs status not present\n");
 +
-+	ksft_set_plan(755);
++	ksft_set_plan(759);
 +	test_securityfs_status();
 +	test_symbol_test_module_load();
 +	test_securityfs_status_contains("abi_version: 77",
@@ -54133,6 +54236,8 @@ diff -urN linux-7.0.12/tools/testing/selftests/hardening/hdn_smoke.c linux-7.0.1
 +					"hardening status reports proc memmap redaction");
 +	test_securityfs_status_contains("mitigation_privexec_arg_stack_limits: 1",
 +					"hardening status reports privileged exec argument and stack limits");
++	test_securityfs_status_contains("mitigation_memfd_noexec: 1",
++					"hardening status reports enforced memfd noexec");
 +	test_securityfs_status_contains("mitigation_kernel_symbol_lookup_gate: 1",
 +					"hardening status reports kernel symbol lookup gating");
 +	test_securityfs_status_contains("mitigation_kptr_restrict: 1",
@@ -54141,6 +54246,12 @@ diff -urN linux-7.0.12/tools/testing/selftests/hardening/hdn_smoke.c linux-7.0.1
 +			     "kernel pointer sysctl is locked at no-disclose level");
 +	report_child_result(kptr_restrict_sysctl_locked(),
 +			    "kernel pointer sysctl cannot be lowered");
++	test_int_file_equals(HDN_MEMFD_NOEXEC, 2,
++			     "memfd noexec sysctl is locked at enforce level");
++	report_child_result(memfd_noexec_sysctl_locked(),
++			    "memfd noexec sysctl cannot be lowered");
++	report_child_result(memfd_exec_flag_denied(),
++			    "explicit executable memfd creation is denied");
 +	test_securityfs_status_contains("mitigation_rand_threadstack: 1",
 +					"hardening status reports thread-stack gap randomization");
 +	test_securityfs_status_contains("mitigation_vmap_stack: 1",
@@ -54718,7 +54829,7 @@ diff -urN linux-7.0.12/tools/testing/selftests/hardening/role.policy linux-7.0.1
 +use-role 2 desktop-admin
 diff -urN linux-7.0.12/tools/testing/selftests/hardening/run-qemu-smoke.sh linux-7.0.12-hdn/tools/testing/selftests/hardening/run-qemu-smoke.sh
 --- linux-7.0.12/tools/testing/selftests/hardening/run-qemu-smoke.sh	1969-12-31 18:00:00.000000000 -0600
-+++ linux-7.0.12-hdn/tools/testing/selftests/hardening/run-qemu-smoke.sh	2026-06-26 14:01:19.998039637 -0500
++++ linux-7.0.12-hdn/tools/testing/selftests/hardening/run-qemu-smoke.sh	2026-06-26 14:10:35.629987027 -0500
 @@ -0,0 +1,1017 @@
 +#!/bin/sh
 +# SPDX-License-Identifier: GPL-2.0
@@ -54753,7 +54864,7 @@ diff -urN linux-7.0.12/tools/testing/selftests/hardening/run-qemu-smoke.sh linux
 +QEMU_MEMORY=${QEMU_MEMORY:-1024M}
 +QEMU_SMP=${QEMU_SMP:-2}
 +QEMU_MACHINE=${QEMU_MACHINE:-q35,accel=tcg}
-+HDN_SMOKE_EXPECTED_PASS=${HDN_SMOKE_EXPECTED_PASS:-755}
++HDN_SMOKE_EXPECTED_PASS=${HDN_SMOKE_EXPECTED_PASS:-759}
 +WORK=${HDN_QEMU_WORK:-"${TMPDIR:-/tmp}/hdn-qemu-smoke.$$"}
 +LOG=${HDN_QEMU_LOG:-"$WORK/qemu.log"}
 +QMP=${HDN_QEMU_QMP:-"$WORK/qmp.sock"}
