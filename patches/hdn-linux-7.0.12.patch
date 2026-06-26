@@ -9300,8 +9300,8 @@ diff -urN linux-7.0.12/security/commoncap.c linux-7.0.12-hdn/security/commoncap.
  }
 diff -urN linux-7.0.12/security/hardening/Kconfig linux-7.0.12-hdn/security/hardening/Kconfig
 --- linux-7.0.12/security/hardening/Kconfig	1969-12-31 18:00:00.000000000 -0600
-+++ linux-7.0.12-hdn/security/hardening/Kconfig	2026-06-26 14:45:27.629785956 -0500
-@@ -0,0 +1,586 @@
++++ linux-7.0.12-hdn/security/hardening/Kconfig	2026-06-26 14:51:28.733765262 -0500
+@@ -0,0 +1,587 @@
 +# SPDX-License-Identifier: GPL-2.0-only
 +menuconfig SECURITY_HARDENING
 +	bool "Hardening contract layer"
@@ -9865,6 +9865,7 @@ diff -urN linux-7.0.12/security/hardening/Kconfig linux-7.0.12-hdn/security/hard
 +config SECURITY_HARDENING_EXPLOIT_MITIGATIONS
 +	bool "Enable exploit mitigation baseline"
 +	default y
++	select SECURITY_YAMA
 +	select VMAP_STACK if HAVE_ARCH_VMAP_STACK
 +	select RANDOMIZE_KSTACK_OFFSET_DEFAULT if HAVE_ARCH_RANDOMIZE_KSTACK_OFFSET
 +	select STACKPROTECTOR_STRONG if HAVE_STACKPROTECTOR
@@ -9878,9 +9879,9 @@ diff -urN linux-7.0.12/security/hardening/Kconfig linux-7.0.12-hdn/security/hard
 +	  helpers, slab freelist hardening and randomization, non-merged slab
 +	  caches, vmapped kernel stacks, kernel stack offset randomization,
 +	  strong stack protector, structure layout randomization, strict kernel
-+	  and module W^X, locked dmesg restriction, kernel pointer/symbol
-+	  disclosure restriction, and kCFI when the selected architecture and
-+	  compiler support them.
++	  and module W^X, locked Yama relational ptrace scope, locked dmesg
++	  restriction, kernel pointer/symbol disclosure restriction, and kCFI
++	  when the selected architecture and compiler support them.
 +
 +	  This is intentionally a build-time default layer rather than a policy
 +	  prompt. Product policy can decide who may perform dangerous actions;
@@ -17308,6 +17309,38 @@ diff -urN linux-7.0.12/security/security.c linux-7.0.12-hdn/security/security.c
  	return call_int_hook(file_receive, file);
  }
  
+diff -urN linux-7.0.12/security/yama/yama_lsm.c linux-7.0.12-hdn/security/yama/yama_lsm.c
+--- linux-7.0.12/security/yama/yama_lsm.c	2026-06-09 05:32:51.000000000 -0500
++++ linux-7.0.12-hdn/security/yama/yama_lsm.c	2026-06-26 14:51:38.721763607 -0500
+@@ -17,6 +17,7 @@
+ #include <linux/string_helpers.h>
+ #include <linux/task_work.h>
+ #include <linux/sched.h>
++#include <linux/kconfig.h>
+ #include <linux/spinlock.h>
+ #include <uapi/linux/lsm.h>
+ 
+@@ -446,6 +447,11 @@
+ }
+ 
+ static int max_scope = YAMA_SCOPE_NO_ATTACH;
++#if IS_ENABLED(CONFIG_SECURITY_HARDENING_EXPLOIT_MITIGATIONS)
++static int min_scope = YAMA_SCOPE_RELATIONAL;
++#else
++static int min_scope = YAMA_SCOPE_DISABLED;
++#endif
+ 
+ static const struct ctl_table yama_sysctl_table[] = {
+ 	{
+@@ -454,7 +460,7 @@
+ 		.maxlen         = sizeof(int),
+ 		.mode           = 0644,
+ 		.proc_handler   = yama_dointvec_minmax,
+-		.extra1         = SYSCTL_ZERO,
++		.extra1         = &min_scope,
+ 		.extra2         = &max_scope,
+ 	},
+ };
 diff -urN linux-7.0.12/tools/hardening/Makefile linux-7.0.12-hdn/tools/hardening/Makefile
 --- linux-7.0.12/tools/hardening/Makefile	1969-12-31 18:00:00.000000000 -0600
 +++ linux-7.0.12-hdn/tools/hardening/Makefile	2026-06-26 01:54:41.855660421 -0500
@@ -17393,8 +17426,8 @@ diff -urN linux-7.0.12/tools/hardening/Makefile linux-7.0.12-hdn/tools/hardening
 +.PHONY: all clean
 diff -urN linux-7.0.12/tools/hardening/README.rst linux-7.0.12-hdn/tools/hardening/README.rst
 --- linux-7.0.12/tools/hardening/README.rst	1969-12-31 18:00:00.000000000 -0600
-+++ linux-7.0.12-hdn/tools/hardening/README.rst	2026-06-26 14:46:12.841779501 -0500
-@@ -0,0 +1,1275 @@
++++ linux-7.0.12-hdn/tools/hardening/README.rst	2026-06-26 14:52:39.813750949 -0500
+@@ -0,0 +1,1278 @@
 +.. SPDX-License-Identifier: GPL-2.0-only
 +
 +Linux Hardening Policy Tools
@@ -18229,6 +18262,9 @@ diff -urN linux-7.0.12/tools/hardening/README.rst linux-7.0.12-hdn/tools/hardeni
 +profile gate. ``PTRACE_ATTACH`` and ``PTRACE_SEIZE`` attempts that pass that
 +gate emit HDN-native ``PTRACE`` audit events, preserving later upstream kernel
 +denials as deny-audit records and successful attaches as allow-audit records.
++The exploit-mitigation baseline also builds Yama and locks
++``kernel.yama.ptrace_scope`` at the relational level, so same-UID sibling
++ptrace cannot be globally re-enabled by lowering the upstream sysctl.
 +``PTRACE_EXEC_READ`` is deliberately separate: profiles without it cannot use
 +ptrace-like forced reads, including active ``/proc/<pid>/mem`` reads, to read a
 +target VMA that is executable but not readable. The starter policy does not
@@ -32340,8 +32376,8 @@ diff -urN linux-7.0.12/tools/testing/selftests/hardening/hdn_elfnote_jit.c linux
 +}
 diff -urN linux-7.0.12/tools/testing/selftests/hardening/hdn_smoke.c linux-7.0.12-hdn/tools/testing/selftests/hardening/hdn_smoke.c
 --- linux-7.0.12/tools/testing/selftests/hardening/hdn_smoke.c	1969-12-31 18:00:00.000000000 -0600
-+++ linux-7.0.12-hdn/tools/testing/selftests/hardening/hdn_smoke.c	2026-06-26 14:45:57.237780936 -0500
-@@ -0,0 +1,22452 @@
++++ linux-7.0.12-hdn/tools/testing/selftests/hardening/hdn_smoke.c	2026-06-26 14:52:02.093760758 -0500
+@@ -0,0 +1,22472 @@
 +// SPDX-License-Identifier: GPL-2.0-only
 +
 +#define _GNU_SOURCE
@@ -32529,6 +32565,7 @@ diff -urN linux-7.0.12/tools/testing/selftests/hardening/hdn_smoke.c linux-7.0.1
 +#define HDN_BPF_JIT_HARDEN "/proc/sys/net/core/bpf_jit_harden"
 +#define HDN_BPF_JIT_KALLSYMS "/proc/sys/net/core/bpf_jit_kallsyms"
 +#define HDN_PERF_EVENT_PARANOID "/proc/sys/kernel/perf_event_paranoid"
++#define HDN_YAMA_PTRACE_SCOPE "/proc/sys/kernel/yama/ptrace_scope"
 +#define HDN_DMESG_RESTRICT "/proc/sys/kernel/dmesg_restrict"
 +#define HDN_KPTR_RESTRICT "/proc/sys/kernel/kptr_restrict"
 +#define HDN_MEMFD_NOEXEC "/proc/sys/vm/memfd_noexec"
@@ -53984,6 +54021,21 @@ diff -urN linux-7.0.12/tools/testing/selftests/hardening/hdn_smoke.c linux-7.0.1
 +	return 0;
 +}
 +
++static int yama_ptrace_scope_sysctl_locked(void)
++{
++	int ret;
++
++	ret = write_text_file(HDN_YAMA_PTRACE_SCOPE, "0\n");
++	if (!ret) {
++		(void)write_text_file(HDN_YAMA_PTRACE_SCOPE, "1\n");
++		return 1;
++	}
++	if (ret == -ENOENT)
++		return KSFT_SKIP;
++
++	return 0;
++}
++
 +static int kptr_restrict_sysctl_locked(void)
 +{
 +	int ret;
@@ -54468,7 +54520,7 @@ diff -urN linux-7.0.12/tools/testing/selftests/hardening/hdn_smoke.c linux-7.0.1
 +	if (access(HDN_STATUS, R_OK))
 +		ksft_exit_skip("hardening securityfs status not present\n");
 +
-+	ksft_set_plan(771);
++	ksft_set_plan(773);
 +	test_securityfs_status();
 +	test_symbol_test_module_load();
 +	test_securityfs_status_contains("abi_version: 77",
@@ -54625,6 +54677,10 @@ diff -urN linux-7.0.12/tools/testing/selftests/hardening/hdn_smoke.c linux-7.0.1
 +					"hardening status reports ptrace attach audit");
 +	test_securityfs_status_contains("mitigation_ptrace_readexec: 1",
 +					"hardening status reports ptrace execute-only read restriction");
++	test_int_file_equals(HDN_YAMA_PTRACE_SCOPE, 1,
++			     "Yama ptrace scope is locked relational");
++	report_child_result(yama_ptrace_scope_sysctl_locked(),
++			    "Yama ptrace scope cannot be disabled");
 +	test_securityfs_status_contains("mitigation_consistent_setxid: 1",
 +					"hardening status reports consistent setxid");
 +	test_securityfs_status_contains("mitigation_module_autoload: 1",
@@ -55137,7 +55193,7 @@ diff -urN linux-7.0.12/tools/testing/selftests/hardening/role.policy linux-7.0.1
 +use-role 2 desktop-admin
 diff -urN linux-7.0.12/tools/testing/selftests/hardening/run-qemu-smoke.sh linux-7.0.12-hdn/tools/testing/selftests/hardening/run-qemu-smoke.sh
 --- linux-7.0.12/tools/testing/selftests/hardening/run-qemu-smoke.sh	1969-12-31 18:00:00.000000000 -0600
-+++ linux-7.0.12-hdn/tools/testing/selftests/hardening/run-qemu-smoke.sh	2026-06-26 14:46:03.589780880 -0500
++++ linux-7.0.12-hdn/tools/testing/selftests/hardening/run-qemu-smoke.sh	2026-06-26 14:52:10.557758552 -0500
 @@ -0,0 +1,1017 @@
 +#!/bin/sh
 +# SPDX-License-Identifier: GPL-2.0
@@ -55172,7 +55228,7 @@ diff -urN linux-7.0.12/tools/testing/selftests/hardening/run-qemu-smoke.sh linux
 +QEMU_MEMORY=${QEMU_MEMORY:-1024M}
 +QEMU_SMP=${QEMU_SMP:-2}
 +QEMU_MACHINE=${QEMU_MACHINE:-q35,accel=tcg}
-+HDN_SMOKE_EXPECTED_PASS=${HDN_SMOKE_EXPECTED_PASS:-771}
++HDN_SMOKE_EXPECTED_PASS=${HDN_SMOKE_EXPECTED_PASS:-773}
 +WORK=${HDN_QEMU_WORK:-"${TMPDIR:-/tmp}/hdn-qemu-smoke.$$"}
 +LOG=${HDN_QEMU_LOG:-"$WORK/qemu.log"}
 +QMP=${HDN_QEMU_QMP:-"$WORK/qmp.sock"}

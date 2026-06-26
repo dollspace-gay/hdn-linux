@@ -39,7 +39,9 @@ path sysctls are now locked at hardened floors instead of merely defaulted on.
 The dmesg restriction sysctl is also locked at the restricted value, so kernel
 log disclosure cannot be re-enabled by a later sysctl write. Legacy TIOCSTI is
 forced off, line-discipline autoload is disabled, and neither TTY sysctl can be
-turned back on while TTY injection hardening is active.
+turned back on while TTY injection hardening is active. Yama is now part of the
+baseline and `kernel.yama.ptrace_scope` cannot be lowered below relational
+mode.
 
 The largest remaining gaps are richer RBAC/userspace integration, full desktop
 and recovery UI around the admin broker, distro package/update wiring, deeper
@@ -69,16 +71,16 @@ The hardening smoke suite in the development tree is run under QEMU. Latest
 local result before this publication checkpoint:
 
 ```text
-QEMU hardening smoke: 771/771 pass
+QEMU hardening smoke: 773/773 pass
 ```
 
 Patch artifact at this checkpoint:
 
 ```text
 patch: patches/hdn-linux-7.0.12.patch
-lines: 56,334
-bytes: 1,651,134
-sha256: 3ad9067cbf45e46bde12c598302f3c550d55ff22951bf3d69afccb4a0dbd3c45
+lines: 56,390
+bytes: 1,652,928
+sha256: e5cd8ae9f81aa0be0fcbf75ea2b68d0438be72da4cef7251b08ad01b8fcf9384
 ```
 
 ## Development Rule
