@@ -1646,8 +1646,9 @@ Core oracle groups:
 - failed fork attempts emit a named `FORK_FAILED` audit reason and preserve the
   errno that caused process creation to fail
 - upstream protected symlink, hardlink, FIFO, and regular-file sticky-directory
-  denials emit named `FS_PROTECTION` audit events without changing the
-  upstream access-control decision
+  sysctls are locked at hardened floors, and their denials emit named
+  `FS_PROTECTION` audit events without changing the upstream access-control
+  decision
 - non-root symlink owner mismatches against the final resolved target are
   denied outside the upstream sticky-directory-only case and reported with a
   named `SYMLINK_OWNER_MISMATCH` filesystem-protection reason in QEMU
