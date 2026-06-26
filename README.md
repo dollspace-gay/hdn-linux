@@ -22,7 +22,7 @@ The current patch is carried as a generated diff against upstream Linux
 This is not a finished distro kernel yet. Current rough parity estimates:
 
 - Strict grsecurity/PaX-style patch feature parity: about 38%.
-- Practical daily-driver hardening equivalence: about 61%.
+- Practical daily-driver hardening equivalence: about 62%.
 
 Recent coverage includes signed/sealed HDN policy, authority-gated BPF/perf/proc
 disclosure, module admission hardening, read-only mount controls, object policy
@@ -55,7 +55,10 @@ helper `Makefile` now has a packaging install target for helper binaries,
 root-owned config templates, and those hook snippets. The event decoder now
 also names common packed event object details for exec arguments, signals,
 resource limits, time changes, USB, coredumps, and socket context, so UI and
-log consumers do not need to unpack those raw integers themselves.
+log consumers do not need to unpack those raw integers themselves. A new
+`hdn-status` helper gives desktop daemons, settings panels, support tools, and
+recovery UI stable product-facing `key=value` status with policy readiness,
+mitigation counts, audit-flood state, and decoded audit-flood names.
 
 The largest remaining gaps are richer RBAC/userspace integration, full desktop
 and recovery UI around the admin broker, final image-specific update wiring,
@@ -85,16 +88,16 @@ The hardening smoke suite in the development tree is run under QEMU. Latest
 local result before this publication checkpoint:
 
 ```text
-QEMU hardening smoke: 784/784 pass
+QEMU hardening smoke: 786/786 pass
 ```
 
 Patch artifact at this checkpoint:
 
 ```text
 patch: patches/hdn-linux-7.0.12.patch
-lines: 57,386
-bytes: 1,682,366
-sha256: 88c527448fb92690413d07e66e81bd09e23446aaa72c036344dcbc93d9a92e1a
+lines: 58,439
+bytes: 1,714,693
+sha256: ad9081b830ea7a70761686d73155e4b65353efbdfb329eb9122cf8c1acc5241c
 ```
 
 ## Development Rule

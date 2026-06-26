@@ -17424,8 +17424,8 @@ diff -urN linux-7.0.12/security/yama/yama_lsm.c linux-7.0.12-hdn/security/yama/y
  };
 diff -urN linux-7.0.12/tools/hardening/Makefile linux-7.0.12-hdn/tools/hardening/Makefile
 --- linux-7.0.12/tools/hardening/Makefile	1969-12-31 18:00:00.000000000 -0600
-+++ linux-7.0.12-hdn/tools/hardening/Makefile	2026-06-26 15:45:11.065461241 -0500
-@@ -0,0 +1,147 @@
++++ linux-7.0.12-hdn/tools/hardening/Makefile	2026-06-26 16:09:37.833336307 -0500
+@@ -0,0 +1,151 @@
 +CC ?= cc
 +CFLAGS ?= -O2 -Wall -Wextra
 +CPPFLAGS += -D__EXPORTED_HEADERS__ -I../../include/uapi
@@ -17462,6 +17462,7 @@ diff -urN linux-7.0.12/tools/hardening/Makefile linux-7.0.12-hdn/tools/hardening
 +	hdn-image-seal \
 +	hdn-package-hook \
 +	hdn-event-decode \
++	hdn-status \
 +	hdn-policy-learn \
 +	hdn-policy-merge
 +
@@ -17547,6 +17548,9 @@ diff -urN linux-7.0.12/tools/hardening/Makefile linux-7.0.12-hdn/tools/hardening
 +hdn-event-decode: hdn-event-decode.c
 +	$(CC) $(CPPFLAGS) $(CFLAGS) -o $@ $<
 +
++hdn-status: hdn-status.c
++	$(CC) $(CPPFLAGS) $(CFLAGS) -o $@ $<
++
 +hdn-policy-learn: hdn-policy-learn.c
 +	$(CC) $(CPPFLAGS) $(CFLAGS) -o $@ $<
 +
@@ -17575,8 +17579,8 @@ diff -urN linux-7.0.12/tools/hardening/Makefile linux-7.0.12-hdn/tools/hardening
 +.PHONY: all clean install
 diff -urN linux-7.0.12/tools/hardening/README.rst linux-7.0.12-hdn/tools/hardening/README.rst
 --- linux-7.0.12/tools/hardening/README.rst	1969-12-31 18:00:00.000000000 -0600
-+++ linux-7.0.12-hdn/tools/hardening/README.rst	2026-06-26 16:00:23.421377157 -0500
-@@ -0,0 +1,1299 @@
++++ linux-7.0.12-hdn/tools/hardening/README.rst	2026-06-26 16:12:41.029303995 -0500
+@@ -0,0 +1,1317 @@
 +.. SPDX-License-Identifier: GPL-2.0-only
 +
 +Linux Hardening Policy Tools
@@ -17750,6 +17754,15 @@ diff -urN linux-7.0.12/tools/hardening/README.rst linux-7.0.12-hdn/tools/hardeni
 +numbers, resource IDs and resource-pressure values, time-change operations, USB
 +bus/port context, and socket family/type/protocol or endpoint context.
 +
++``hdn-status`` turns ``securityfs/hardening/status`` into a stable
++product-facing ``key=value`` contract for settings panels, desktop daemons,
++support bundles, and recovery UI. It summarizes policy readiness, phase,
++profile/rule counts, mitigation counts, and audit-flood state without requiring
++UI code to parse raw kernel status labels directly. It also decodes
++``audit_flood_last_action``, ``audit_flood_last_authority``,
++``audit_flood_last_transition``, and ``audit_flood_last_reason`` to UAPI names
++and supports ``--expect KEY=VALUE`` for harnesses.
++
 +``hdn-policy-learn`` consumes the same event records and emits a reviewable
 +policy fragment for settings UI, support tools, and developer-mode workflows.
 +Denied profile-authority events become de-duplicated ``allow PROFILE
@@ -17824,6 +17837,7 @@ diff -urN linux-7.0.12/tools/hardening/README.rst linux-7.0.12-hdn/tools/hardeni
 +  TOKEN=$(sudo tools/hardening/hdn-approval-token --intent rofs-transaction)
 +  sudo tools/hardening/hdn-admin-broker --approval-token "$TOKEN" rofs-transaction /usr -- /usr/libexec/hdn-package-worker
 +  sudo tools/hardening/hdn-event-decode --quiet --expect reason=USER_WX_MAPPING --expect action=DENY_AUDIT
++  sudo tools/hardening/hdn-status --expect available=1 --expect mitigations_sealed=1
 +  sudo tools/hardening/hdn-policy-learn --input /sys/kernel/security/hardening/events
 +  sudo tools/hardening/hdn-policy-merge base.policy reviewed-learn.frag candidate.policy
 +
@@ -18795,6 +18809,14 @@ diff -urN linux-7.0.12/tools/hardening/README.rst linux-7.0.12-hdn/tools/hardeni
 +``PROTECTED_SYMLINK`` reason, plus contained chroot mount and file-handle
 +denials by their decoded reason names, and contained chroot sysctl denial by
 +decoded ``CHROOT_SYSCTL`` reason.
++
++``hdn-status`` maps raw status lines to product-facing state for UI and support
++tooling: ``state``, ``attention``, ``attention_reason``, policy phase, rule
++count, mitigation totals, and audit-flood suppression state. It also decodes
++the most recent flood-suppressed action, authority, transition, and reason to
++the same UAPI names used by the event decoder. The QEMU smoke suite proves live
++status reporting and a synthetic audit-flood fixture with decoded
++``DENY_AUDIT``, ``USB_MONITOR``, and ``KERNEL_LOCKOUT`` names.
 +
 +Repeated identical event keys are flood-controlled before they can churn the
 +fixed securityfs ring or kernel diagnostics. The first events in a burst remain
@@ -31810,6 +31832,930 @@ diff -urN linux-7.0.12/tools/hardening/hdn-rofs-transaction.c linux-7.0.12-hdn/t
 +
 +	return command_status;
 +}
+diff -urN linux-7.0.12/tools/hardening/hdn-status.c linux-7.0.12-hdn/tools/hardening/hdn-status.c
+--- linux-7.0.12/tools/hardening/hdn-status.c	1969-12-31 18:00:00.000000000 -0600
++++ linux-7.0.12-hdn/tools/hardening/hdn-status.c	2026-06-26 16:14:15.637291350 -0500
+@@ -0,0 +1,920 @@
++// SPDX-License-Identifier: GPL-2.0-only
++
++#define _GNU_SOURCE
++
++#include <ctype.h>
++#include <errno.h>
++#include <linux/hardening.h>
++#include <stdbool.h>
++#include <stdarg.h>
++#include <stdio.h>
++#include <stdlib.h>
++#include <string.h>
++
++#ifndef HDN_STATUS_PATH
++#define HDN_STATUS_PATH "/sys/kernel/security/hardening/status"
++#endif
++
++#define ARRAY_SIZE(array) (sizeof(array) / sizeof((array)[0]))
++#define HDN_STATUS_MAX_ENTRIES 256
++#define HDN_STATUS_MAX_OUTPUTS 384
++#define HDN_STATUS_MAX_EXPECTATIONS 32
++
++struct hdn_name {
++	unsigned int value;
++	const char *name;
++};
++
++struct hdn_status_entry {
++	char *key;
++	char *value;
++};
++
++struct hdn_status {
++	struct hdn_status_entry entries[HDN_STATUS_MAX_ENTRIES];
++	unsigned int count;
++};
++
++struct hdn_output {
++	char key[64];
++	char value[256];
++};
++
++struct hdn_outputs {
++	struct hdn_output values[HDN_STATUS_MAX_OUTPUTS];
++	unsigned int count;
++};
++
++struct hdn_expectation {
++	char *key;
++	char *value;
++};
++
++static const struct hdn_name authority_names[] = {
++	{ HDN_AUTH_NONE, "NONE" },
++	{ HDN_AUTH_EXEC, "EXEC" },
++	{ HDN_AUTH_MMAP, "MMAP" },
++	{ HDN_AUTH_MPROTECT, "MPROTECT" },
++	{ HDN_AUTH_BPF_LOAD, "BPF_LOAD" },
++	{ HDN_AUTH_PERF_OPEN, "PERF_OPEN" },
++	{ HDN_AUTH_USERNS_CREATE, "USERNS_CREATE" },
++	{ HDN_AUTH_MODULE_LOAD, "MODULE_LOAD" },
++	{ HDN_AUTH_PTRACE, "PTRACE" },
++	{ HDN_AUTH_PROC_DISCLOSE, "PROC_DISCLOSE" },
++	{ HDN_AUTH_DEBUGFS, "DEBUGFS" },
++	{ HDN_AUTH_SYSFS_MUTATE, "SYSFS_MUTATE" },
++	{ HDN_AUTH_KEXEC_LOAD, "KEXEC_LOAD" },
++	{ HDN_AUTH_FIRMWARE_LOAD, "FIRMWARE_LOAD" },
++	{ HDN_AUTH_IO_URING_RESTRICTED_OP, "IO_URING_RESTRICTED_OP" },
++	{ HDN_AUTH_KERNEL_LOG_READ, "KERNEL_LOG_READ" },
++	{ HDN_AUTH_RAW_IO, "RAW_IO" },
++	{ HDN_AUTH_MOUNT_ADMIN, "MOUNT_ADMIN" },
++	{ HDN_AUTH_POLICY_ADMIN, "POLICY_ADMIN" },
++	{ HDN_AUTH_NAMESPACE_ADMIN, "NAMESPACE_ADMIN" },
++	{ HDN_AUTH_CRED_CHANGE, "CRED_CHANGE" },
++	{ HDN_AUTH_CHROOT_ADMIN, "CHROOT_ADMIN" },
++	{ HDN_AUTH_TRUSTED_EXEC_BYPASS, "TRUSTED_EXEC_BYPASS" },
++	{ HDN_AUTH_IPC_ADMIN, "IPC_ADMIN" },
++	{ HDN_AUTH_TTY_INJECT, "TTY_INJECT" },
++	{ HDN_AUTH_FUSE_MOUNT, "FUSE_MOUNT" },
++	{ HDN_AUTH_ROFS_RELAX, "ROFS_RELAX" },
++	{ HDN_AUTH_USB_ATTACH, "USB_ATTACH" },
++	{ HDN_AUTH_SOCKET_CREATE, "SOCKET_CREATE" },
++	{ HDN_AUTH_SOCKET_CONNECT, "SOCKET_CONNECT" },
++	{ HDN_AUTH_SOCKET_SERVER, "SOCKET_SERVER" },
++	{ HDN_AUTH_PROC_TASK_VIEW, "PROC_TASK_VIEW" },
++	{ HDN_AUTH_TIME_ADMIN, "TIME_ADMIN" },
++	{ HDN_AUTH_RESOURCE_ADMIN, "RESOURCE_ADMIN" },
++	{ HDN_AUTH_BLOCK_DEVICE_ACCESS, "BLOCK_DEVICE_ACCESS" },
++	{ HDN_AUTH_SYSFS_READ, "SYSFS_READ" },
++	{ HDN_AUTH_PTRACE_EXEC_READ, "PTRACE_EXEC_READ" },
++	{ HDN_AUTH_MODULE_AUTOLOAD, "MODULE_AUTOLOAD" },
++	{ HDN_AUTH_BLOCK_DEVICE_ADMIN, "BLOCK_DEVICE_ADMIN" },
++	{ HDN_AUTH_OBJECT_WRITE, "OBJECT_WRITE" },
++	{ HDN_AUTH_OBJECT_READ, "OBJECT_READ" },
++	{ HDN_AUTH_OBJECT_DELETE, "OBJECT_DELETE" },
++	{ HDN_AUTH_OBJECT_CREATE, "OBJECT_CREATE" },
++	{ HDN_AUTH_OBJECT_EXEC, "OBJECT_EXEC" },
++	{ HDN_AUTH_OBJECT_APPEND, "OBJECT_APPEND" },
++	{ HDN_AUTH_OBJECT_LINK, "OBJECT_LINK" },
++	{ HDN_AUTH_OBJECT_ATTR, "OBJECT_ATTR" },
++	{ HDN_AUTH_OBJECT_ACCESS, "OBJECT_ACCESS" },
++	{ HDN_AUTH_OBJECT_STAT, "OBJECT_STAT" },
++	{ HDN_AUTH_OBJECT_LIST, "OBJECT_LIST" },
++	{ HDN_AUTH_OBJECT_FIND, "OBJECT_FIND" },
++	{ HDN_AUTH_OBJECT_IOCTL, "OBJECT_IOCTL" },
++	{ HDN_AUTH_OBJECT_LOCK, "OBJECT_LOCK" },
++	{ HDN_AUTH_OBJECT_WATCH, "OBJECT_WATCH" },
++	{ HDN_AUTH_OBJECT_XATTR, "OBJECT_XATTR" },
++	{ HDN_AUTH_SIGNAL, "SIGNAL" },
++	{ HDN_AUTH_PROCESS_MEMORY, "PROCESS_MEMORY" },
++	{ HDN_AUTH_MEMORY_MIGRATE, "MEMORY_MIGRATE" },
++	{ HDN_AUTH_PROCESS_FD, "PROCESS_FD" },
++	{ HDN_AUTH_OBJECT_RECEIVE, "OBJECT_RECEIVE" },
++	{ HDN_AUTH_OBJECT_FCNTL, "OBJECT_FCNTL" },
++	{ HDN_AUTH_OBJECT_CHDIR, "OBJECT_CHDIR" },
++	{ HDN_AUTH_OBJECT_MOUNT, "OBJECT_MOUNT" },
++	{ HDN_AUTH_OBJECT_UMOUNT, "OBJECT_UMOUNT" },
++	{ HDN_AUTH_OBJECT_TRUNCATE, "OBJECT_TRUNCATE" },
++	{ HDN_AUTH_OBJECT_RENAME, "OBJECT_RENAME" },
++	{ HDN_AUTH_OBJECT_UNIX_CONNECT, "OBJECT_UNIX_CONNECT" },
++	{ HDN_AUTH_OBJECT_CHMOD, "OBJECT_CHMOD" },
++	{ HDN_AUTH_OBJECT_CHOWN, "OBJECT_CHOWN" },
++	{ HDN_AUTH_OBJECT_UTIME, "OBJECT_UTIME" },
++	{ HDN_AUTH_OBJECT_SETXATTR, "OBJECT_SETXATTR" },
++	{ HDN_AUTH_OBJECT_REMOVEXATTR, "OBJECT_REMOVEXATTR" },
++	{ HDN_AUTH_OBJECT_CREAT, "OBJECT_CREAT" },
++	{ HDN_AUTH_OBJECT_MKDIR, "OBJECT_MKDIR" },
++	{ HDN_AUTH_OBJECT_MKNOD, "OBJECT_MKNOD" },
++	{ HDN_AUTH_OBJECT_SYMLINK, "OBJECT_SYMLINK" },
++	{ HDN_AUTH_OBJECT_UNLINK, "OBJECT_UNLINK" },
++	{ HDN_AUTH_OBJECT_RMDIR, "OBJECT_RMDIR" },
++	{ HDN_AUTH_USB_MONITOR, "USB_MONITOR" },
++};
++
++static const struct hdn_name transition_names[] = {
++	{ HDN_TRANS_NONE, "NONE" },
++	{ HDN_TRANS_EXEC, "EXEC" },
++	{ HDN_TRANS_CRED_CHANGE, "CRED_CHANGE" },
++	{ HDN_TRANS_MMAP, "MMAP" },
++	{ HDN_TRANS_MPROTECT, "MPROTECT" },
++	{ HDN_TRANS_MODULE_LOAD, "MODULE_LOAD" },
++	{ HDN_TRANS_FIRMWARE_LOAD, "FIRMWARE_LOAD" },
++	{ HDN_TRANS_BPF_LOAD, "BPF_LOAD" },
++	{ HDN_TRANS_PERF_OPEN, "PERF_OPEN" },
++	{ HDN_TRANS_PTRACE, "PTRACE" },
++	{ HDN_TRANS_USERNS_CREATE, "USERNS_CREATE" },
++	{ HDN_TRANS_MOUNT, "MOUNT" },
++	{ HDN_TRANS_KEXEC_LOAD, "KEXEC_LOAD" },
++	{ HDN_TRANS_IO_URING_OP, "IO_URING_OP" },
++	{ HDN_TRANS_PROCFS_READ, "PROCFS_READ" },
++	{ HDN_TRANS_SYSFS_WRITE, "SYSFS_WRITE" },
++	{ HDN_TRANS_KERNEL_LOG_READ, "KERNEL_LOG_READ" },
++	{ HDN_TRANS_RAW_IO, "RAW_IO" },
++	{ HDN_TRANS_DEBUGFS_ACCESS, "DEBUGFS_ACCESS" },
++	{ HDN_TRANS_POLICY_LOAD, "POLICY_LOAD" },
++	{ HDN_TRANS_POLICY_ROLLBACK, "POLICY_ROLLBACK" },
++	{ HDN_TRANS_PHASE_CHANGE, "PHASE_CHANGE" },
++	{ HDN_TRANS_NAMESPACE_CREATE, "NAMESPACE_CREATE" },
++	{ HDN_TRANS_NAMESPACE_JOIN, "NAMESPACE_JOIN" },
++	{ HDN_TRANS_POLICY_COMMIT, "POLICY_COMMIT" },
++	{ HDN_TRANS_CHROOT, "CHROOT" },
++	{ HDN_TRANS_CHDIR, "CHDIR" },
++	{ HDN_TRANS_PIVOT_ROOT, "PIVOT_ROOT" },
++	{ HDN_TRANS_SYSVIPC_ACCESS, "SYSVIPC_ACCESS" },
++	{ HDN_TRANS_TTY_INJECT, "TTY_INJECT" },
++	{ HDN_TRANS_FUSE_MOUNT, "FUSE_MOUNT" },
++	{ HDN_TRANS_ROFS_RELAX, "ROFS_RELAX" },
++	{ HDN_TRANS_USB_ATTACH, "USB_ATTACH" },
++	{ HDN_TRANS_SOCKET_CREATE, "SOCKET_CREATE" },
++	{ HDN_TRANS_SOCKET_CONNECT, "SOCKET_CONNECT" },
++	{ HDN_TRANS_SOCKET_SERVER, "SOCKET_SERVER" },
++	{ HDN_TRANS_POSIX_MQUEUE_ACCESS, "POSIX_MQUEUE_ACCESS" },
++	{ HDN_TRANS_TIME_CHANGE, "TIME_CHANGE" },
++	{ HDN_TRANS_RESOURCE_LIMIT, "RESOURCE_LIMIT" },
++	{ HDN_TRANS_BLOCK_DEVICE_ACCESS, "BLOCK_DEVICE_ACCESS" },
++	{ HDN_TRANS_FORK, "FORK" },
++	{ HDN_TRANS_SYSFS_READ, "SYSFS_READ" },
++	{ HDN_TRANS_PTRACE_EXEC_READ, "PTRACE_EXEC_READ" },
++	{ HDN_TRANS_MODULE_AUTOLOAD, "MODULE_AUTOLOAD" },
++	{ HDN_TRANS_SEALED_DATA, "SEALED_DATA" },
++	{ HDN_TRANS_BLOCK_DEVICE_ADMIN, "BLOCK_DEVICE_ADMIN" },
++	{ HDN_TRANS_SIGNAL, "SIGNAL" },
++	{ HDN_TRANS_FS_PROTECTION, "FS_PROTECTION" },
++	{ HDN_TRANS_OBJECT_WRITE, "OBJECT_WRITE" },
++	{ HDN_TRANS_OBJECT_READ, "OBJECT_READ" },
++	{ HDN_TRANS_OBJECT_DELETE, "OBJECT_DELETE" },
++	{ HDN_TRANS_OBJECT_CREATE, "OBJECT_CREATE" },
++	{ HDN_TRANS_OBJECT_EXEC, "OBJECT_EXEC" },
++	{ HDN_TRANS_OBJECT_APPEND, "OBJECT_APPEND" },
++	{ HDN_TRANS_OBJECT_LINK, "OBJECT_LINK" },
++	{ HDN_TRANS_OBJECT_ATTR, "OBJECT_ATTR" },
++	{ HDN_TRANS_OBJECT_ACCESS, "OBJECT_ACCESS" },
++	{ HDN_TRANS_OBJECT_STAT, "OBJECT_STAT" },
++	{ HDN_TRANS_OBJECT_LIST, "OBJECT_LIST" },
++	{ HDN_TRANS_OBJECT_FIND, "OBJECT_FIND" },
++	{ HDN_TRANS_OBJECT_IOCTL, "OBJECT_IOCTL" },
++	{ HDN_TRANS_OBJECT_LOCK, "OBJECT_LOCK" },
++	{ HDN_TRANS_OBJECT_WATCH, "OBJECT_WATCH" },
++	{ HDN_TRANS_OBJECT_XATTR, "OBJECT_XATTR" },
++	{ HDN_TRANS_PROCESS_MEMORY, "PROCESS_MEMORY" },
++	{ HDN_TRANS_MEMORY_MIGRATE, "MEMORY_MIGRATE" },
++	{ HDN_TRANS_PROCESS_FD, "PROCESS_FD" },
++	{ HDN_TRANS_OBJECT_RECEIVE, "OBJECT_RECEIVE" },
++	{ HDN_TRANS_OBJECT_FCNTL, "OBJECT_FCNTL" },
++	{ HDN_TRANS_OBJECT_CHDIR, "OBJECT_CHDIR" },
++	{ HDN_TRANS_OBJECT_MOUNT, "OBJECT_MOUNT" },
++	{ HDN_TRANS_OBJECT_UMOUNT, "OBJECT_UMOUNT" },
++	{ HDN_TRANS_OBJECT_TRUNCATE, "OBJECT_TRUNCATE" },
++	{ HDN_TRANS_OBJECT_RENAME, "OBJECT_RENAME" },
++	{ HDN_TRANS_OBJECT_UNIX_CONNECT, "OBJECT_UNIX_CONNECT" },
++	{ HDN_TRANS_OBJECT_CHMOD, "OBJECT_CHMOD" },
++	{ HDN_TRANS_OBJECT_CHOWN, "OBJECT_CHOWN" },
++	{ HDN_TRANS_OBJECT_UTIME, "OBJECT_UTIME" },
++	{ HDN_TRANS_OBJECT_SETXATTR, "OBJECT_SETXATTR" },
++	{ HDN_TRANS_OBJECT_REMOVEXATTR, "OBJECT_REMOVEXATTR" },
++	{ HDN_TRANS_OBJECT_CREAT, "OBJECT_CREAT" },
++	{ HDN_TRANS_OBJECT_MKDIR, "OBJECT_MKDIR" },
++	{ HDN_TRANS_OBJECT_MKNOD, "OBJECT_MKNOD" },
++	{ HDN_TRANS_OBJECT_SYMLINK, "OBJECT_SYMLINK" },
++	{ HDN_TRANS_OBJECT_UNLINK, "OBJECT_UNLINK" },
++	{ HDN_TRANS_OBJECT_RMDIR, "OBJECT_RMDIR" },
++	{ HDN_TRANS_PROCESS_ACCOUNT, "PROCESS_ACCOUNT" },
++	{ HDN_TRANS_COREDUMP, "COREDUMP" },
++	{ HDN_TRANS_EXEC_ARGS, "EXEC_ARGS" },
++	{ HDN_TRANS_KERNEL_LOCKOUT, "KERNEL_LOCKOUT" },
++	{ HDN_TRANS_USB_MONITOR, "USB_MONITOR" },
++};
++
++static const struct hdn_name action_names[] = {
++	{ HDN_DECISION_ALLOW, "ALLOW" },
++	{ HDN_DECISION_DENY, "DENY" },
++	{ HDN_DECISION_REWRITE, "REWRITE" },
++	{ HDN_DECISION_ALLOW_AUDIT, "ALLOW_AUDIT" },
++	{ HDN_DECISION_DENY_AUDIT, "DENY_AUDIT" },
++};
++
++static const struct hdn_name reason_names[] = {
++	{ HDN_REASON_NONE, "NONE" },
++	{ HDN_REASON_USER_WX_MAPPING, "USER_WX_MAPPING" },
++	{ HDN_REASON_EXEC_AFTER_WRITE, "EXEC_AFTER_WRITE" },
++	{ HDN_REASON_UNPRIVILEGED_BPF, "UNPRIVILEGED_BPF" },
++	{ HDN_REASON_UNPRIVILEGED_PERF_KERNEL, "UNPRIVILEGED_PERF_KERNEL" },
++	{ HDN_REASON_UNPRIVILEGED_USERNS, "UNPRIVILEGED_USERNS" },
++	{ HDN_REASON_RAW_MODULE_IMAGE, "RAW_MODULE_IMAGE" },
++	{ HDN_REASON_PROFILE_DENIED, "PROFILE_DENIED" },
++	{ HDN_REASON_SEALED_RUNTIME, "SEALED_RUNTIME" },
++	{ HDN_REASON_INVALID_PHASE, "INVALID_PHASE" },
++	{ HDN_REASON_POLICY_DOWNGRADE, "POLICY_DOWNGRADE" },
++	{ HDN_REASON_INVALID_POLICY, "INVALID_POLICY" },
++	{ HDN_REASON_FIXED_ANON_EXEC_MAPPING, "FIXED_ANON_EXEC_MAPPING" },
++	{ HDN_REASON_READ_IMPLIES_EXEC, "READ_IMPLIES_EXEC" },
++	{ HDN_REASON_NAMESPACE_PROFILE_WIDEN, "NAMESPACE_PROFILE_WIDEN" },
++	{ HDN_REASON_NO_STAGED_POLICY, "NO_STAGED_POLICY" },
++	{ HDN_REASON_UNTRUSTED_MODULE, "UNTRUSTED_MODULE" },
++	{ HDN_REASON_UNTRUSTED_FIRMWARE, "UNTRUSTED_FIRMWARE" },
++	{ HDN_REASON_POLICY_BASE_MISMATCH, "POLICY_BASE_MISMATCH" },
++	{ HDN_REASON_UNTRUSTED_EXEC_PATH, "UNTRUSTED_EXEC_PATH" },
++	{ HDN_REASON_CHROOT_REENTRY, "CHROOT_REENTRY" },
++	{ HDN_REASON_CHROOT_ESCAPE, "CHROOT_ESCAPE" },
++	{ HDN_REASON_PIVOT_ROOT_IN_CHROOT, "PIVOT_ROOT_IN_CHROOT" },
++	{ HDN_REASON_BRUTE_THROTTLED, "BRUTE_THROTTLED" },
++	{ HDN_REASON_OVERPERMISSIVE_IPC, "OVERPERMISSIVE_IPC" },
++	{ HDN_REASON_TTY_INJECTION, "TTY_INJECTION" },
++	{ HDN_REASON_FUSE_RESTRICTED, "FUSE_RESTRICTED" },
++	{ HDN_REASON_ROFS_RELAX, "ROFS_RELAX" },
++	{ HDN_REASON_UNPRIVILEGED_PRIVEXEC, "UNPRIVILEGED_PRIVEXEC" },
++	{ HDN_REASON_PTRACE_EXEC_READ, "PTRACE_EXEC_READ" },
++	{ HDN_REASON_MODULE_AUTOLOAD, "MODULE_AUTOLOAD" },
++	{ HDN_REASON_CHROOT_CHMOD, "CHROOT_CHMOD" },
++	{ HDN_REASON_CHROOT_MKNOD, "CHROOT_MKNOD" },
++	{ HDN_REASON_CHROOT_SHMAT, "CHROOT_SHMAT" },
++	{ HDN_REASON_CHROOT_NICE, "CHROOT_NICE" },
++	{ HDN_REASON_CHROOT_RENAME, "CHROOT_RENAME" },
++	{ HDN_REASON_CHROOT_ABSTRACT_UNIX, "CHROOT_ABSTRACT_UNIX" },
++	{ HDN_REASON_CHROOT_CAPABILITY, "CHROOT_CAPABILITY" },
++	{ HDN_REASON_CHROOT_OUTSIDE_TASK, "CHROOT_OUTSIDE_TASK" },
++	{ HDN_REASON_SEALED_DATA_WRITE, "SEALED_DATA_WRITE" },
++	{ HDN_REASON_CHROOT_MOUNT, "CHROOT_MOUNT" },
++	{ HDN_REASON_CHROOT_FILE_HANDLE, "CHROOT_FILE_HANDLE" },
++	{ HDN_REASON_FORK_FAILED, "FORK_FAILED" },
++	{ HDN_REASON_PROTECTED_SYMLINK, "PROTECTED_SYMLINK" },
++	{ HDN_REASON_PROTECTED_HARDLINK, "PROTECTED_HARDLINK" },
++	{ HDN_REASON_PROTECTED_FIFO, "PROTECTED_FIFO" },
++	{ HDN_REASON_PROTECTED_REGULAR, "PROTECTED_REGULAR" },
++	{ HDN_REASON_CHROOT_SYSCTL, "CHROOT_SYSCTL" },
++	{ HDN_REASON_SYMLINK_OWNER_MISMATCH, "SYMLINK_OWNER_MISMATCH" },
++	{ HDN_REASON_RWXMAP_DENIED, "RWXMAP_DENIED" },
++	{ HDN_REASON_EXEC_STACK_ELF, "EXEC_STACK_ELF" },
++	{ HDN_REASON_TEXTREL_MPROTECT, "TEXTREL_MPROTECT" },
++	{ HDN_REASON_OBJECT_POLICY, "OBJECT_POLICY" },
++	{ HDN_REASON_PRIVILEGED_DESCENDANT_COREDUMP,
++	  "PRIVILEGED_DESCENDANT_COREDUMP" },
++	{ HDN_REASON_BRUTE_DAEMON_THROTTLED, "BRUTE_DAEMON_THROTTLED" },
++	{ HDN_REASON_KERNEL_LOCKOUT, "KERNEL_LOCKOUT" },
++};
++
++static void usage(const char *prog)
++{
++	fprintf(stderr,
++		"Usage: %s [--status-path PATH] [--raw] [--quiet] [--expect KEY=VALUE]...\n"
++		"\n"
++		"Prints stable product-facing key=value status from hardening securityfs.\n",
++		prog);
++}
++
++static char *trim(char *line)
++{
++	char *end;
++
++	while (*line == ' ' || *line == '\t' || *line == '\r' ||
++	       *line == '\n')
++		line++;
++
++	end = line + strlen(line);
++	while (end > line &&
++	       (end[-1] == ' ' || end[-1] == '\t' || end[-1] == '\r' ||
++		end[-1] == '\n'))
++		*--end = '\0';
++
++	return line;
++}
++
++static bool valid_key(const char *key)
++{
++	const char *p;
++
++	if (!key || !key[0])
++		return false;
++
++	for (p = key; *p; p++) {
++		if (isalnum((unsigned char)*p) || *p == '_')
++			continue;
++		return false;
++	}
++
++	return true;
++}
++
++static const char *lookup_name(const struct hdn_name *names, size_t count,
++			       unsigned int value)
++{
++	size_t i;
++
++	for (i = 0; i < count; i++) {
++		if (names[i].value == value)
++			return names[i].name;
++	}
++
++	return "UNKNOWN";
++}
++
++static int read_status_line(struct hdn_status *status, char *line,
++			    unsigned int lineno)
++{
++	struct hdn_status_entry *entry;
++	char *colon;
++	char *key;
++	char *value;
++
++	line = trim(line);
++	if (!line[0])
++		return 0;
++
++	colon = strchr(line, ':');
++	if (!colon) {
++		fprintf(stderr, "hdn-status: malformed status line %u\n", lineno);
++		return -EINVAL;
++	}
++
++	*colon = '\0';
++	key = trim(line);
++	value = trim(colon + 1);
++	if (!valid_key(key)) {
++		fprintf(stderr, "hdn-status: invalid status key at line %u\n",
++			lineno);
++		return -EINVAL;
++	}
++	if (status->count >= HDN_STATUS_MAX_ENTRIES) {
++		fprintf(stderr, "hdn-status: too many status entries\n");
++		return -E2BIG;
++	}
++
++	entry = &status->entries[status->count];
++	entry->key = strdup(key);
++	entry->value = strdup(value);
++	if (!entry->key || !entry->value)
++		return -ENOMEM;
++	status->count++;
++	return 0;
++}
++
++static int read_status_file(const char *path, struct hdn_status *status)
++{
++	char *line = NULL;
++	unsigned int lineno = 0;
++	size_t size = 0;
++	ssize_t len;
++	FILE *file;
++	int ret = 0;
++
++	memset(status, 0, sizeof(*status));
++
++	file = fopen(path, "r");
++	if (!file) {
++		fprintf(stderr, "hdn-status: cannot open %s: %s\n", path,
++			strerror(errno));
++		return -errno;
++	}
++
++	while ((len = getline(&line, &size, file)) >= 0) {
++		(void)len;
++		lineno++;
++		ret = read_status_line(status, line, lineno);
++		if (ret)
++			break;
++	}
++	if (ferror(file) && !ret)
++		ret = -EIO;
++
++	free(line);
++	fclose(file);
++	return ret;
++}
++
++static void free_status(struct hdn_status *status)
++{
++	unsigned int i;
++
++	for (i = 0; i < status->count; i++) {
++		free(status->entries[i].key);
++		free(status->entries[i].value);
++	}
++}
++
++static const char *status_value(const struct hdn_status *status,
++				const char *key)
++{
++	unsigned int i;
++
++	for (i = 0; i < status->count; i++) {
++		if (!strcmp(status->entries[i].key, key))
++			return status->entries[i].value;
++	}
++
++	return NULL;
++}
++
++static bool status_u64(const struct hdn_status *status, const char *key,
++		       unsigned long long *value)
++{
++	const char *text = status_value(status, key);
++	char *end;
++
++	if (!text)
++		return false;
++
++	errno = 0;
++	*value = strtoull(text, &end, 0);
++	return !errno && end != text;
++}
++
++static unsigned long long status_u64_default(const struct hdn_status *status,
++					     const char *key,
++					     unsigned long long fallback)
++{
++	unsigned long long value;
++
++	return status_u64(status, key, &value) ? value : fallback;
++}
++
++static bool status_bool(const struct hdn_status *status, const char *key)
++{
++	return status_u64_default(status, key, 0) != 0;
++}
++
++static bool starts_with(const char *text, const char *prefix)
++{
++	return !strncmp(text, prefix, strlen(prefix));
++}
++
++static bool mitigation_counter_key(const char *key)
++{
++	if (!starts_with(key, "mitigation_"))
++		return false;
++	if (!strcmp(key, "mitigation_pages") ||
++	    !strcmp(key, "mitigation_flags") ||
++	    !strcmp(key, "mitigation_flags2"))
++		return false;
++	return true;
++}
++
++static void count_mitigations(const struct hdn_status *status,
++			      unsigned int *known, unsigned int *enabled)
++{
++	unsigned int i;
++
++	*known = 0;
++	*enabled = 0;
++
++	for (i = 0; i < status->count; i++) {
++		unsigned long long value;
++
++		if (!mitigation_counter_key(status->entries[i].key))
++			continue;
++		if (!status_u64(status, status->entries[i].key, &value))
++			continue;
++		if (value > 1)
++			continue;
++		(*known)++;
++		if (value)
++			(*enabled)++;
++	}
++}
++
++static const char *attention_reason(const struct hdn_status *status)
++{
++	if (!status_bool(status, "mitigations_sealed"))
++		return "mitigations_unsealed";
++	if (!status_bool(status, "policy_loaded"))
++		return "policy_not_loaded";
++	if (!status_bool(status, "policy_sealed"))
++		return "policy_unsealed";
++	return "none";
++}
++
++static const char *state_name(const struct hdn_status *status,
++			      const char *attention)
++{
++	const char *phase = status_value(status, "phase");
++
++	if (strcmp(attention, "none") &&
++	    strcmp(attention, "policy_not_loaded"))
++		return "degraded";
++	if (phase && !strcmp(phase, "recovery"))
++		return "recovery";
++	if (!status_bool(status, "policy_loaded"))
++		return status_bool(status, "policy_staged") ? "staged" :
++							       "setup";
++	if (phase && !strcmp(phase, "policy-load"))
++		return "loading";
++	return "active";
++}
++
++static int output_add(struct hdn_outputs *outputs, const char *key,
++		      const char *format, ...)
++{
++	struct hdn_output *output;
++	va_list ap;
++	int ret;
++
++	if (!valid_key(key)) {
++		fprintf(stderr, "hdn-status: internal invalid output key: %s\n",
++			key);
++		return -EINVAL;
++	}
++	if (outputs->count >= HDN_STATUS_MAX_OUTPUTS) {
++		fprintf(stderr, "hdn-status: too many output entries\n");
++		return -E2BIG;
++	}
++
++	output = &outputs->values[outputs->count];
++	snprintf(output->key, sizeof(output->key), "%s", key);
++	va_start(ap, format);
++	ret = vsnprintf(output->value, sizeof(output->value), format, ap);
++	va_end(ap);
++	if (ret < 0 || (size_t)ret >= sizeof(output->value)) {
++		fprintf(stderr, "hdn-status: output value too long for %s\n",
++			key);
++		return -E2BIG;
++	}
++
++	outputs->count++;
++	return 0;
++}
++
++static int output_status_value(struct hdn_outputs *outputs,
++			       const struct hdn_status *status, const char *key,
++			       const char *fallback)
++{
++	const char *value = status_value(status, key);
++
++	return output_add(outputs, key, "%s", value ? value : fallback);
++}
++
++static int build_outputs(const struct hdn_status *status, const char *source,
++			 bool raw, struct hdn_outputs *outputs)
++{
++	unsigned long long audit_last_action;
++	unsigned long long audit_last_authority;
++	unsigned long long audit_last_transition;
++	unsigned long long audit_last_reason;
++	unsigned long long audit_suppressed;
++	unsigned long long rule_count;
++	unsigned int mitigation_known;
++	unsigned int mitigation_enabled;
++	const char *attention;
++	unsigned int i;
++	int ret;
++
++	memset(outputs, 0, sizeof(*outputs));
++	count_mitigations(status, &mitigation_known, &mitigation_enabled);
++
++	audit_suppressed = status_u64_default(status,
++					      "audit_flood_suppressed_total",
++					      0);
++	audit_last_action = status_u64_default(status,
++					       "audit_flood_last_action", 0);
++	audit_last_authority = status_u64_default(status,
++						  "audit_flood_last_authority",
++						  0);
++	audit_last_transition = status_u64_default(status,
++						   "audit_flood_last_transition",
++						   0);
++	audit_last_reason = status_u64_default(status,
++					       "audit_flood_last_reason", 0);
++	rule_count = status_u64_default(status, "subject_rule_count", 0) +
++		     status_u64_default(status, "object_rule_count", 0) +
++		     status_u64_default(status, "exec_rule_count", 0) +
++		     status_u64_default(status, "module_rule_count", 0) +
++		     status_u64_default(status, "firmware_rule_count", 0);
++	attention = attention_reason(status);
++
++	ret = output_add(outputs, "HDN_STATUS_V1", "1");
++	if (ret)
++		return ret;
++	ret = output_add(outputs, "source", "%s", source);
++	if (ret)
++		return ret;
++	ret = output_add(outputs, "available", "1");
++	if (ret)
++		return ret;
++	ret = output_add(outputs, "state", "%s", state_name(status, attention));
++	if (ret)
++		return ret;
++	ret = output_add(outputs, "attention", "%u",
++			 strcmp(attention, "none") ? 1 : 0);
++	if (ret)
++		return ret;
++	ret = output_add(outputs, "attention_reason", "%s", attention);
++	if (ret)
++		return ret;
++
++	ret = output_status_value(outputs, status, "phase", "unknown");
++	if (ret)
++		return ret;
++	ret = output_status_value(outputs, status, "phase_id", "0");
++	if (ret)
++		return ret;
++	ret = output_status_value(outputs, status, "policy_loaded", "0");
++	if (ret)
++		return ret;
++	ret = output_status_value(outputs, status, "policy_staged", "0");
++	if (ret)
++		return ret;
++	ret = output_status_value(outputs, status, "policy_sealed", "0");
++	if (ret)
++		return ret;
++	ret = output_status_value(outputs, status, "rollback_available", "0");
++	if (ret)
++		return ret;
++	ret = output_status_value(outputs, status, "generation", "0");
++	if (ret)
++		return ret;
++	ret = output_status_value(outputs, status, "expected_generation", "0");
++	if (ret)
++		return ret;
++	ret = output_status_value(outputs, status, "profile_count", "0");
++	if (ret)
++		return ret;
++	ret = output_add(outputs, "rule_count", "%llu", rule_count);
++	if (ret)
++		return ret;
++	ret = output_status_value(outputs, status, "current_profile", "0");
++	if (ret)
++		return ret;
++	ret = output_status_value(outputs, status, "current_mntns_profile", "0");
++	if (ret)
++		return ret;
++	ret = output_status_value(outputs, status,
++				  "current_exec_memory_flags", "0x0");
++	if (ret)
++		return ret;
++	ret = output_status_value(outputs, status, "mitigations_sealed", "0");
++	if (ret)
++		return ret;
++	ret = output_add(outputs, "mitigation_known", "%u", mitigation_known);
++	if (ret)
++		return ret;
++	ret = output_add(outputs, "mitigation_enabled", "%u",
++			 mitigation_enabled);
++	if (ret)
++		return ret;
++	ret = output_status_value(outputs, status,
++				  "mitigation_audit_flood_control", "0");
++	if (ret)
++		return ret;
++
++	ret = output_add(outputs, "audit_flood_suppressed_total", "%llu",
++			 audit_suppressed);
++	if (ret)
++		return ret;
++	ret = output_add(outputs, "audit_flood_active", "%u",
++			 audit_suppressed ? 1 : 0);
++	if (ret)
++		return ret;
++	ret = output_add(outputs, "audit_flood_last_action_id", "%llu",
++			 audit_last_action);
++	if (ret)
++		return ret;
++	ret = output_add(outputs, "audit_flood_last_action", "%s",
++			 lookup_name(action_names, ARRAY_SIZE(action_names),
++				     audit_last_action));
++	if (ret)
++		return ret;
++	ret = output_add(outputs, "audit_flood_last_authority_id", "%llu",
++			 audit_last_authority);
++	if (ret)
++		return ret;
++	ret = output_add(outputs, "audit_flood_last_authority", "%s",
++			 lookup_name(authority_names,
++				     ARRAY_SIZE(authority_names),
++				     audit_last_authority));
++	if (ret)
++		return ret;
++	ret = output_add(outputs, "audit_flood_last_transition_id", "%llu",
++			 audit_last_transition);
++	if (ret)
++		return ret;
++	ret = output_add(outputs, "audit_flood_last_transition", "%s",
++			 lookup_name(transition_names,
++				     ARRAY_SIZE(transition_names),
++				     audit_last_transition));
++	if (ret)
++		return ret;
++	ret = output_add(outputs, "audit_flood_last_reason_id", "%llu",
++			 audit_last_reason);
++	if (ret)
++		return ret;
++	ret = output_add(outputs, "audit_flood_last_reason", "%s",
++			 lookup_name(reason_names, ARRAY_SIZE(reason_names),
++				     audit_last_reason));
++	if (ret)
++		return ret;
++
++	if (!raw)
++		return 0;
++
++	for (i = 0; i < status->count; i++) {
++		char raw_key[80];
++
++		ret = snprintf(raw_key, sizeof(raw_key), "raw_%s",
++			       status->entries[i].key);
++		if (ret < 0 || (size_t)ret >= sizeof(raw_key))
++			return -E2BIG;
++		ret = output_add(outputs, raw_key, "%s",
++				 status->entries[i].value);
++		if (ret)
++			return ret;
++	}
++
++	return 0;
++}
++
++static const char *output_value(const struct hdn_outputs *outputs,
++				const char *key)
++{
++	unsigned int i;
++
++	for (i = 0; i < outputs->count; i++) {
++		if (!strcmp(outputs->values[i].key, key))
++			return outputs->values[i].value;
++	}
++
++	return NULL;
++}
++
++static int parse_expectation(const char *text, struct hdn_expectation *expect)
++{
++	char *copy;
++	char *equals;
++
++	copy = strdup(text);
++	if (!copy)
++		return -ENOMEM;
++
++	equals = strchr(copy, '=');
++	if (!equals) {
++		free(copy);
++		return -EINVAL;
++	}
++	*equals = '\0';
++	if (!valid_key(copy) || !equals[1]) {
++		free(copy);
++		return -EINVAL;
++	}
++
++	expect->key = copy;
++	expect->value = equals + 1;
++	return 0;
++}
++
++static void free_expectations(struct hdn_expectation *expectations,
++			      unsigned int count)
++{
++	unsigned int i;
++
++	for (i = 0; i < count; i++)
++		free(expectations[i].key);
++}
++
++static bool expectations_match(const struct hdn_outputs *outputs,
++			       const struct hdn_expectation *expectations,
++			       unsigned int count)
++{
++	unsigned int i;
++
++	for (i = 0; i < count; i++) {
++		const char *actual = output_value(outputs, expectations[i].key);
++
++		if (actual && !strcmp(actual, expectations[i].value))
++			continue;
++
++		fprintf(stderr,
++			"hdn-status: expectation failed: %s=%s",
++			expectations[i].key, expectations[i].value);
++		if (actual)
++			fprintf(stderr, " (actual %s)\n", actual);
++		else
++			fprintf(stderr, " (missing)\n");
++		return false;
++	}
++
++	return true;
++}
++
++static void print_outputs(const struct hdn_outputs *outputs)
++{
++	unsigned int i;
++
++	for (i = 0; i < outputs->count; i++)
++		printf("%s=%s\n", outputs->values[i].key,
++		       outputs->values[i].value);
++}
++
++int main(int argc, char **argv)
++{
++	struct hdn_expectation expectations[HDN_STATUS_MAX_EXPECTATIONS];
++	unsigned int expectation_count = 0;
++	struct hdn_outputs outputs;
++	struct hdn_status status;
++	const char *status_path = HDN_STATUS_PATH;
++	bool quiet = false;
++	bool raw = false;
++	int ret;
++	int i;
++
++	memset(expectations, 0, sizeof(expectations));
++
++	for (i = 1; i < argc; i++) {
++		if (!strcmp(argv[i], "--help")) {
++			usage(argv[0]);
++			return 0;
++		}
++		if (!strcmp(argv[i], "--status-path")) {
++			if (++i >= argc)
++				goto bad_args;
++			status_path = argv[i];
++			continue;
++		}
++		if (!strcmp(argv[i], "--raw")) {
++			raw = true;
++			continue;
++		}
++		if (!strcmp(argv[i], "--quiet")) {
++			quiet = true;
++			continue;
++		}
++		if (!strcmp(argv[i], "--expect")) {
++			if (++i >= argc ||
++			    expectation_count >= HDN_STATUS_MAX_EXPECTATIONS)
++				goto bad_args;
++			if (parse_expectation(argv[i],
++					      &expectations[expectation_count]))
++				goto bad_args;
++			expectation_count++;
++			continue;
++		}
++		goto bad_args;
++	}
++
++	ret = read_status_file(status_path, &status);
++	if (ret) {
++		free_expectations(expectations, expectation_count);
++		return 2;
++	}
++
++	ret = build_outputs(&status, status_path, raw, &outputs);
++	if (ret) {
++		free_status(&status);
++		free_expectations(expectations, expectation_count);
++		return 2;
++	}
++
++	if (!quiet)
++		print_outputs(&outputs);
++
++	ret = 0;
++	if (expectation_count &&
++	    !expectations_match(&outputs, expectations, expectation_count))
++		ret = 1;
++
++	free_status(&status);
++	free_expectations(expectations, expectation_count);
++	return ret;
++
++bad_args:
++	usage(argv[0]);
++	free_expectations(expectations, expectation_count);
++	return 2;
++}
 diff -urN linux-7.0.12/tools/hardening/hdn-system-transaction.c linux-7.0.12-hdn/tools/hardening/hdn-system-transaction.c
 --- linux-7.0.12/tools/hardening/hdn-system-transaction.c	1969-12-31 18:00:00.000000000 -0600
 +++ linux-7.0.12-hdn/tools/hardening/hdn-system-transaction.c	2026-06-25 14:38:11.163196929 -0500
@@ -32984,8 +33930,8 @@ diff -urN linux-7.0.12/tools/testing/selftests/hardening/hdn_elfnote_jit.c linux
 +}
 diff -urN linux-7.0.12/tools/testing/selftests/hardening/hdn_smoke.c linux-7.0.12-hdn/tools/testing/selftests/hardening/hdn_smoke.c
 --- linux-7.0.12/tools/testing/selftests/hardening/hdn_smoke.c	1969-12-31 18:00:00.000000000 -0600
-+++ linux-7.0.12-hdn/tools/testing/selftests/hardening/hdn_smoke.c	2026-06-26 15:57:56.169392522 -0500
-@@ -0,0 +1,22856 @@
++++ linux-7.0.12-hdn/tools/testing/selftests/hardening/hdn_smoke.c	2026-06-26 16:10:49.453323861 -0500
+@@ -0,0 +1,22956 @@
 +// SPDX-License-Identifier: GPL-2.0-only
 +
 +#define _GNU_SOURCE
@@ -33464,6 +34410,8 @@ diff -urN linux-7.0.12/tools/testing/selftests/hardening/hdn_smoke.c linux-7.0.1
 +#define HDN_PACKAGE_HOOK_EXEC "/hdn-package-hook"
 +#define HDN_EVENT_DECODE_EXEC "/hdn-event-decode"
 +#define HDN_EVENT_DECODE_DETAILS_INPUT "/hdn-event-decode-details.events"
++#define HDN_STATUS_HELPER_EXEC "/hdn-status"
++#define HDN_STATUS_HELPER_FIXTURE "/hdn-status-fixture.status"
 +#define HDN_POLICY_LEARN_EXEC "/hdn-policy-learn"
 +#define HDN_POLICY_LEARN_EVENTS "/hdn-policy-learn-events"
 +#define HDN_POLICY_LEARN_OUTPUT "/hdn-policy-learn.out"
@@ -36145,6 +37093,100 @@ diff -urN linux-7.0.12/tools/testing/selftests/hardening/hdn_smoke.c linux-7.0.1
 +	}
 +
 +	return 0;
++}
++
++static int status_helper_reports_live_state(void)
++{
++	pid_t child;
++
++	if (access(HDN_STATUS_HELPER_EXEC, X_OK))
++		return KSFT_SKIP;
++
++	child = fork();
++	if (child < 0)
++		return 2;
++
++	if (!child) {
++		execl(HDN_STATUS_HELPER_EXEC, "hdn-status", "--quiet",
++		      "--expect", "available=1",
++		      "--expect", "mitigations_sealed=1",
++		      "--expect", "mitigation_audit_flood_control=1", NULL);
++		fprintf(stderr, "status helper exec failed: %s\n",
++			strerror(errno));
++		_exit(2);
++	}
++
++	return child_exit_result(child);
++}
++
++static int status_helper_decodes_audit_flood_fixture(void)
++{
++	static const char fixture[] =
++		"abi_version: 77\n"
++		"phase: runtime\n"
++		"phase_id: 3\n"
++		"policy_loaded: 1\n"
++		"policy_staged: 0\n"
++		"policy_sealed: 1\n"
++		"rollback_available: 1\n"
++		"generation: 4\n"
++		"expected_generation: 3\n"
++		"profile_count: 7\n"
++		"subject_rule_count: 2\n"
++		"object_rule_count: 3\n"
++		"exec_rule_count: 5\n"
++		"module_rule_count: 7\n"
++		"firmware_rule_count: 11\n"
++		"current_profile: 2\n"
++		"current_mntns_profile: 2\n"
++		"current_exec_memory_flags: 0x0\n"
++		"mitigations_sealed: 1\n"
++		"mitigation_kernel_lockout: 1\n"
++		"mitigation_proc_hide: 0\n"
++		"mitigation_audit_flood_control: 1\n"
++		"audit_flood_suppressed_total: 9\n"
++		"audit_flood_last_action: 4\n"
++		"audit_flood_last_authority: 78\n"
++		"audit_flood_last_transition: 90\n"
++		"audit_flood_last_reason: 55\n";
++	pid_t child;
++	int ret;
++
++	if (access(HDN_STATUS_HELPER_EXEC, X_OK))
++		return KSFT_SKIP;
++
++	ret = write_created_text_file(HDN_STATUS_HELPER_FIXTURE, fixture);
++	if (ret)
++		return 2;
++
++	child = fork();
++	if (child < 0) {
++		unlink(HDN_STATUS_HELPER_FIXTURE);
++		return 2;
++	}
++
++	if (!child) {
++		execl(HDN_STATUS_HELPER_EXEC, "hdn-status",
++		      "--status-path", HDN_STATUS_HELPER_FIXTURE, "--quiet",
++		      "--expect", "state=active",
++		      "--expect", "attention=0",
++		      "--expect", "rule_count=28",
++		      "--expect", "mitigation_known=3",
++		      "--expect", "mitigation_enabled=2",
++		      "--expect", "audit_flood_active=1",
++		      "--expect", "audit_flood_last_action=DENY_AUDIT",
++		      "--expect", "audit_flood_last_authority=USB_MONITOR",
++		      "--expect", "audit_flood_last_transition=USB_MONITOR",
++		      "--expect", "audit_flood_last_reason=KERNEL_LOCKOUT",
++		      NULL);
++		fprintf(stderr, "status helper exec failed: %s\n",
++			strerror(errno));
++		_exit(2);
++	}
++
++	ret = child_exit_result(child);
++	unlink(HDN_STATUS_HELPER_FIXTURE);
++	return ret;
 +}
 +
 +static void test_securityfs_events_contains(const char *needle,
@@ -55499,7 +56541,7 @@ diff -urN linux-7.0.12/tools/testing/selftests/hardening/hdn_smoke.c linux-7.0.1
 +	if (access(HDN_STATUS, R_OK))
 +		ksft_exit_skip("hardening securityfs status not present\n");
 +
-+	ksft_set_plan(784);
++	ksft_set_plan(786);
 +	test_securityfs_status();
 +	test_symbol_test_module_load();
 +	test_securityfs_status_contains("abi_version: 77",
@@ -55722,6 +56764,10 @@ diff -urN linux-7.0.12/tools/testing/selftests/hardening/hdn_smoke.c linux-7.0.1
 +			    "event decoder names severe signal audit transition");
 +	report_child_result(event_decoder_names_object_details(),
 +			    "event decoder names packed event object details");
++	report_child_result(status_helper_reports_live_state(),
++			    "status helper reports live hardening state");
++	report_child_result(status_helper_decodes_audit_flood_fixture(),
++			    "status helper decodes audit flood status names");
 +	report_child_result(policy_learner_suggests_authorities(),
 +			    "policy learner suggests denied profile authorities");
 +	report_child_result(policy_learner_suggests_memory_flags(),
@@ -56185,8 +57231,8 @@ diff -urN linux-7.0.12/tools/testing/selftests/hardening/role.policy linux-7.0.1
 +use-role 2 desktop-admin
 diff -urN linux-7.0.12/tools/testing/selftests/hardening/run-qemu-smoke.sh linux-7.0.12-hdn/tools/testing/selftests/hardening/run-qemu-smoke.sh
 --- linux-7.0.12/tools/testing/selftests/hardening/run-qemu-smoke.sh	1969-12-31 18:00:00.000000000 -0600
-+++ linux-7.0.12-hdn/tools/testing/selftests/hardening/run-qemu-smoke.sh	2026-06-26 15:57:04.153397378 -0500
-@@ -0,0 +1,1021 @@
++++ linux-7.0.12-hdn/tools/testing/selftests/hardening/run-qemu-smoke.sh	2026-06-26 16:10:49.457323860 -0500
+@@ -0,0 +1,1028 @@
 +#!/bin/sh
 +# SPDX-License-Identifier: GPL-2.0
 +
@@ -56220,7 +57266,7 @@ diff -urN linux-7.0.12/tools/testing/selftests/hardening/run-qemu-smoke.sh linux
 +QEMU_MEMORY=${QEMU_MEMORY:-1024M}
 +QEMU_SMP=${QEMU_SMP:-2}
 +QEMU_MACHINE=${QEMU_MACHINE:-q35,accel=tcg}
-+HDN_SMOKE_EXPECTED_PASS=${HDN_SMOKE_EXPECTED_PASS:-784}
++HDN_SMOKE_EXPECTED_PASS=${HDN_SMOKE_EXPECTED_PASS:-786}
 +WORK=${HDN_QEMU_WORK:-"${TMPDIR:-/tmp}/hdn-qemu-smoke.$$"}
 +LOG=${HDN_QEMU_LOG:-"$WORK/qemu.log"}
 +QMP=${HDN_QEMU_QMP:-"$WORK/qmp.sock"}
@@ -56556,6 +57602,12 @@ diff -urN linux-7.0.12/tools/testing/selftests/hardening/run-qemu-smoke.sh linux
 +"$CC" -static -O2 -Wall -Wextra -D__EXPORTED_HEADERS__ \
 +	-I"$ROOT/include/uapi" \
 +	-isystem "$ROOT/usr/include" \
++	-o "$WORK/hdn-status" \
++	"$ROOT/tools/hardening/hdn-status.c"
++
++"$CC" -static -O2 -Wall -Wextra -D__EXPORTED_HEADERS__ \
++	-I"$ROOT/include/uapi" \
++	-isystem "$ROOT/usr/include" \
 +	-o "$WORK/hdn-policy-learn" \
 +	"$ROOT/tools/hardening/hdn-policy-learn.c"
 +
@@ -56600,6 +57652,7 @@ diff -urN linux-7.0.12/tools/testing/selftests/hardening/run-qemu-smoke.sh linux
 +cp "$WORK/hdn-image-seal" "$WORK/initramfs/hdn-image-seal"
 +cp "$WORK/hdn-package-hook" "$WORK/initramfs/hdn-package-hook"
 +cp "$WORK/hdn-event-decode" "$WORK/initramfs/hdn-event-decode"
++cp "$WORK/hdn-status" "$WORK/initramfs/hdn-status"
 +cp "$WORK/hdn-policy" "$WORK/initramfs/hdn-policy"
 +cp "$WORK/hdn-policy-learn" "$WORK/initramfs/hdn-policy-learn"
 +cp "$WORK/hdn-policy-merge" "$WORK/initramfs/hdn-policy-merge"

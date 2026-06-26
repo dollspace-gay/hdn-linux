@@ -462,6 +462,10 @@ ring. The burst and window are runtime-tunable through securityfs
 `audit_flood_burst` and `audit_flood_window_ms` controls, with policy-admin
 authorization and bounded values. Suppression is visible through status
 counters; policy learning and rich presentation still belong to userspace.
+`hdn-status` is the user-facing status facade: it turns those raw status lines
+into stable `key=value` state for settings panels, desktop daemons, support
+bundles, and recovery UI, including decoded audit-flood action, authority,
+transition, and reason names.
 
 Event shape:
 
@@ -1656,6 +1660,9 @@ Core oracle groups:
   identifies a denied W+X event by decoded reason/action, and names common
   packed object details for exec arguments, signals, resources, time changes,
   USB, coredumps, and sockets
+- the status helper maps raw hardening status to product-facing `key=value`
+  state, reports policy readiness and mitigation totals, and decodes the latest
+  audit-flood action/authority/transition/reason IDs to UAPI names
 - explicit denied W+X `mmap()` and `mprotect()` attempts also emit a dedicated
   `RWXMAP_DENIED` audit reason for grsec-class RWX-map telemetry without
   changing the existing `USER_WX_MAPPING` enforcement event
@@ -1785,6 +1792,7 @@ Core oracle groups:
 - Build userspace policy compiler prototype.
 - Build userspace policy-learning output from stable event records.
 - Build userspace policy-merge output from reviewed learner suggestions.
+- Build userspace status output from stable status records.
 - Build a product ROFS apply helper for post-boot read-only mount sealing.
 - Build a product ROFS transaction helper for package/update/recovery writes
   that must reseal before returning.
