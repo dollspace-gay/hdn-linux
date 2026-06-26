@@ -17424,13 +17424,65 @@ diff -urN linux-7.0.12/security/yama/yama_lsm.c linux-7.0.12-hdn/security/yama/y
  };
 diff -urN linux-7.0.12/tools/hardening/Makefile linux-7.0.12-hdn/tools/hardening/Makefile
 --- linux-7.0.12/tools/hardening/Makefile	1969-12-31 18:00:00.000000000 -0600
-+++ linux-7.0.12-hdn/tools/hardening/Makefile	2026-06-26 01:54:41.855660421 -0500
-@@ -0,0 +1,79 @@
++++ linux-7.0.12-hdn/tools/hardening/Makefile	2026-06-26 15:45:11.065461241 -0500
+@@ -0,0 +1,147 @@
 +CC ?= cc
 +CFLAGS ?= -O2 -Wall -Wextra
 +CPPFLAGS += -D__EXPORTED_HEADERS__ -I../../include/uapi
 +
-+all: hdn-policy hdn-rofs-apply hdn-rofs-transaction hdn-admin-broker hdn-approval-token hdn-system-transaction hdn-recovery-action hdn-recovery-describe hdn-recovery-session hdn-recovery-portal hdn-recovery-prompt hdn-prompt-dispatch hdn-prompt-describe hdn-prompt-session hdn-prompt-portal hdn-desktop-action hdn-desktop-daemon hdn-auth-prompt hdn-image-seal hdn-package-hook hdn-event-decode hdn-policy-learn hdn-policy-merge
++PREFIX ?= /usr
++exec_prefix ?= $(PREFIX)
++libexecdir ?= $(exec_prefix)/libexec
++sysconfdir ?= /etc
++systemdunitdir ?= $(PREFIX)/lib/systemd/system
++aptconfdir ?= $(sysconfdir)/apt/apt.conf.d
++libalpmhookdir ?= $(PREFIX)/share/libalpm/hooks
++dnfposttransdir ?= $(sysconfdir)/dnf/plugins/post-transaction-actions.d
++dnf5actionsdir ?= $(sysconfdir)/dnf/libdnf5-plugins/actions.d
++
++HDN_PROGRAMS := \
++	hdn-policy \
++	hdn-rofs-apply \
++	hdn-rofs-transaction \
++	hdn-admin-broker \
++	hdn-approval-token \
++	hdn-system-transaction \
++	hdn-recovery-action \
++	hdn-recovery-describe \
++	hdn-recovery-session \
++	hdn-recovery-portal \
++	hdn-recovery-prompt \
++	hdn-prompt-dispatch \
++	hdn-prompt-describe \
++	hdn-prompt-session \
++	hdn-prompt-portal \
++	hdn-desktop-action \
++	hdn-desktop-daemon \
++	hdn-auth-prompt \
++	hdn-image-seal \
++	hdn-package-hook \
++	hdn-event-decode \
++	hdn-policy-learn \
++	hdn-policy-merge
++
++HDN_CONFIGS := \
++	admin-broker.conf \
++	readonly-mounts.conf \
++	image-seals.conf \
++	system-transactions.conf \
++	package-hooks.conf \
++	recovery-actions.conf \
++	recovery-metadata.conf \
++	recovery-session.conf \
++	recovery-portal.conf \
++	prompt-actions.conf \
++	prompt-metadata.conf \
++	prompt-session.conf \
++	prompt-portal.conf \
++	desktop-actions.conf \
++	desktop-daemon.conf
++
++all: $(HDN_PROGRAMS)
 +
 +hdn-policy: hdn-policy.c
 +	$(CC) $(CPPFLAGS) $(CFLAGS) -o $@ $<
@@ -17502,13 +17554,29 @@ diff -urN linux-7.0.12/tools/hardening/Makefile linux-7.0.12-hdn/tools/hardening
 +	$(CC) $(CPPFLAGS) $(CFLAGS) -o $@ $<
 +
 +clean:
-+	$(RM) hdn-policy hdn-rofs-apply hdn-rofs-transaction hdn-admin-broker hdn-approval-token hdn-system-transaction hdn-recovery-action hdn-recovery-describe hdn-recovery-session hdn-recovery-portal hdn-recovery-prompt hdn-prompt-dispatch hdn-prompt-describe hdn-prompt-session hdn-prompt-portal hdn-desktop-action hdn-desktop-daemon hdn-auth-prompt hdn-image-seal hdn-package-hook hdn-event-decode hdn-policy-learn hdn-policy-merge
++	$(RM) $(HDN_PROGRAMS)
 +
-+.PHONY: all clean
++install: all
++	install -d -m 0755 $(DESTDIR)$(libexecdir)
++	install -m 0755 $(HDN_PROGRAMS) $(DESTDIR)$(libexecdir)
++	install -d -m 0755 $(DESTDIR)$(sysconfdir)/hdn
++	install -m 0644 $(HDN_CONFIGS) $(DESTDIR)$(sysconfdir)/hdn
++	install -D -m 0644 package-manager-hooks/apt/99-hdn-package-update \
++		$(DESTDIR)$(aptconfdir)/99-hdn-package-update
++	install -D -m 0644 package-manager-hooks/pacman/99-hdn-package-update.hook \
++		$(DESTDIR)$(libalpmhookdir)/99-hdn-package-update.hook
++	install -D -m 0644 package-manager-hooks/dnf/99-hdn-package-update.action \
++		$(DESTDIR)$(dnfposttransdir)/99-hdn-package-update.action
++	install -D -m 0644 package-manager-hooks/dnf5/99-hdn-package-update.actions \
++		$(DESTDIR)$(dnf5actionsdir)/99-hdn-package-update.actions
++	install -D -m 0644 package-manager-hooks/systemd/hdn-image-seal.service \
++		$(DESTDIR)$(systemdunitdir)/hdn-image-seal.service
++
++.PHONY: all clean install
 diff -urN linux-7.0.12/tools/hardening/README.rst linux-7.0.12-hdn/tools/hardening/README.rst
 --- linux-7.0.12/tools/hardening/README.rst	1969-12-31 18:00:00.000000000 -0600
-+++ linux-7.0.12-hdn/tools/hardening/README.rst	2026-06-26 15:37:32.257522455 -0500
-@@ -0,0 +1,1304 @@
++++ linux-7.0.12-hdn/tools/hardening/README.rst	2026-06-26 15:45:45.369456852 -0500
+@@ -0,0 +1,1293 @@
 +.. SPDX-License-Identifier: GPL-2.0-only
 +
 +Linux Hardening Policy Tools
@@ -17713,6 +17781,14 @@ diff -urN linux-7.0.12/tools/hardening/README.rst linux-7.0.12-hdn/tools/hardeni
 +``expires-monotonic-ms=<deadline>``. Non-dry-run use consumes the token before
 +dispatching the privileged helper.
 +
++The helper ``Makefile`` has an ``install`` target for distro packaging. It
++installs the helper binaries under ``/usr/libexec``, root-owned config
++templates under ``/etc/hdn``, and the shipped APT/dpkg, pacman/libalpm,
++DNF 4, DNF5/libdnf5, and systemd hook snippets under their native integration
++directories. Packagers can stage the layout with ``DESTDIR=`` and can override
++``libexecdir``, ``sysconfdir``, ``systemdunitdir``, and the package-manager
++hook directory variables.
++
 +Example::
 +
 +  make -C tools/hardening
@@ -17721,26 +17797,7 @@ diff -urN linux-7.0.12/tools/hardening/README.rst linux-7.0.12-hdn/tools/hardeni
 +    default.hdn.unsigned default.hdn
 +  sudo cp default.hdn /sys/kernel/security/hardening/policy
 +  echo 1 | sudo tee /sys/kernel/security/hardening/commit
-+  sudo install -D -o root -g root -m 0644 tools/hardening/admin-broker.conf /etc/hdn/admin-broker.conf
-+  sudo install -D -o root -g root -m 0644 tools/hardening/readonly-mounts.conf /etc/hdn/readonly-mounts.conf
-+  sudo install -D -o root -g root -m 0644 tools/hardening/image-seals.conf /etc/hdn/image-seals.conf
-+  sudo install -D -o root -g root -m 0644 tools/hardening/system-transactions.conf /etc/hdn/system-transactions.conf
-+  sudo install -D -o root -g root -m 0644 tools/hardening/package-hooks.conf /etc/hdn/package-hooks.conf
-+  sudo install -D -o root -g root -m 0644 tools/hardening/package-manager-hooks/apt/99-hdn-package-update /etc/apt/apt.conf.d/99-hdn-package-update
-+  sudo install -D -o root -g root -m 0644 tools/hardening/package-manager-hooks/pacman/99-hdn-package-update.hook /usr/share/libalpm/hooks/99-hdn-package-update.hook
-+  sudo install -D -o root -g root -m 0644 tools/hardening/package-manager-hooks/dnf/99-hdn-package-update.action /etc/dnf/plugins/post-transaction-actions.d/99-hdn-package-update.action
-+  sudo install -D -o root -g root -m 0644 tools/hardening/package-manager-hooks/dnf5/99-hdn-package-update.actions /etc/dnf/libdnf5-plugins/actions.d/99-hdn-package-update.actions
-+  sudo install -D -o root -g root -m 0644 tools/hardening/package-manager-hooks/systemd/hdn-image-seal.service /usr/lib/systemd/system/hdn-image-seal.service
-+  sudo install -D -o root -g root -m 0644 tools/hardening/recovery-actions.conf /etc/hdn/recovery-actions.conf
-+  sudo install -D -o root -g root -m 0644 tools/hardening/recovery-metadata.conf /etc/hdn/recovery-metadata.conf
-+  sudo install -D -o root -g root -m 0644 tools/hardening/recovery-session.conf /etc/hdn/recovery-session.conf
-+  sudo install -D -o root -g root -m 0644 tools/hardening/recovery-portal.conf /etc/hdn/recovery-portal.conf
-+  sudo install -D -o root -g root -m 0644 tools/hardening/prompt-actions.conf /etc/hdn/prompt-actions.conf
-+  sudo install -D -o root -g root -m 0644 tools/hardening/prompt-metadata.conf /etc/hdn/prompt-metadata.conf
-+  sudo install -D -o root -g root -m 0644 tools/hardening/prompt-session.conf /etc/hdn/prompt-session.conf
-+  sudo install -D -o root -g root -m 0644 tools/hardening/prompt-portal.conf /etc/hdn/prompt-portal.conf
-+  sudo install -D -o root -g root -m 0644 tools/hardening/desktop-actions.conf /etc/hdn/desktop-actions.conf
-+  sudo install -D -o root -g root -m 0644 tools/hardening/desktop-daemon.conf /etc/hdn/desktop-daemon.conf
++  sudo make -C tools/hardening install
 +  sudo tools/hardening/hdn-rofs-apply -f /etc/hdn/readonly-mounts.conf
 +  sudo tools/hardening/hdn-admin-broker rofs-apply -f /etc/hdn/readonly-mounts.conf
 +  sudo tools/hardening/hdn-image-seal default

@@ -50,12 +50,14 @@ The shipped ROFS image list now has explicit `required` and `optional`
 mount entries, with `/usr` as the required sealed base image surface and
 common boot/app extension mountpoints sealed when present. Package/update hook
 templates now cover APT/dpkg, pacman/libalpm, DNF 4, DNF5/libdnf5, and systemd
-image sealing through stable `hdn-package-hook` actions.
+image sealing through stable `hdn-package-hook` actions, and the hardening
+helper `Makefile` now has a packaging install target for helper binaries,
+root-owned config templates, and those hook snippets.
 
 The largest remaining gaps are richer RBAC/userspace integration, full desktop
-and recovery UI around the admin broker, distro package/update wiring, deeper
-internal symbol hiding, and large PaX-style compiler/architecture mitigation
-families.
+and recovery UI around the admin broker, final image-specific update wiring,
+deeper internal symbol hiding, and large PaX-style compiler/architecture
+mitigation families.
 
 ## Apply The Patch
 
@@ -87,9 +89,9 @@ Patch artifact at this checkpoint:
 
 ```text
 patch: patches/hdn-linux-7.0.12.patch
-lines: 56,951
-bytes: 1,670,759
-sha256: 501bd6ae3e31cbe7e49c0cad301c4edeb14d1894fb88d8115270b45d42b9e1f5
+lines: 57,008
+bytes: 1,670,195
+sha256: 7acde10f4a7046bc0b9b214923fe98e049643ad0e89d75eb55f2bae3d165e05b
 ```
 
 ## Development Rule

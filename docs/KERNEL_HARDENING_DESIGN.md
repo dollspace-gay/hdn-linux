@@ -1327,6 +1327,11 @@ tools/hardening/package-manager-hooks/:
   systemd image-seal integration snippets that call hdn-package-hook stable
   actions
 
+tools/hardening/Makefile install:
+  stages helper binaries, root-owned product config templates, and shipped
+  package-manager/systemd hook snippets into the distro filesystem layout with
+  DESTDIR and directory-variable overrides for packaging
+
 tools/hardening/hdn-recovery-action:
   map recovery UI action names from a root-owned product config to brokered
   policy rollback or named system transactions, so repair flows do not expose
