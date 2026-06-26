@@ -1,2 +1,78 @@
-# hdn-linux
-Linux Hardening patch
+# HDN Linux
+
+HDN Linux is a work-in-progress Linux kernel hardening patchset for building a
+daily-driver distro that keeps security policy mostly invisible to normal users:
+secure defaults, graphical/admin-brokered privileged actions, and no expectation
+that users manage drivers or hardening knobs from a terminal.
+
+The current patch is carried as a generated diff against upstream Linux
+`7.0.12`.
+
+## Repository Layout
+
+- `patches/hdn-linux-7.0.12.patch`: current generated patch against Linux
+  `7.0.12`.
+- `docs/KERNEL_HARDENING_DESIGN.md`: design notes and hook map.
+- `docs/HDN_GRSEC_EQUIVALENCE.md`: adversarial feature comparison and current
+  gap tracking.
+- `LICENSE`: GPL-2.0, matching the Linux kernel patch licensing requirement.
+
+## Current Status
+
+This is not a finished distro kernel yet. Current rough parity estimates:
+
+- Strict grsecurity/PaX-style patch feature parity: about 37%.
+- Practical daily-driver hardening equivalence: about 59%.
+
+Recent coverage includes signed/sealed HDN policy, authority-gated BPF/perf/proc
+disclosure, module admission hardening, read-only mount controls, object policy
+rules, chroot restrictions, TPE-style execution controls, IPC/socket/device
+hardening, privileged-exec restrictions, RWX/textrel/exec-stack controls,
+thread-stack placement randomization, and broad audit/event decoding.
+
+The largest remaining gaps are richer RBAC/userspace integration, full desktop
+and recovery UI around the admin broker, distro package/update wiring, deeper
+internal symbol hiding, and large PaX-style compiler/architecture mitigation
+families.
+
+## Apply The Patch
+
+Fetch upstream Linux `7.0.12`, then apply:
+
+```sh
+tar -xf linux-7.0.12.tar.xz
+cd linux-7.0.12
+patch -p1 < ../hdn-linux/patches/hdn-linux-7.0.12.patch
+```
+
+## Build Smoke
+
+The development tree is currently built out-of-tree:
+
+```sh
+make O=/path/to/build olddefconfig
+make O=/path/to/build -j"$(nproc)" bzImage modules
+```
+
+The hardening smoke suite in the development tree is run under QEMU. Latest
+local result before this publication checkpoint:
+
+```text
+QEMU hardening smoke: 749/749 pass
+```
+
+Patch artifact at this checkpoint:
+
+```text
+patch: patches/hdn-linux-7.0.12.patch
+lines: 55,552
+bytes: 1,626,675
+sha256: 1639f9e7417e7cc8134c71f086709951da13957609e7716c0cf7c0f6ead5ef2e
+```
+
+## Development Rule
+
+The patch artifact is generated from a clean upstream Linux tree and an HDN
+working tree. Functional changes should land in the working tree first, pass the
+targeted build/smoke coverage for the touched surface, then regenerate
+`patches/hdn-linux-7.0.12.patch` and push a checkpoint commit.
