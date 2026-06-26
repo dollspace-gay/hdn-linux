@@ -507,7 +507,7 @@ diff -urN linux-7.0.12/drivers/char/mem.c linux-7.0.12-hdn/drivers/char/mem.c
  
 diff -urN linux-7.0.12/drivers/tty/tty_io.c linux-7.0.12-hdn/drivers/tty/tty_io.c
 --- linux-7.0.12/drivers/tty/tty_io.c	2026-06-09 05:32:51.000000000 -0500
-+++ linux-7.0.12-hdn/drivers/tty/tty_io.c	2026-06-25 04:53:47.633534528 -0500
++++ linux-7.0.12-hdn/drivers/tty/tty_io.c	2026-06-26 14:39:07.517843065 -0500
 @@ -102,6 +102,7 @@
  #include <linux/uaccess.h>
  #include <linux/termios_internal.h>
@@ -516,23 +516,49 @@ diff -urN linux-7.0.12/drivers/tty/tty_io.c linux-7.0.12-hdn/drivers/tty/tty_io.
  
  #include <linux/kbd_kern.h>
  #include <linux/vt_kern.h>
-@@ -2273,12 +2274,16 @@
+@@ -2255,7 +2256,20 @@
+ 	return retval;
+ }
+ 
+-static bool tty_legacy_tiocsti __read_mostly = IS_ENABLED(CONFIG_LEGACY_TIOCSTI);
++static bool tty_legacy_tiocsti __read_mostly =
++	IS_ENABLED(CONFIG_LEGACY_TIOCSTI) &&
++	!IS_ENABLED(CONFIG_SECURITY_HARDENING_TTY_INJECTION);
++
++static int proc_dobool_legacy_tiocsti(const struct ctl_table *table, int write,
++				      void *buffer, size_t *lenp,
++				      loff_t *ppos)
++{
++	if (write && IS_ENABLED(CONFIG_SECURITY_HARDENING_TTY_INJECTION))
++		return -EPERM;
++
++	return proc_dobool(table, write, buffer, lenp, ppos);
++}
++
+ /**
+  * tiocsti - fake input character
+  * @tty: tty to fake input into
+@@ -2273,6 +2287,11 @@
  {
  	struct tty_ldisc *ld;
  	u8 ch;
 +	int ret;
- 
- 	if (!tty_legacy_tiocsti && !capable(CAP_SYS_ADMIN))
- 		return -EIO;
- 
- 	if ((current->signal->tty != tty) && !capable(CAP_SYS_ADMIN))
- 		return -EPERM;
++
 +	ret = hdn_authorize_tty_injection(TIOCSTI);
 +	if (ret)
 +		return ret;
- 	if (get_user(ch, p))
- 		return -EFAULT;
- 	tty_audit_tiocsti(tty, ch);
+ 
+ 	if (!tty_legacy_tiocsti && !capable(CAP_SYS_ADMIN))
+ 		return -EIO;
+@@ -3606,7 +3625,7 @@
+ 		.data		= &tty_legacy_tiocsti,
+ 		.maxlen		= sizeof(tty_legacy_tiocsti),
+ 		.mode		= 0644,
+-		.proc_handler	= proc_dobool,
++		.proc_handler	= proc_dobool_legacy_tiocsti,
+ 	},
+ 	{
+ 		.procname	= "ldisc_autoload",
 diff -urN linux-7.0.12/drivers/tty/vt/vt_ioctl.c linux-7.0.12-hdn/drivers/tty/vt/vt_ioctl.c
 --- linux-7.0.12/drivers/tty/vt/vt_ioctl.c	2026-06-09 05:32:51.000000000 -0500
 +++ linux-7.0.12-hdn/drivers/tty/vt/vt_ioctl.c	2026-06-25 04:54:00.326051435 -0500
@@ -9243,8 +9269,8 @@ diff -urN linux-7.0.12/security/commoncap.c linux-7.0.12-hdn/security/commoncap.
  }
 diff -urN linux-7.0.12/security/hardening/Kconfig linux-7.0.12-hdn/security/hardening/Kconfig
 --- linux-7.0.12/security/hardening/Kconfig	1969-12-31 18:00:00.000000000 -0600
-+++ linux-7.0.12-hdn/security/hardening/Kconfig	2026-06-26 14:31:54.257856877 -0500
-@@ -0,0 +1,584 @@
++++ linux-7.0.12-hdn/security/hardening/Kconfig	2026-06-26 14:39:13.673843525 -0500
+@@ -0,0 +1,586 @@
 +# SPDX-License-Identifier: GPL-2.0-only
 +menuconfig SECURITY_HARDENING
 +	bool "Hardening contract layer"
@@ -9666,6 +9692,8 @@ diff -urN linux-7.0.12/security/hardening/Kconfig linux-7.0.12-hdn/security/hard
 +	  ioctls such as TIOCSTI and VT TIOCLINUX. This removes ambient
 +	  same-session command injection while still allowing trusted desktop
 +	  brokers or accessibility services to receive an explicit authority.
++	  The legacy TIOCSTI sysctl is forced off and locked while this
++	  hardening is enabled.
 +
 +config SECURITY_HARDENING_VM86
 +	bool "Gate x86 VM86 mode"
@@ -17334,8 +17362,8 @@ diff -urN linux-7.0.12/tools/hardening/Makefile linux-7.0.12-hdn/tools/hardening
 +.PHONY: all clean
 diff -urN linux-7.0.12/tools/hardening/README.rst linux-7.0.12-hdn/tools/hardening/README.rst
 --- linux-7.0.12/tools/hardening/README.rst	1969-12-31 18:00:00.000000000 -0600
-+++ linux-7.0.12-hdn/tools/hardening/README.rst	2026-06-26 14:32:34.185857993 -0500
-@@ -0,0 +1,1272 @@
++++ linux-7.0.12-hdn/tools/hardening/README.rst	2026-06-26 14:40:05.941839544 -0500
+@@ -0,0 +1,1275 @@
 +.. SPDX-License-Identifier: GPL-2.0-only
 +
 +Linux Hardening Policy Tools
@@ -18317,8 +18345,11 @@ diff -urN linux-7.0.12/tools/hardening/README.rst linux-7.0.12-hdn/tools/hardeni
 +
 +``TTY_INJECT`` authority gates terminal command-injection ioctls. Profiles
 +without that authority are denied ``TIOCSTI`` and VT ``TIOCLINUX`` before input
-+is injected or copied through the terminal path. The QEMU smoke suite verifies
-+both ioctl denials and the corresponding event records.
++is injected or copied through the terminal path. When TTY injection hardening is
++enabled, HDN also forces ``dev.tty.legacy_tiocsti`` off and rejects later
++attempts to enable it. The QEMU smoke suite verifies the locked sysctl value,
++the failed enable attempt, both ioctl denials, and the corresponding event
++records.
 +
 +``FUSE_MOUNT`` authority gates userspace-backed FUSE filesystems separately
 +from broad ``MOUNT_ADMIN`` authority. Profiles without it are denied FUSE and
@@ -32278,8 +32309,8 @@ diff -urN linux-7.0.12/tools/testing/selftests/hardening/hdn_elfnote_jit.c linux
 +}
 diff -urN linux-7.0.12/tools/testing/selftests/hardening/hdn_smoke.c linux-7.0.12-hdn/tools/testing/selftests/hardening/hdn_smoke.c
 --- linux-7.0.12/tools/testing/selftests/hardening/hdn_smoke.c	1969-12-31 18:00:00.000000000 -0600
-+++ linux-7.0.12-hdn/tools/testing/selftests/hardening/hdn_smoke.c	2026-06-26 14:32:13.357838070 -0500
-@@ -0,0 +1,22412 @@
++++ linux-7.0.12-hdn/tools/testing/selftests/hardening/hdn_smoke.c	2026-06-26 14:39:52.009841438 -0500
+@@ -0,0 +1,22432 @@
 +// SPDX-License-Identifier: GPL-2.0-only
 +
 +#define _GNU_SOURCE
@@ -32470,6 +32501,7 @@ diff -urN linux-7.0.12/tools/testing/selftests/hardening/hdn_smoke.c linux-7.0.1
 +#define HDN_DMESG_RESTRICT "/proc/sys/kernel/dmesg_restrict"
 +#define HDN_KPTR_RESTRICT "/proc/sys/kernel/kptr_restrict"
 +#define HDN_MEMFD_NOEXEC "/proc/sys/vm/memfd_noexec"
++#define HDN_LEGACY_TIOCSTI "/proc/sys/dev/tty/legacy_tiocsti"
 +#define HDN_MODPROBE_PATH "/proc/sys/kernel/modprobe"
 +#define HDN_SIGNED_POLICY "/default.hdn"
 +#define HDN_BROKER_SIGNED_POLICY "/hdn-policies/default.hdn"
@@ -53950,6 +53982,21 @@ diff -urN linux-7.0.12/tools/testing/selftests/hardening/hdn_smoke.c linux-7.0.1
 +	return 0;
 +}
 +
++static int legacy_tiocsti_sysctl_locked(void)
++{
++	int ret;
++
++	ret = write_text_file(HDN_LEGACY_TIOCSTI, "1\n");
++	if (!ret) {
++		(void)write_text_file(HDN_LEGACY_TIOCSTI, "0\n");
++		return 1;
++	}
++	if (ret == -ENOENT)
++		return KSFT_SKIP;
++
++	return 0;
++}
++
 +static int memfd_noexec_sysctl_locked(void)
 +{
 +	int ret;
@@ -54374,7 +54421,7 @@ diff -urN linux-7.0.12/tools/testing/selftests/hardening/hdn_smoke.c linux-7.0.1
 +	if (access(HDN_STATUS, R_OK))
 +		ksft_exit_skip("hardening securityfs status not present\n");
 +
-+	ksft_set_plan(767);
++	ksft_set_plan(769);
 +	test_securityfs_status();
 +	test_symbol_test_module_load();
 +	test_securityfs_status_contains("abi_version: 77",
@@ -54471,6 +54518,10 @@ diff -urN linux-7.0.12/tools/testing/selftests/hardening/hdn_smoke.c linux-7.0.1
 +					"hardening status reports POSIX mqueue hardening");
 +	test_securityfs_status_contains("mitigation_tty_injection_harden: 1",
 +					"hardening status reports TTY injection hardening");
++	test_int_file_equals(HDN_LEGACY_TIOCSTI, 0,
++			     "legacy TIOCSTI sysctl is locked disabled");
++	report_child_result(legacy_tiocsti_sysctl_locked(),
++			    "legacy TIOCSTI sysctl cannot be enabled");
 +	test_securityfs_status_contains("mitigation_unpriv_bpf_lockdown: 1",
 +					"hardening status reports locked unprivileged BPF");
 +	test_securityfs_status_contains("mitigation_unpriv_perf_lockdown: 1",
@@ -55035,7 +55086,7 @@ diff -urN linux-7.0.12/tools/testing/selftests/hardening/role.policy linux-7.0.1
 +use-role 2 desktop-admin
 diff -urN linux-7.0.12/tools/testing/selftests/hardening/run-qemu-smoke.sh linux-7.0.12-hdn/tools/testing/selftests/hardening/run-qemu-smoke.sh
 --- linux-7.0.12/tools/testing/selftests/hardening/run-qemu-smoke.sh	1969-12-31 18:00:00.000000000 -0600
-+++ linux-7.0.12-hdn/tools/testing/selftests/hardening/run-qemu-smoke.sh	2026-06-26 14:32:16.797840427 -0500
++++ linux-7.0.12-hdn/tools/testing/selftests/hardening/run-qemu-smoke.sh	2026-06-26 14:39:57.745840617 -0500
 @@ -0,0 +1,1017 @@
 +#!/bin/sh
 +# SPDX-License-Identifier: GPL-2.0
@@ -55070,7 +55121,7 @@ diff -urN linux-7.0.12/tools/testing/selftests/hardening/run-qemu-smoke.sh linux
 +QEMU_MEMORY=${QEMU_MEMORY:-1024M}
 +QEMU_SMP=${QEMU_SMP:-2}
 +QEMU_MACHINE=${QEMU_MACHINE:-q35,accel=tcg}
-+HDN_SMOKE_EXPECTED_PASS=${HDN_SMOKE_EXPECTED_PASS:-767}
++HDN_SMOKE_EXPECTED_PASS=${HDN_SMOKE_EXPECTED_PASS:-769}
 +WORK=${HDN_QEMU_WORK:-"${TMPDIR:-/tmp}/hdn-qemu-smoke.$$"}
 +LOG=${HDN_QEMU_LOG:-"$WORK/qemu.log"}
 +QMP=${HDN_QEMU_QMP:-"$WORK/qmp.sock"}
