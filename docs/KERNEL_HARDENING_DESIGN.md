@@ -1176,6 +1176,10 @@ kernel/bpf/:
   require disclosure authority before sysfs exposes built-in or module BTF blobs
   through read or mmap paths
 
+net/core/net-procfs.c:
+  redact packet handler function symbols in /proc/net/ptype without disclosure
+  authority
+
 kernel/events/:
   authorize perf access
 
@@ -1482,6 +1486,8 @@ Core oracle groups:
   denied or redacted without `PROC_DISCLOSE`
 - `/proc/vmallocinfo`, slab constructor sysfs, and SLUB debugfs trace symbols
   redacted without `PROC_DISCLOSE`
+- `/proc/net/ptype` packet-handler function symbols redacted without
+  `PROC_DISCLOSE`
 - function-error-injection debugfs entry names pseudonymized and its symbol
   resolution/listing/injectable catalog denied or redacted without
   `PROC_DISCLOSE`

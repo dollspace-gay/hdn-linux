@@ -8345,6 +8345,31 @@ diff -urN linux-7.0.12/mm/vmalloc.c linux-7.0.12-hdn/mm/vmalloc.c
  
  			if (v->nr_pages)
  				seq_printf(m, " pages=%d", v->nr_pages);
+diff -urN linux-7.0.12/net/core/net-procfs.c linux-7.0.12-hdn/net/core/net-procfs.c
+--- linux-7.0.12/net/core/net-procfs.c	2026-06-09 05:32:51.000000000 -0500
++++ linux-7.0.12-hdn/net/core/net-procfs.c	2026-06-26 13:37:43.078169254 -0500
+@@ -1,5 +1,6 @@
+ // SPDX-License-Identifier: GPL-2.0
+ #include <linux/netdevice.h>
++#include <linux/hardening.h>
+ #include <linux/proc_fs.h>
+ #include <linux/seq_file.h>
+ #include <net/wext.h>
+@@ -308,8 +309,12 @@
+ 		else
+ 			seq_printf(seq, "%04x", ntohs(pt->type));
+ 
+-		seq_printf(seq, " %-8s %ps\n",
+-			   dev ? dev->name : "", pt->func);
++		if (hdn_kernel_symbol_disclose_allowed())
++			seq_printf(seq, " %-8s %ps\n",
++				   dev ? dev->name : "", pt->func);
++		else
++			seq_printf(seq, " %-8s [hidden]\n",
++				   dev ? dev->name : "");
+ 	}
+ 
+ 	return 0;
 diff -urN linux-7.0.12/net/core/sysctl_net_core.c linux-7.0.12-hdn/net/core/sysctl_net_core.c
 --- linux-7.0.12/net/core/sysctl_net_core.c	2026-06-09 05:32:51.000000000 -0500
 +++ linux-7.0.12-hdn/net/core/sysctl_net_core.c	2026-06-26 01:07:30.371916365 -0500
@@ -31870,8 +31895,8 @@ diff -urN linux-7.0.12/tools/testing/selftests/hardening/hdn_elfnote_jit.c linux
 +}
 diff -urN linux-7.0.12/tools/testing/selftests/hardening/hdn_smoke.c linux-7.0.12-hdn/tools/testing/selftests/hardening/hdn_smoke.c
 --- linux-7.0.12/tools/testing/selftests/hardening/hdn_smoke.c	1969-12-31 18:00:00.000000000 -0600
-+++ linux-7.0.12-hdn/tools/testing/selftests/hardening/hdn_smoke.c	2026-06-26 13:05:29.302347880 -0500
-@@ -0,0 +1,22140 @@
++++ linux-7.0.12-hdn/tools/testing/selftests/hardening/hdn_smoke.c	2026-06-26 13:37:43.094169253 -0500
+@@ -0,0 +1,22169 @@
 +// SPDX-License-Identifier: GPL-2.0-only
 +
 +#define _GNU_SOURCE
@@ -32101,6 +32126,7 @@ diff -urN linux-7.0.12/tools/testing/selftests/hardening/hdn_smoke.c linux-7.0.1
 +#define HDN_PROC_IOPORTS "/proc/ioports"
 +#define HDN_PROC_IOMEM "/proc/iomem"
 +#define HDN_PROC_VMALLOCINFO "/proc/vmallocinfo"
++#define HDN_PROC_NET_PTYPE "/proc/net/ptype"
 +#define HDN_SIGNAL_CRASH_EXEC "/hdn-signal-crash"
 +#define HDN_MOUNT_TEST_DIR "/hdn-mount-test"
 +#define HDN_PROC_GID_MOUNT "/hdn-proc-gid"
@@ -39712,6 +39738,31 @@ diff -urN linux-7.0.12/tools/testing/selftests/hardening/hdn_smoke.c linux-7.0.1
 +	if (!saw_line)
 +		return 2;
 +	return saw_hidden ? 0 : 1;
++}
++
++static int proc_net_ptype_symbols_hidden(void)
++{
++	char line[512];
++	bool saw_entry = false;
++	FILE *stream;
++
++	stream = fopen(HDN_PROC_NET_PTYPE, "r");
++	if (!stream)
++		return errno == ENOENT || errno == ENOTDIR ? KSFT_SKIP : 2;
++
++	while (fgets(line, sizeof(line), stream)) {
++		if (!strncmp(line, "Type ", 5) || line[0] == '\n')
++			continue;
++
++		saw_entry = true;
++		if (!strstr(line, "[hidden]")) {
++			fclose(stream);
++			return 1;
++		}
++	}
++
++	fclose(stream);
++	return saw_entry ? 0 : KSFT_SKIP;
 +}
 +
 +static int module_helper_path_write_current_value(void)
@@ -49608,6 +49659,9 @@ diff -urN linux-7.0.12/tools/testing/selftests/hardening/hdn_smoke.c linux-7.0.1
 +			    kprobe_blacklist_symbols_hidden() : 2,
 +			    "trace-symbol policy redacts symbolic pointer formatting");
 +	report_child_result(trace_symbol_committed ?
++			    proc_net_ptype_symbols_hidden() : 2,
++			    "trace-symbol policy redacts proc net packet handler symbols");
++	report_child_result(trace_symbol_committed ?
 +			    bpf_kallsyms_lookup_without_disclosure_denied() : 2,
 +			    "trace-symbol policy denies BPF kallsyms helper lookup");
 +	report_child_result(trace_symbol_committed ?
@@ -53721,7 +53775,7 @@ diff -urN linux-7.0.12/tools/testing/selftests/hardening/hdn_smoke.c linux-7.0.1
 +	if (access(HDN_STATUS, R_OK))
 +		ksft_exit_skip("hardening securityfs status not present\n");
 +
-+	ksft_set_plan(749);
++	ksft_set_plan(750);
 +	test_securityfs_status();
 +	test_symbol_test_module_load();
 +	test_securityfs_status_contains("abi_version: 76",
@@ -54355,7 +54409,7 @@ diff -urN linux-7.0.12/tools/testing/selftests/hardening/role.policy linux-7.0.1
 +use-role 2 desktop-admin
 diff -urN linux-7.0.12/tools/testing/selftests/hardening/run-qemu-smoke.sh linux-7.0.12-hdn/tools/testing/selftests/hardening/run-qemu-smoke.sh
 --- linux-7.0.12/tools/testing/selftests/hardening/run-qemu-smoke.sh	1969-12-31 18:00:00.000000000 -0600
-+++ linux-7.0.12-hdn/tools/testing/selftests/hardening/run-qemu-smoke.sh	2026-06-26 13:05:35.838346332 -0500
++++ linux-7.0.12-hdn/tools/testing/selftests/hardening/run-qemu-smoke.sh	2026-06-26 13:37:43.094169253 -0500
 @@ -0,0 +1,1017 @@
 +#!/bin/sh
 +# SPDX-License-Identifier: GPL-2.0
@@ -54390,7 +54444,7 @@ diff -urN linux-7.0.12/tools/testing/selftests/hardening/run-qemu-smoke.sh linux
 +QEMU_MEMORY=${QEMU_MEMORY:-1024M}
 +QEMU_SMP=${QEMU_SMP:-2}
 +QEMU_MACHINE=${QEMU_MACHINE:-q35,accel=tcg}
-+HDN_SMOKE_EXPECTED_PASS=${HDN_SMOKE_EXPECTED_PASS:-749}
++HDN_SMOKE_EXPECTED_PASS=${HDN_SMOKE_EXPECTED_PASS:-750}
 +WORK=${HDN_QEMU_WORK:-"${TMPDIR:-/tmp}/hdn-qemu-smoke.$$"}
 +LOG=${HDN_QEMU_LOG:-"$WORK/qemu.log"}
 +QMP=${HDN_QEMU_QMP:-"$WORK/qmp.sock"}

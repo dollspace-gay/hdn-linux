@@ -28,7 +28,8 @@ Recent coverage includes signed/sealed HDN policy, authority-gated BPF/perf/proc
 disclosure, module admission hardening, read-only mount controls, object policy
 rules, chroot restrictions, TPE-style execution controls, IPC/socket/device
 hardening, privileged-exec restrictions, RWX/textrel/exec-stack controls,
-thread-stack placement randomization, and broad audit/event decoding.
+thread-stack placement randomization, proc-visible kernel symbol redaction, and
+broad audit/event decoding.
 
 The largest remaining gaps are richer RBAC/userspace integration, full desktop
 and recovery UI around the admin broker, distro package/update wiring, deeper
@@ -58,16 +59,16 @@ The hardening smoke suite in the development tree is run under QEMU. Latest
 local result before this publication checkpoint:
 
 ```text
-QEMU hardening smoke: 749/749 pass
+QEMU hardening smoke: 750/750 pass
 ```
 
 Patch artifact at this checkpoint:
 
 ```text
 patch: patches/hdn-linux-7.0.12.patch
-lines: 55,552
-bytes: 1,626,675
-sha256: 1639f9e7417e7cc8134c71f086709951da13957609e7716c0cf7c0f6ead5ef2e
+lines: 55,606
+bytes: 1,628,198
+sha256: 2f955457e365dd5339aed28a0d9af517089290791efe3f5553efead34ef32316
 ```
 
 ## Development Rule
