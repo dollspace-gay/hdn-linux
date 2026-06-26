@@ -3570,8 +3570,8 @@ diff -ruN --exclude .git linux-7.0.12/include/linux/btf.h linux-7.0.12-hdn/inclu
  
 diff -ruN --exclude .git linux-7.0.12/include/linux/hardening.h linux-7.0.12-hdn/include/linux/hardening.h
 --- linux-7.0.12/include/linux/hardening.h	1969-12-31 18:00:00.000000000 -0600
-+++ linux-7.0.12-hdn/include/linux/hardening.h	2026-06-26 18:31:48.940573912 -0500
-@@ -0,0 +1,963 @@
++++ linux-7.0.12-hdn/include/linux/hardening.h	2026-06-26 18:44:17.788506060 -0500
+@@ -0,0 +1,969 @@
 +/* SPDX-License-Identifier: GPL-2.0-only */
 +#ifndef _LINUX_HARDENING_H
 +#define _LINUX_HARDENING_H
@@ -3745,6 +3745,7 @@ diff -ruN --exclude .git linux-7.0.12/include/linux/hardening.h linux-7.0.12-hdn
 +int hdn_authorize_object_unix_bind(const struct dentry *dir);
 +int hdn_authorize_object_unix_listen(const struct path *path);
 +int hdn_authorize_object_unix_accept(const struct path *path);
++int hdn_authorize_object_unix_send(const struct path *path);
 +int hdn_authorize_namespace_create(unsigned long flags);
 +int hdn_authorize_namespace_join(const struct user_namespace *owner,
 +				 unsigned long nstype);
@@ -4423,6 +4424,11 @@ diff -ruN --exclude .git linux-7.0.12/include/linux/hardening.h linux-7.0.12-hdn
 +	return 0;
 +}
 +
++static inline int hdn_authorize_object_unix_send(const struct path *path)
++{
++	return 0;
++}
++
 +static inline void hdn_record_mount(const struct path *path)
 +{
 +}
@@ -4721,15 +4727,15 @@ diff -ruN --exclude .git linux-7.0.12/include/trace/events/mmap.h linux-7.0.12-h
  TRACE_EVENT(exit_mmap,
 diff -ruN --exclude .git linux-7.0.12/include/uapi/linux/hardening.h linux-7.0.12-hdn/include/uapi/linux/hardening.h
 --- linux-7.0.12/include/uapi/linux/hardening.h	1969-12-31 18:00:00.000000000 -0600
-+++ linux-7.0.12-hdn/include/uapi/linux/hardening.h	2026-06-26 18:31:20.236576293 -0500
-@@ -0,0 +1,600 @@
++++ linux-7.0.12-hdn/include/uapi/linux/hardening.h	2026-06-26 18:44:05.820507138 -0500
+@@ -0,0 +1,604 @@
 +/* SPDX-License-Identifier: GPL-2.0 WITH Linux-syscall-note */
 +#ifndef _UAPI_LINUX_HARDENING_H
 +#define _UAPI_LINUX_HARDENING_H
 +
 +#include <linux/types.h>
 +
-+#define HDN_POLICY_ABI_VERSION 79
++#define HDN_POLICY_ABI_VERSION 80
 +#define HDN_POLICY_MAGIC 0x48444e50 /* "HDNP" */
 +#define HDN_PROFILE_NAME_LEN 32
 +#define HDN_POLICY_PATH_LEN 256
@@ -4841,6 +4847,7 @@ diff -ruN --exclude .git linux-7.0.12/include/uapi/linux/hardening.h linux-7.0.1
 +	HDN_AUTH_OBJECT_UNIX_BIND = 79,
 +	HDN_AUTH_OBJECT_UNIX_LISTEN = 80,
 +	HDN_AUTH_OBJECT_UNIX_ACCEPT = 81,
++	HDN_AUTH_OBJECT_UNIX_SEND = 82,
 +	HDN_AUTH__MAX,
 +};
 +
@@ -4939,6 +4946,7 @@ diff -ruN --exclude .git linux-7.0.12/include/uapi/linux/hardening.h linux-7.0.1
 +	HDN_TRANS_OBJECT_UNIX_BIND = 91,
 +	HDN_TRANS_OBJECT_UNIX_LISTEN = 92,
 +	HDN_TRANS_OBJECT_UNIX_ACCEPT = 93,
++	HDN_TRANS_OBJECT_UNIX_SEND = 94,
 +	HDN_TRANS__MAX,
 +};
 +
@@ -5037,6 +5045,7 @@ diff -ruN --exclude .git linux-7.0.12/include/uapi/linux/hardening.h linux-7.0.1
 +	HDN_EVENT_ID_OBJECT_UNIX_BIND = HDN_TRANS_OBJECT_UNIX_BIND,
 +	HDN_EVENT_ID_OBJECT_UNIX_LISTEN = HDN_TRANS_OBJECT_UNIX_LISTEN,
 +	HDN_EVENT_ID_OBJECT_UNIX_ACCEPT = HDN_TRANS_OBJECT_UNIX_ACCEPT,
++	HDN_EVENT_ID_OBJECT_UNIX_SEND = HDN_TRANS_OBJECT_UNIX_SEND,
 +};
 +
 +enum hdn_decision_action {
@@ -5216,6 +5225,7 @@ diff -ruN --exclude .git linux-7.0.12/include/uapi/linux/hardening.h linux-7.0.1
 +	HDN_OBJECT_DENY_UNIX_BIND = 1ULL << 39,
 +	HDN_OBJECT_DENY_UNIX_LISTEN = 1ULL << 40,
 +	HDN_OBJECT_DENY_UNIX_ACCEPT = 1ULL << 41,
++	HDN_OBJECT_DENY_UNIX_SEND = 1ULL << 42,
 +};
 +
 +struct hdn_event {
@@ -9606,7 +9616,7 @@ diff -ruN --exclude .git linux-7.0.12/net/socket.c linux-7.0.12-hdn/net/socket.c
  	if (err)
 diff -ruN --exclude .git linux-7.0.12/net/unix/af_unix.c linux-7.0.12-hdn/net/unix/af_unix.c
 --- linux-7.0.12/net/unix/af_unix.c	2026-06-09 05:32:51.000000000 -0500
-+++ linux-7.0.12-hdn/net/unix/af_unix.c	2026-06-26 18:32:18.632571486 -0500
++++ linux-7.0.12-hdn/net/unix/af_unix.c	2026-06-26 18:45:18.472500639 -0500
 @@ -86,6 +86,7 @@
  #include <linux/filter.h>
  #include <linux/fs.h>
@@ -9615,7 +9625,19 @@ diff -ruN --exclude .git linux-7.0.12/net/unix/af_unix.c linux-7.0.12-hdn/net/un
  #include <linux/init.h>
  #include <linux/kernel.h>
  #include <linux/mount.h>
-@@ -632,6 +633,25 @@
+@@ -225,6 +226,11 @@
+ 	return UNIX_HASH_MOD + 1 + (hash & UNIX_HASH_MOD);
+ }
+ 
++enum hdn_unix_object_op {
++	HDN_UNIX_OBJECT_CONNECT,
++	HDN_UNIX_OBJECT_SEND,
++};
++
+ static void unix_table_double_lock(struct net *net,
+ 				   unsigned int hash1, unsigned int hash2)
+ {
+@@ -632,6 +638,25 @@
  	}
  }
  
@@ -9641,7 +9663,7 @@ diff -ruN --exclude .git linux-7.0.12/net/unix/af_unix.c linux-7.0.12-hdn/net/un
  static void unix_sock_destructor(struct sock *sk)
  {
  	struct unix_sock *u = unix_sk(sk);
-@@ -648,6 +668,7 @@
+@@ -648,6 +673,7 @@
  
  	if (u->addr)
  		unix_release_addr(u->addr);
@@ -9649,7 +9671,7 @@ diff -ruN --exclude .git linux-7.0.12/net/unix/af_unix.c linux-7.0.12-hdn/net/un
  
  	atomic_long_dec(&unix_nr_socks);
  	sock_prot_inuse_add(sock_net(sk), sk->sk_prot, -1);
-@@ -670,6 +691,8 @@
+@@ -670,6 +696,8 @@
  	struct path path;
  	int state;
  
@@ -9658,7 +9680,7 @@ diff -ruN --exclude .git linux-7.0.12/net/unix/af_unix.c linux-7.0.12-hdn/net/un
  	unix_remove_socket(sock_net(sk), sk);
  	unix_remove_bsd_socket(sk);
  
-@@ -819,6 +842,9 @@
+@@ -819,6 +847,9 @@
  	err = -EINVAL;
  	if (!READ_ONCE(u->addr))
  		goto out;	/* No listens on an unbound socket */
@@ -9668,7 +9690,7 @@ diff -ruN --exclude .git linux-7.0.12/net/unix/af_unix.c linux-7.0.12-hdn/net/un
  	err = prepare_peercred(&peercred);
  	if (err)
  		goto out;
-@@ -1116,6 +1142,8 @@
+@@ -1116,6 +1147,8 @@
  	u->vertex = NULL;
  	u->path.dentry = NULL;
  	u->path.mnt = NULL;
@@ -9677,18 +9699,31 @@ diff -ruN --exclude .git linux-7.0.12/net/unix/af_unix.c linux-7.0.12-hdn/net/un
  	spin_lock_init(&u->lock);
  	lock_set_cmp_fn(&u->lock, unix_state_lock_cmp_fn, NULL);
  	mutex_init(&u->iolock); /* single task reading lock */
-@@ -1226,6 +1254,10 @@
+@@ -1188,7 +1221,8 @@
+ }
+ 
+ static struct sock *unix_find_bsd(struct sockaddr_un *sunaddr, int addr_len,
+-				  int type, int flags)
++				  int type, int flags,
++				  enum hdn_unix_object_op op)
+ {
+ 	struct inode *inode;
+ 	struct path path;
+@@ -1226,6 +1260,13 @@
  	if (!S_ISSOCK(inode->i_mode))
  		goto path_put;
  
-+	err = hdn_authorize_object_unix_connect(&path);
++	if (op == HDN_UNIX_OBJECT_SEND)
++		err = hdn_authorize_object_unix_send(&path);
++	else
++		err = hdn_authorize_object_unix_connect(&path);
 +	if (err)
 +		goto path_put;
 +
  	sk = unix_find_socket_byinode(inode);
  	if (!sk)
  		goto path_put;
-@@ -1260,6 +1292,11 @@
+@@ -1260,6 +1301,11 @@
  	if (!sk)
  		return ERR_PTR(-ECONNREFUSED);
  
@@ -9700,7 +9735,23 @@ diff -ruN --exclude .git linux-7.0.12/net/unix/af_unix.c linux-7.0.12-hdn/net/un
  	dentry = unix_sk(sk)->path.dentry;
  	if (dentry)
  		touch_atime(&unix_sk(sk)->path);
-@@ -1336,6 +1373,7 @@
+@@ -1269,12 +1315,13 @@
+ 
+ static struct sock *unix_find_other(struct net *net,
+ 				    struct sockaddr_un *sunaddr,
+-				    int addr_len, int type, int flags)
++				    int addr_len, int type, int flags,
++				    enum hdn_unix_object_op op)
+ {
+ 	struct sock *sk;
+ 
+ 	if (sunaddr->sun_path[0])
+-		sk = unix_find_bsd(sunaddr, addr_len, type, flags);
++		sk = unix_find_bsd(sunaddr, addr_len, type, flags, op);
+ 	else
+ 		sk = unix_find_abstract(net, sunaddr, addr_len, type);
+ 
+@@ -1336,6 +1383,7 @@
  	}
  
  	__unix_set_addr_hash(net, sk, addr, new_hash);
@@ -9708,7 +9759,7 @@ diff -ruN --exclude .git linux-7.0.12/net/unix/af_unix.c linux-7.0.12-hdn/net/un
  	unix_table_double_unlock(net, old_hash, new_hash);
  	err = 0;
  
-@@ -1376,7 +1414,9 @@
+@@ -1376,7 +1424,9 @@
  	 * All right, let's create it.
  	 */
  	idmap = mnt_idmap(parent.mnt);
@@ -9719,7 +9770,7 @@ diff -ruN --exclude .git linux-7.0.12/net/unix/af_unix.c linux-7.0.12-hdn/net/un
  	if (!err)
  		err = vfs_mknod(idmap, d_inode(parent.dentry), dentry, mode, 0, NULL);
  	if (err)
-@@ -1442,6 +1482,7 @@
+@@ -1442,6 +1492,7 @@
  		goto out_spin;
  
  	__unix_set_addr_hash(net, sk, addr, new_hash);
@@ -9727,7 +9778,27 @@ diff -ruN --exclude .git linux-7.0.12/net/unix/af_unix.c linux-7.0.12-hdn/net/un
  	unix_table_double_unlock(net, old_hash, new_hash);
  	mutex_unlock(&u->bindlock);
  	return 0;
-@@ -1780,6 +1821,8 @@
+@@ -1530,7 +1581,8 @@
+ 		}
+ 
+ restart:
+-		other = unix_find_other(sock_net(sk), sunaddr, alen, sock->type, 0);
++		other = unix_find_other(sock_net(sk), sunaddr, alen, sock->type,
++					0, HDN_UNIX_OBJECT_CONNECT);
+ 		if (IS_ERR(other)) {
+ 			err = PTR_ERR(other);
+ 			goto out;
+@@ -1670,7 +1722,8 @@
+ 
+ restart:
+ 	/*  Find listening sock. */
+-	other = unix_find_other(net, sunaddr, addr_len, sk->sk_type, flags);
++	other = unix_find_other(net, sunaddr, addr_len, sk->sk_type, flags,
++				HDN_UNIX_OBJECT_CONNECT);
+ 	if (IS_ERR(other)) {
+ 		err = PTR_ERR(other);
+ 		goto out_free_skb;
+@@ -1780,6 +1833,8 @@
  
  	unix_state_unlock(sk);
  
@@ -9736,7 +9807,7 @@ diff -ruN --exclude .git linux-7.0.12/net/unix/af_unix.c linux-7.0.12-hdn/net/un
  	/* take ten and send info to listening sock */
  	spin_lock(&other->sk_receive_queue.lock);
  	__skb_queue_tail(&other->sk_receive_queue, skb);
-@@ -1846,6 +1889,9 @@
+@@ -1846,6 +1901,9 @@
  	arg->err = -EINVAL;
  	if (READ_ONCE(sk->sk_state) != TCP_LISTEN)
  		goto out;
@@ -9746,6 +9817,16 @@ diff -ruN --exclude .git linux-7.0.12/net/unix/af_unix.c linux-7.0.12-hdn/net/un
  
  	/* If socket state is TCP_LISTEN it cannot change (for now...),
  	 * so that no locks are necessary.
+@@ -2156,7 +2214,8 @@
+ 	if (msg->msg_namelen) {
+ lookup:
+ 		other = unix_find_other(sock_net(sk), msg->msg_name,
+-					msg->msg_namelen, sk->sk_type, 0);
++					msg->msg_namelen, sk->sk_type, 0,
++					HDN_UNIX_OBJECT_SEND);
+ 		if (IS_ERR(other)) {
+ 			err = PTR_ERR(other);
+ 			goto out_free;
 diff -ruN --exclude .git linux-7.0.12/security/Kconfig linux-7.0.12-hdn/security/Kconfig
 --- linux-7.0.12/security/Kconfig	2026-06-09 05:32:51.000000000 -0500
 +++ linux-7.0.12-hdn/security/Kconfig	2026-06-22 21:35:34.206729491 -0500
@@ -10536,8 +10617,8 @@ diff -ruN --exclude .git linux-7.0.12/security/hardening/Makefile linux-7.0.12-h
 +obj-$(CONFIG_SECURITY_HARDENING) += core.o
 diff -ruN --exclude .git linux-7.0.12/security/hardening/core.c linux-7.0.12-hdn/security/hardening/core.c
 --- linux-7.0.12/security/hardening/core.c	1969-12-31 18:00:00.000000000 -0600
-+++ linux-7.0.12-hdn/security/hardening/core.c	2026-06-26 18:32:08.640572148 -0500
-@@ -0,0 +1,7430 @@
++++ linux-7.0.12-hdn/security/hardening/core.c	2026-06-26 18:44:29.496505002 -0500
+@@ -0,0 +1,7444 @@
 +// SPDX-License-Identifier: GPL-2.0-only
 +
 +#include <linux/binfmts.h>
@@ -13737,6 +13818,18 @@ diff -ruN --exclude .git linux-7.0.12/security/hardening/core.c linux-7.0.12-hdn
 +			       hdn_path_object_id(path));
 +}
 +
++int hdn_authorize_object_unix_send(const struct path *path)
++{
++	if (!hdn_object_access_denied(path, hdn_current_profile_id(),
++				      HDN_OBJECT_DENY_UNIX_SEND))
++		return 0;
++
++	return hdn_deny_object(HDN_AUTH_OBJECT_UNIX_SEND,
++			       HDN_TRANS_OBJECT_UNIX_SEND,
++			       HDN_REASON_OBJECT_POLICY, -EACCES,
++			       hdn_path_object_id(path));
++}
++
 +static bool hdn_module_rule_matches(const struct hdn_module_rule_record *rule,
 +				    const struct hdn_file_identity *file_id,
 +				    u64 profile_id)
@@ -16325,7 +16418,8 @@ diff -ruN --exclude .git linux-7.0.12/security/hardening/core.c linux-7.0.12-hdn
 +					 HDN_OBJECT_DENY_RMDIR |
 +					 HDN_OBJECT_DENY_UNIX_BIND |
 +					 HDN_OBJECT_DENY_UNIX_LISTEN |
-+					 HDN_OBJECT_DENY_UNIX_ACCEPT;
++					 HDN_OBJECT_DENY_UNIX_ACCEPT |
++					 HDN_OBJECT_DENY_UNIX_SEND;
 +	u64 valid_module_flags = HDN_MODULE_MATCH_FILE_ID |
 +				 HDN_MODULE_MATCH_VERITY_DIGEST |
 +				 HDN_MODULE_RESOLVE_FILE_PATH;
@@ -16428,7 +16522,8 @@ diff -ruN --exclude .git linux-7.0.12/security/hardening/core.c linux-7.0.12-hdn
 +					     HDN_OBJECT_DENY_RMDIR |
 +					     HDN_OBJECT_DENY_UNIX_BIND |
 +					     HDN_OBJECT_DENY_UNIX_LISTEN |
-+					     HDN_OBJECT_DENY_UNIX_ACCEPT)))
++					     HDN_OBJECT_DENY_UNIX_ACCEPT |
++					     HDN_OBJECT_DENY_UNIX_SEND)))
 +					return -EINVAL;
 +		if ((rule->flags & HDN_OBJECT_MATCH_FILE_ID) &&
 +		    (rule->flags & HDN_OBJECT_RESOLVE_FILE_PATH))
@@ -18317,8 +18412,8 @@ diff -ruN --exclude .git linux-7.0.12/tools/hardening/Makefile linux-7.0.12-hdn/
 +.PHONY: all clean install
 diff -ruN --exclude .git linux-7.0.12/tools/hardening/README.rst linux-7.0.12-hdn/tools/hardening/README.rst
 --- linux-7.0.12/tools/hardening/README.rst	1969-12-31 18:00:00.000000000 -0600
-+++ linux-7.0.12-hdn/tools/hardening/README.rst	2026-06-26 18:35:59.760551392 -0500
-@@ -0,0 +1,1379 @@
++++ linux-7.0.12-hdn/tools/hardening/README.rst	2026-06-26 18:46:19.628495431 -0500
+@@ -0,0 +1,1384 @@
 +.. SPDX-License-Identifier: GPL-2.0-only
 +
 +Linux Hardening Policy Tools
@@ -18755,6 +18850,7 @@ diff -ruN --exclude .git linux-7.0.12/tools/hardening/README.rst linux-7.0.12-hd
 +  object 2 deny-unix-bind path /run/hdn/private-sockets
 +  object 2 deny-unix-listen path /run/hdn/listener.sock
 +  object 2 deny-unix-accept path /run/hdn/listener.sock
++  object 2 deny-unix-send path /run/hdn/datagram.sock
 +  object 2 deny-read tree /etc/hdn/secrets
 +  object 2 deny-write inode 8 1 12345
 +
@@ -18879,7 +18975,8 @@ diff -ruN --exclude .git linux-7.0.12/tools/hardening/README.rst linux-7.0.12-hd
 +``object <profile> deny-unix-connect path <absolute-path>``,
 +``object <profile> deny-unix-bind path <absolute-path>``,
 +``object <profile> deny-unix-listen path <absolute-path>``,
-+``object <profile> deny-unix-accept path <absolute-path>``, the literal
++``object <profile> deny-unix-accept path <absolute-path>``,
++``object <profile> deny-unix-send path <absolute-path>``, the literal
 +final-component ``object <profile> <operation> nofollow-path <absolute-path>``
 +form, the
 +recursive ``object <profile> <operation> tree <absolute-directory>`` form, and
@@ -18887,7 +18984,8 @@ diff -ruN --exclude .git linux-7.0.12/tools/hardening/README.rst linux-7.0.12-hd
 +``deny-creat``, ``deny-mkdir``, ``deny-mknod``, ``deny-symlink``, and
 +``deny-unix-bind`` match the parent directory identity.
 +``deny-unix-listen`` and ``deny-unix-accept`` match the bound filesystem
-+socket identity. ``deny-delete``,
++socket identity. ``deny-unix-send`` matches the destination filesystem socket
++identity for pathname datagram sends. ``deny-delete``,
 +``deny-unlink``, and ``deny-rmdir`` match the object being removed, while
 +``deny-link`` matches the hardlink source file identity. ``tree`` inputs must
 +resolve to directories and match that
@@ -18991,10 +19089,12 @@ diff -ruN --exclude .git linux-7.0.12/tools/hardening/README.rst linux-7.0.12-hd
 +	deny-unix-bind for filesystem-backed AF_UNIX socket bind attempts by
 +	parent directory identity before the socket node is created. It enforces
 +	deny-unix-listen and deny-unix-accept for filesystem-backed AF_UNIX
-+	listening sockets by bound socket identity.
++	listening sockets by bound socket identity. It enforces deny-unix-send
++	for filesystem-backed AF_UNIX datagram sends by destination socket
++	identity.
 +QEMU stages a
 +dedicated object policy and proves protected
-+read/write/delete/create/creat/mkdir/mknod/symlink/unlink/rmdir/exec/link/attr/chmod/chown/utime/xattr/setxattr/removexattr/access/stat/list/find/ioctl/lock/watch/receive/fcntl/chdir/mount/umount/truncate/rename/unix-connect/unix-bind/unix-listen/unix-accept targets, protected
++read/write/delete/create/creat/mkdir/mknod/symlink/unlink/rmdir/exec/link/attr/chmod/chown/utime/xattr/setxattr/removexattr/access/stat/list/find/ioctl/lock/watch/receive/fcntl/chdir/mount/umount/truncate/rename/unix-connect/unix-bind/unix-listen/unix-accept/unix-send targets, protected
 +	file-capability xattr get/list/set/remove attempts, protected POSIX ACL xattr reads, preopened descriptor reads, readable mmap, and readable mprotect,
 +	unmatched readable mmap and mprotect,
 +		protected FIFO, character-device, and block-device read/write open denial,
@@ -22616,8 +22716,8 @@ diff -ruN --exclude .git linux-7.0.12/tools/hardening/hdn-desktop-daemon.c linux
 +}
 diff -ruN --exclude .git linux-7.0.12/tools/hardening/hdn-event-decode.c linux-7.0.12-hdn/tools/hardening/hdn-event-decode.c
 --- linux-7.0.12/tools/hardening/hdn-event-decode.c	1969-12-31 18:00:00.000000000 -0600
-+++ linux-7.0.12-hdn/tools/hardening/hdn-event-decode.c	2026-06-26 18:33:04.116567649 -0500
-@@ -0,0 +1,913 @@
++++ linux-7.0.12-hdn/tools/hardening/hdn-event-decode.c	2026-06-26 18:45:45.568498413 -0500
+@@ -0,0 +1,915 @@
 +// SPDX-License-Identifier: GPL-2.0-only
 +
 +#define _GNU_SOURCE
@@ -22759,6 +22859,7 @@ diff -ruN --exclude .git linux-7.0.12/tools/hardening/hdn-event-decode.c linux-7
 +	{ HDN_AUTH_OBJECT_UNIX_BIND, "OBJECT_UNIX_BIND" },
 +	{ HDN_AUTH_OBJECT_UNIX_LISTEN, "OBJECT_UNIX_LISTEN" },
 +	{ HDN_AUTH_OBJECT_UNIX_ACCEPT, "OBJECT_UNIX_ACCEPT" },
++	{ HDN_AUTH_OBJECT_UNIX_SEND, "OBJECT_UNIX_SEND" },
 +};
 +
 +static const struct hdn_name transition_names[] = {
@@ -22856,6 +22957,7 @@ diff -ruN --exclude .git linux-7.0.12/tools/hardening/hdn-event-decode.c linux-7
 +	{ HDN_TRANS_OBJECT_UNIX_BIND, "OBJECT_UNIX_BIND" },
 +	{ HDN_TRANS_OBJECT_UNIX_LISTEN, "OBJECT_UNIX_LISTEN" },
 +	{ HDN_TRANS_OBJECT_UNIX_ACCEPT, "OBJECT_UNIX_ACCEPT" },
++	{ HDN_TRANS_OBJECT_UNIX_SEND, "OBJECT_UNIX_SEND" },
 +};
 +
 +static const struct hdn_name action_names[] = {
@@ -24378,8 +24480,8 @@ diff -ruN --exclude .git linux-7.0.12/tools/hardening/hdn-package-hook.c linux-7
 +}
 diff -ruN --exclude .git linux-7.0.12/tools/hardening/hdn-policy-learn.c linux-7.0.12-hdn/tools/hardening/hdn-policy-learn.c
 --- linux-7.0.12/tools/hardening/hdn-policy-learn.c	1969-12-31 18:00:00.000000000 -0600
-+++ linux-7.0.12-hdn/tools/hardening/hdn-policy-learn.c	2026-06-26 18:33:19.924566258 -0500
-@@ -0,0 +1,855 @@
++++ linux-7.0.12-hdn/tools/hardening/hdn-policy-learn.c	2026-06-26 18:46:04.628496785 -0500
+@@ -0,0 +1,858 @@
 +// SPDX-License-Identifier: GPL-2.0-only
 +
 +#define _GNU_SOURCE
@@ -24523,6 +24625,7 @@ diff -ruN --exclude .git linux-7.0.12/tools/hardening/hdn-policy-learn.c linux-7
 +	{ HDN_AUTH_OBJECT_UNIX_BIND, "OBJECT_UNIX_BIND" },
 +	{ HDN_AUTH_OBJECT_UNIX_LISTEN, "OBJECT_UNIX_LISTEN" },
 +	{ HDN_AUTH_OBJECT_UNIX_ACCEPT, "OBJECT_UNIX_ACCEPT" },
++	{ HDN_AUTH_OBJECT_UNIX_SEND, "OBJECT_UNIX_SEND" },
 +};
 +
 +static const struct hdn_name transition_names[] = {
@@ -24620,6 +24723,7 @@ diff -ruN --exclude .git linux-7.0.12/tools/hardening/hdn-policy-learn.c linux-7
 +	{ HDN_TRANS_OBJECT_UNIX_BIND, "OBJECT_UNIX_BIND" },
 +	{ HDN_TRANS_OBJECT_UNIX_LISTEN, "OBJECT_UNIX_LISTEN" },
 +	{ HDN_TRANS_OBJECT_UNIX_ACCEPT, "OBJECT_UNIX_ACCEPT" },
++	{ HDN_TRANS_OBJECT_UNIX_SEND, "OBJECT_UNIX_SEND" },
 +};
 +
 +static const struct hdn_name action_names[] = {
@@ -24982,6 +25086,7 @@ diff -ruN --exclude .git linux-7.0.12/tools/hardening/hdn-policy-learn.c linux-7
 +	case HDN_AUTH_OBJECT_UNIX_BIND:
 +	case HDN_AUTH_OBJECT_UNIX_LISTEN:
 +	case HDN_AUTH_OBJECT_UNIX_ACCEPT:
++	case HDN_AUTH_OBJECT_UNIX_SEND:
 +		return true;
 +	default:
 +		return false;
@@ -26403,8 +26508,8 @@ diff -ruN --exclude .git linux-7.0.12/tools/hardening/hdn-policy-workflow.c linu
 +}
 diff -ruN --exclude .git linux-7.0.12/tools/hardening/hdn-policy.c linux-7.0.12-hdn/tools/hardening/hdn-policy.c
 --- linux-7.0.12/tools/hardening/hdn-policy.c	1969-12-31 18:00:00.000000000 -0600
-+++ linux-7.0.12-hdn/tools/hardening/hdn-policy.c	2026-06-26 18:32:57.544568233 -0500
-@@ -0,0 +1,2056 @@
++++ linux-7.0.12-hdn/tools/hardening/hdn-policy.c	2026-06-26 18:45:37.444499061 -0500
+@@ -0,0 +1,2059 @@
 +// SPDX-License-Identifier: GPL-2.0-only
 +
 +#include <ctype.h>
@@ -27202,7 +27307,7 @@ diff -ruN --exclude .git linux-7.0.12/tools/hardening/hdn-policy.c linux-7.0.12-
 +	mode = strtok_r(NULL, " \t\r\n", &save);
 +	if (!profile_text || !action || !mode) {
 +		fprintf(stderr,
-+			"%u: object needs PROFILE deny-read|deny-write|deny-delete|deny-create|deny-creat|deny-mkdir|deny-mknod|deny-symlink|deny-unlink|deny-rmdir|deny-exec|append-only|deny-link|deny-attr|deny-chmod|deny-chown|deny-utime|deny-xattr|deny-setxattr|deny-removexattr|deny-access|deny-stat|deny-list|deny-find|deny-ioctl|deny-lock|deny-watch|deny-receive|deny-fcntl|deny-chdir|deny-mount|deny-umount|deny-truncate|deny-rename|deny-unix-connect|deny-unix-bind|deny-unix-listen|deny-unix-accept path|nofollow-path|tree|inode\n",
++			"%u: object needs PROFILE deny-read|deny-write|deny-delete|deny-create|deny-creat|deny-mkdir|deny-mknod|deny-symlink|deny-unlink|deny-rmdir|deny-exec|append-only|deny-link|deny-attr|deny-chmod|deny-chown|deny-utime|deny-xattr|deny-setxattr|deny-removexattr|deny-access|deny-stat|deny-list|deny-find|deny-ioctl|deny-lock|deny-watch|deny-receive|deny-fcntl|deny-chdir|deny-mount|deny-umount|deny-truncate|deny-rename|deny-unix-connect|deny-unix-bind|deny-unix-listen|deny-unix-accept|deny-unix-send path|nofollow-path|tree|inode\n",
 +			line);
 +		return -EINVAL;
 +	}
@@ -27254,7 +27359,8 @@ diff -ruN --exclude .git linux-7.0.12/tools/hardening/hdn-policy.c linux-7.0.12-
 +	    strcmp(action_name, "DENY_UNIX_CONNECT") &&
 +	    strcmp(action_name, "DENY_UNIX_BIND") &&
 +	    strcmp(action_name, "DENY_UNIX_LISTEN") &&
-+	    strcmp(action_name, "DENY_UNIX_ACCEPT")) {
++	    strcmp(action_name, "DENY_UNIX_ACCEPT") &&
++	    strcmp(action_name, "DENY_UNIX_SEND")) {
 +		fprintf(stderr, "%u: unknown object action '%s'\n", line,
 +			action);
 +		return -EINVAL;
@@ -27337,8 +27443,10 @@ diff -ruN --exclude .git linux-7.0.12/tools/hardening/hdn-policy.c linux-7.0.12-
 +		rule->flags = HDN_OBJECT_DENY_UNIX_BIND;
 +	else if (!strcmp(action_name, "DENY_UNIX_LISTEN"))
 +		rule->flags = HDN_OBJECT_DENY_UNIX_LISTEN;
-+	else
++	else if (!strcmp(action_name, "DENY_UNIX_ACCEPT"))
 +		rule->flags = HDN_OBJECT_DENY_UNIX_ACCEPT;
++	else
++		rule->flags = HDN_OBJECT_DENY_UNIX_SEND;
 +
 +	if (!strcmp(mode, "path")) {
 +		name = strtok_r(NULL, " \t\r\n", &save);
@@ -33382,8 +33490,8 @@ diff -ruN --exclude .git linux-7.0.12/tools/hardening/hdn-rofs-transaction.c lin
 +}
 diff -ruN --exclude .git linux-7.0.12/tools/hardening/hdn-status.c linux-7.0.12-hdn/tools/hardening/hdn-status.c
 --- linux-7.0.12/tools/hardening/hdn-status.c	1969-12-31 18:00:00.000000000 -0600
-+++ linux-7.0.12-hdn/tools/hardening/hdn-status.c	2026-06-26 18:33:11.736566976 -0500
-@@ -0,0 +1,926 @@
++++ linux-7.0.12-hdn/tools/hardening/hdn-status.c	2026-06-26 18:45:54.960497628 -0500
+@@ -0,0 +1,928 @@
 +// SPDX-License-Identifier: GPL-2.0-only
 +
 +#define _GNU_SOURCE
@@ -33519,6 +33627,7 @@ diff -ruN --exclude .git linux-7.0.12/tools/hardening/hdn-status.c linux-7.0.12-
 +	{ HDN_AUTH_OBJECT_UNIX_BIND, "OBJECT_UNIX_BIND" },
 +	{ HDN_AUTH_OBJECT_UNIX_LISTEN, "OBJECT_UNIX_LISTEN" },
 +	{ HDN_AUTH_OBJECT_UNIX_ACCEPT, "OBJECT_UNIX_ACCEPT" },
++	{ HDN_AUTH_OBJECT_UNIX_SEND, "OBJECT_UNIX_SEND" },
 +};
 +
 +static const struct hdn_name transition_names[] = {
@@ -33616,6 +33725,7 @@ diff -ruN --exclude .git linux-7.0.12/tools/hardening/hdn-status.c linux-7.0.12-
 +	{ HDN_TRANS_OBJECT_UNIX_BIND, "OBJECT_UNIX_BIND" },
 +	{ HDN_TRANS_OBJECT_UNIX_LISTEN, "OBJECT_UNIX_LISTEN" },
 +	{ HDN_TRANS_OBJECT_UNIX_ACCEPT, "OBJECT_UNIX_ACCEPT" },
++	{ HDN_TRANS_OBJECT_UNIX_SEND, "OBJECT_UNIX_SEND" },
 +};
 +
 +static const struct hdn_name action_names[] = {
@@ -35500,8 +35610,8 @@ diff -ruN --exclude .git linux-7.0.12/tools/testing/selftests/hardening/hdn_elfn
 +}
 diff -ruN --exclude .git linux-7.0.12/tools/testing/selftests/hardening/hdn_smoke.c linux-7.0.12-hdn/tools/testing/selftests/hardening/hdn_smoke.c
 --- linux-7.0.12/tools/testing/selftests/hardening/hdn_smoke.c	1969-12-31 18:00:00.000000000 -0600
-+++ linux-7.0.12-hdn/tools/testing/selftests/hardening/hdn_smoke.c	2026-06-26 18:35:40.112553496 -0500
-@@ -0,0 +1,23982 @@
++++ linux-7.0.12-hdn/tools/testing/selftests/hardening/hdn_smoke.c	2026-06-26 18:47:56.384486402 -0500
+@@ -0,0 +1,24103 @@
 +// SPDX-License-Identifier: GPL-2.0-only
 +
 +#define _GNU_SOURCE
@@ -35949,6 +36059,10 @@ diff -ruN --exclude .git linux-7.0.12/tools/testing/selftests/hardening/hdn_smok
 +	"/hdn-object-unix-accept-protected"
 +#define HDN_OBJECT_UNIX_ACCEPT_UNPROTECTED \
 +	"/hdn-object-unix-accept-unprotected"
++#define HDN_OBJECT_UNIX_SEND_PROTECTED \
++	"/hdn-object-unix-send-protected"
++#define HDN_OBJECT_UNIX_SEND_UNPROTECTED \
++	"/hdn-object-unix-send-unprotected"
 +#define HDN_OBJECT_MOVE_MOUNT_SOURCE_DENIED \
 +	"/hdn-object-move-mount-source-denied"
 +#define HDN_OBJECT_MOVE_MOUNT_SOURCE_ALLOWED \
@@ -38726,7 +38840,7 @@ diff -ruN --exclude .git linux-7.0.12/tools/testing/selftests/hardening/hdn_smok
 +static int status_helper_decodes_audit_flood_fixture(void)
 +{
 +	static const char fixture[] =
-+		"abi_version: 79\n"
++		"abi_version: 80\n"
 +		"phase: runtime\n"
 +		"phase_id: 3\n"
 +		"policy_loaded: 1\n"
@@ -39496,6 +39610,56 @@ diff -ruN --exclude .git linux-7.0.12/tools/testing/selftests/hardening/hdn_smok
 +	return 0;
 +}
 +
++static int setup_object_unix_dgram_socket(const char *path, int *server_fd)
++{
++	struct sockaddr_un addr;
++	socklen_t addrlen;
++	int fd;
++	int ret;
++
++	*server_fd = -1;
++	ret = unix_sockaddr_path(path, &addr, &addrlen);
++	if (ret)
++		return ret;
++
++	unlink(path);
++	fd = socket(AF_UNIX, SOCK_DGRAM | SOCK_CLOEXEC, 0);
++	if (fd < 0)
++		return -errno;
++
++	if (bind(fd, (struct sockaddr *)&addr, addrlen)) {
++		ret = -errno;
++		close(fd);
++		unlink(path);
++		return ret;
++	}
++
++	*server_fd = fd;
++	return 0;
++}
++
++static int setup_object_unix_send_fixtures(int *protected_fd,
++					   int *unprotected_fd)
++{
++	int ret;
++
++	ret = setup_object_unix_dgram_socket(HDN_OBJECT_UNIX_SEND_PROTECTED,
++					     protected_fd);
++	if (ret)
++		return ret;
++
++	ret = setup_object_unix_dgram_socket(HDN_OBJECT_UNIX_SEND_UNPROTECTED,
++					     unprotected_fd);
++	if (ret) {
++		close(*protected_fd);
++		*protected_fd = -1;
++		unlink(HDN_OBJECT_UNIX_SEND_PROTECTED);
++		return ret;
++	}
++
++	return 0;
++}
++
 +static int setup_object_unix_bind_fixtures(void)
 +{
 +	unlink(HDN_OBJECT_UNIX_BIND_PROTECTED);
@@ -39683,6 +39847,46 @@ diff -ruN --exclude .git linux-7.0.12/tools/testing/selftests/hardening/hdn_smok
 +{
 +	return object_unix_accept_result(fd, HDN_OBJECT_UNIX_ACCEPT_UNPROTECTED,
 +					 true);
++}
++
++static int object_unix_send_result(const char *path, bool expect_allowed)
++{
++	struct sockaddr_un addr;
++	socklen_t addrlen;
++	int saved_errno;
++	char byte = 'x';
++	int fd;
++	int ret;
++
++	ret = unix_sockaddr_path(path, &addr, &addrlen);
++	if (ret)
++		return 2;
++
++	fd = socket(AF_UNIX, SOCK_DGRAM | SOCK_CLOEXEC, 0);
++	if (fd < 0)
++		return 2;
++
++	errno = 0;
++	ret = sendto(fd, &byte, sizeof(byte), 0, (struct sockaddr *)&addr,
++		     addrlen);
++	saved_errno = errno;
++	close(fd);
++
++	if (expect_allowed)
++		return ret == (int)sizeof(byte) ? 0 : 2;
++	if (ret == (int)sizeof(byte))
++		return 1;
++	return errno_is_denial(saved_errno) ? 0 : 2;
++}
++
++static int object_unix_send_denied(void)
++{
++	return object_unix_send_result(HDN_OBJECT_UNIX_SEND_PROTECTED, false);
++}
++
++static int object_unix_send_unmatched_allowed(void)
++{
++	return object_unix_send_result(HDN_OBJECT_UNIX_SEND_UNPROTECTED, true);
 +}
 +
 +static int object_truncate_ftruncate_denied(int fd)
@@ -53225,6 +53429,8 @@ diff -ruN --exclude .git linux-7.0.12/tools/testing/selftests/hardening/hdn_smok
 +	int object_unix_listen_unprotected_fd = -1;
 +	int object_unix_accept_protected_fd = -1;
 +	int object_unix_accept_unprotected_fd = -1;
++	int object_unix_send_protected_fd = -1;
++	int object_unix_send_unprotected_fd = -1;
 +	bool socket_policy_staged = false;
 +	bool socket_policy_committed = false;
 +	bool socket_policy_rolled_back = false;
@@ -53573,6 +53779,8 @@ diff -ruN --exclude .git linux-7.0.12/tools/testing/selftests/hardening/hdn_smok
 +				ksft_test_result_skip("object unix-listen policy allows unmatched socket listen\n");
 +				ksft_test_result_skip("object unix-accept policy denies protected socket accept\n");
 +				ksft_test_result_skip("object unix-accept policy allows unmatched socket accept\n");
++				ksft_test_result_skip("object unix-send policy denies protected datagram send\n");
++				ksft_test_result_skip("object unix-send policy allows unmatched datagram send\n");
 +				ksft_test_result_skip("object-write policy denies protected FIFO write open\n");
 +			ksft_test_result_skip("object-write policy allows unmatched FIFO write open\n");
 +			ksft_test_result_skip("object-write policy denies protected character device write open\n");
@@ -53759,6 +53967,7 @@ diff -ruN --exclude .git linux-7.0.12/tools/testing/selftests/hardening/hdn_smok
 +				ksft_test_result_skip("hardening events report object unix-bind denial\n");
 +				ksft_test_result_skip("hardening events report object unix-listen denial\n");
 +				ksft_test_result_skip("hardening events report object unix-accept denial\n");
++				ksft_test_result_skip("hardening events report object unix-send denial\n");
 +				ksft_test_result_skip("hardening events report object chmod denial\n");
 +			ksft_test_result_skip("hardening events report object chown denial\n");
 +			ksft_test_result_skip("hardening events report object utime denial\n");
@@ -56363,6 +56572,10 @@ diff -ruN --exclude .git linux-7.0.12/tools/testing/selftests/hardening/hdn_smok
 +			&object_unix_accept_protected_fd,
 +			&object_unix_accept_unprotected_fd);
 +	if (!ret)
++		ret = setup_object_unix_send_fixtures(
++			&object_unix_send_protected_fd,
++			&object_unix_send_unprotected_fd);
++	if (!ret)
 +		ret = write_signed_policy_path(HDN_OBJECT_WRITE_POLICY);
 +	object_policy_staged = !ret;
 +	ksft_test_result(object_policy_staged,
@@ -56403,7 +56616,7 @@ diff -ruN --exclude .git linux-7.0.12/tools/testing/selftests/hardening/hdn_smok
 +		ksft_test_result(object_policy_committed,
 +				 "object-write hardening policy commits\n");
 +	ksft_test_result(object_policy_committed &&
-+						 securityfs_status_has_line("object_rule_count: 58"),
++						 securityfs_status_has_line("object_rule_count: 59"),
 +					 "object-write policy reports object rule count\n");
 +	report_child_result(object_policy_committed ?
 +			    object_protected_write_denied() : 2,
@@ -56479,6 +56692,12 @@ diff -ruN --exclude .git linux-7.0.12/tools/testing/selftests/hardening/hdn_smok
 +				    object_unix_accept_unmatched_allowed(
 +					    object_unix_accept_unprotected_fd) : 2,
 +				    "object unix-accept policy allows unmatched socket accept");
++		report_child_result(object_policy_committed ?
++				    object_unix_send_denied() : 2,
++				    "object unix-send policy denies protected datagram send");
++		report_child_result(object_policy_committed ?
++				    object_unix_send_unmatched_allowed() : 2,
++				    "object unix-send policy allows unmatched datagram send");
 +		report_child_result(object_policy_committed ?
 +				    object_write_fifo_denied() : 2,
 +			    "object-write policy denies protected FIFO write open");
@@ -57056,6 +57275,8 @@ diff -ruN --exclude .git linux-7.0.12/tools/testing/selftests/hardening/hdn_smok
 +							"hardening events report object unix-listen denial");
 +			test_securityfs_events_contains("authority=81",
 +							"hardening events report object unix-accept denial");
++			test_securityfs_events_contains("authority=82",
++							"hardening events report object unix-send denial");
 +			test_securityfs_events_contains("authority=67",
 +							"hardening events report object chmod denial");
 +		test_securityfs_events_contains("authority=68",
@@ -57130,6 +57351,14 @@ diff -ruN --exclude .git linux-7.0.12/tools/testing/selftests/hardening/hdn_smok
 +		close(object_unix_accept_unprotected_fd);
 +		object_unix_accept_unprotected_fd = -1;
 +	}
++	if (object_unix_send_protected_fd >= 0) {
++		close(object_unix_send_protected_fd);
++		object_unix_send_protected_fd = -1;
++	}
++	if (object_unix_send_unprotected_fd >= 0) {
++		close(object_unix_send_unprotected_fd);
++		object_unix_send_unprotected_fd = -1;
++	}
 +		unlink(HDN_OBJECT_UNIX_CONNECT_PROTECTED);
 +		unlink(HDN_OBJECT_UNIX_CONNECT_UNPROTECTED);
 +		unlink(HDN_OBJECT_UNIX_BIND_PROTECTED);
@@ -57138,6 +57367,8 @@ diff -ruN --exclude .git linux-7.0.12/tools/testing/selftests/hardening/hdn_smok
 +		unlink(HDN_OBJECT_UNIX_LISTEN_UNPROTECTED);
 +		unlink(HDN_OBJECT_UNIX_ACCEPT_PROTECTED);
 +		unlink(HDN_OBJECT_UNIX_ACCEPT_UNPROTECTED);
++		unlink(HDN_OBJECT_UNIX_SEND_PROTECTED);
++		unlink(HDN_OBJECT_UNIX_SEND_UNPROTECTED);
 +		unlink(HDN_OBJECT_CHMOD_PROTECTED);
 +	unlink(HDN_OBJECT_CHOWN_PROTECTED);
 +	unlink(HDN_OBJECT_UTIME_PROTECTED);
@@ -59099,11 +59330,11 @@ diff -ruN --exclude .git linux-7.0.12/tools/testing/selftests/hardening/hdn_smok
 +	if (access(HDN_STATUS, R_OK))
 +		ksft_exit_skip("hardening securityfs status not present\n");
 +
-+	ksft_set_plan(819);
++	ksft_set_plan(822);
 +	test_securityfs_status();
 +	test_symbol_test_module_load();
-+	test_securityfs_status_contains("abi_version: 79",
-+					"hardening status reports policy ABI 79");
++	test_securityfs_status_contains("abi_version: 80",
++					"hardening status reports policy ABI 80");
 +	test_securityfs_status_contains("phase:",
 +					"hardening status reports sealing phase");
 +	test_securityfs_status_contains("policy_staged:",
@@ -59666,10 +59897,10 @@ diff -ruN --exclude .git linux-7.0.12/tools/testing/selftests/hardening/namespac
 +allow 2 POLICY_ADMIN CRED_CHANGE PTRACE NAMESPACE_ADMIN PROC_TASK_VIEW
 diff -ruN --exclude .git linux-7.0.12/tools/testing/selftests/hardening/object-write.policy linux-7.0.12-hdn/tools/testing/selftests/hardening/object-write.policy
 --- linux-7.0.12/tools/testing/selftests/hardening/object-write.policy	1969-12-31 18:00:00.000000000 -0600
-+++ linux-7.0.12-hdn/tools/testing/selftests/hardening/object-write.policy	2026-06-26 18:35:32.676554175 -0500
-@@ -0,0 +1,72 @@
++++ linux-7.0.12-hdn/tools/testing/selftests/hardening/object-write.policy	2026-06-26 18:48:06.432485430 -0500
+@@ -0,0 +1,73 @@
 +# Root-profile policy used by the QEMU smoke test to prove object
-+# read/write/delete/create/creat/mkdir/mknod/symlink/unlink/rmdir/exec/link/attr/chmod/chown/utime/xattr/setxattr/removexattr/access/stat/list/find/ioctl/lock/watch/receive/fcntl/chdir/mount/umount/truncate/rename/unix-connect/unix-bind/unix-listen/unix-accept denial,
++# read/write/delete/create/creat/mkdir/mknod/symlink/unlink/rmdir/exec/link/attr/chmod/chown/utime/xattr/setxattr/removexattr/access/stat/list/find/ioctl/lock/watch/receive/fcntl/chdir/mount/umount/truncate/rename/unix-connect/unix-bind/unix-listen/unix-accept/unix-send denial,
 +# recursive tree denial, and append-only enforcement
 +# by signed file or directory identity.
 +generation 1
@@ -59729,6 +59960,7 @@ diff -ruN --exclude .git linux-7.0.12/tools/testing/selftests/hardening/object-w
 +object 2 deny-unix-bind path /hdn-object-unix-bind-protected
 +object 2 deny-unix-listen path /hdn-object-unix-listen-protected
 +object 2 deny-unix-accept path /hdn-object-unix-accept-protected
++object 2 deny-unix-send path /hdn-object-unix-send-protected
 +object 2 deny-find path /hdn-object-find-dir/hidden
 +object 2 deny-read tree /hdn-object-tree-protected
 +object 2 deny-write tree /hdn-object-tree-protected
@@ -59830,7 +60062,7 @@ diff -ruN --exclude .git linux-7.0.12/tools/testing/selftests/hardening/role.pol
 +use-role 2 desktop-admin
 diff -ruN --exclude .git linux-7.0.12/tools/testing/selftests/hardening/run-qemu-smoke.sh linux-7.0.12-hdn/tools/testing/selftests/hardening/run-qemu-smoke.sh
 --- linux-7.0.12/tools/testing/selftests/hardening/run-qemu-smoke.sh	1969-12-31 18:00:00.000000000 -0600
-+++ linux-7.0.12-hdn/tools/testing/selftests/hardening/run-qemu-smoke.sh	2026-06-26 18:35:44.336553113 -0500
++++ linux-7.0.12-hdn/tools/testing/selftests/hardening/run-qemu-smoke.sh	2026-06-26 18:48:13.988484692 -0500
 @@ -0,0 +1,1060 @@
 +#!/bin/sh
 +# SPDX-License-Identifier: GPL-2.0
@@ -59865,7 +60097,7 @@ diff -ruN --exclude .git linux-7.0.12/tools/testing/selftests/hardening/run-qemu
 +QEMU_MEMORY=${QEMU_MEMORY:-1024M}
 +QEMU_SMP=${QEMU_SMP:-2}
 +QEMU_MACHINE=${QEMU_MACHINE:-q35,accel=tcg}
-+HDN_SMOKE_EXPECTED_PASS=${HDN_SMOKE_EXPECTED_PASS:-819}
++HDN_SMOKE_EXPECTED_PASS=${HDN_SMOKE_EXPECTED_PASS:-822}
 +WORK=${HDN_QEMU_WORK:-"${TMPDIR:-/tmp}/hdn-qemu-smoke.$$"}
 +LOG=${HDN_QEMU_LOG:-"$WORK/qemu.log"}
 +QMP=${HDN_QEMU_QMP:-"$WORK/qmp.sock"}
