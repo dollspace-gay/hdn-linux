@@ -64,7 +64,10 @@ recovery UI stable product-facing `key=value` status with policy readiness,
 mitigation counts, audit-flood state, and decoded audit-flood names.
 `hdn-control-center` now gives settings panels and desktop shells one
 product-facing status/action entry point above `hdn-status` and
-`hdn-desktop-daemon`.
+`hdn-desktop-daemon`. `hdn-policy-workflow` now gives settings panels, support
+tools, and developer-mode UI a root-owned named workflow for policy learning
+and candidate policy generation above `hdn-policy-learn` and
+`hdn-policy-merge`.
 Sensitive sysfs kernel metadata such as `/sys/kernel/vmcoreinfo` now requires
 the sysfs-read authority and is hidden from restricted directory enumeration,
 while ordinary device-discovery sysfs remains visible.
@@ -99,16 +102,16 @@ The hardening smoke suite in the development tree is run under QEMU. Latest
 local result before this publication checkpoint:
 
 ```text
-QEMU hardening smoke: 796/796 pass
+QEMU hardening smoke: 799/799 pass
 ```
 
 Patch artifact at this checkpoint:
 
 ```text
 patch: patches/hdn-linux-7.0.12.patch
-lines: 59,223
-bytes: 1,741,344
-sha256: e6d2e110f6f65b168ed752f87f553952560a0a929af2c540a42ae8ba515c66eb
+lines: 59,917
+bytes: 1,760,252
+sha256: da28e31f4ad24ab4f5df6e96c585f6f0dd8fdac51c903c664813515538622bac
 ```
 
 ## Development Rule

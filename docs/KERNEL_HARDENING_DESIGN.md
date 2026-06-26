@@ -511,6 +511,10 @@ bypasses.
 copies a base text policy, consumes only reviewed `allow` and `mem`
 suggestions for profiles already defined in that base, de-duplicates existing
 grants, and appends a marked candidate block for later compile/sign/commit.
+`tools/hardening/hdn-policy-workflow` puts a root-owned named contract above
+both helpers so settings panels, support tools, and developer-mode policy UI
+can run `learn NAME` and `candidate NAME` without receiving raw event-log,
+base-policy, fragment, or candidate output paths.
 
 ## Memory Execution Policy
 
@@ -1431,6 +1435,12 @@ tools/hardening/hdn-policy-merge:
   policy without editing the base in place, refusing unknown profiles and
   duplicate-only suggestions before the candidate reaches compile/sign/commit
 
+tools/hardening/hdn-policy-workflow:
+  run root-owned named policy review workflows above `hdn-policy-learn` and
+  `hdn-policy-merge`, rejecting unknown workflows, unsafe configs, unsafe
+  paths, and input/output path reuse before a UI or support tool can generate a
+  fragment or candidate policy
+
 tools/hardening/hdn-admin-broker:
   accept typed privileged product intents for prompt daemons, dispatch the ROFS
   helpers directly only after a root-owned product allowlist approves the
@@ -1835,6 +1845,7 @@ Core oracle groups:
 - Build userspace policy compiler prototype.
 - Build userspace policy-learning output from stable event records.
 - Build userspace policy-merge output from reviewed learner suggestions.
+- Build a named policy workflow facade above learning and merge helpers.
 - Build userspace status output from stable status records.
 - Build a product ROFS apply helper for post-boot read-only mount sealing.
 - Build a product ROFS transaction helper for package/update/recovery writes
