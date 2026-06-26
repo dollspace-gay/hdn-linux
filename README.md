@@ -38,8 +38,8 @@ authority alongside other high-risk io_uring registrations. Upstream protected
 path sysctls are now locked at hardened floors instead of merely defaulted on.
 The dmesg restriction sysctl is also locked at the restricted value, so kernel
 log disclosure cannot be re-enabled by a later sysctl write. Legacy TIOCSTI is
-forced off and the sysctl cannot be turned back on while TTY injection
-hardening is active.
+forced off, line-discipline autoload is disabled, and neither TTY sysctl can be
+turned back on while TTY injection hardening is active.
 
 The largest remaining gaps are richer RBAC/userspace integration, full desktop
 and recovery UI around the admin broker, distro package/update wiring, deeper
@@ -69,16 +69,16 @@ The hardening smoke suite in the development tree is run under QEMU. Latest
 local result before this publication checkpoint:
 
 ```text
-QEMU hardening smoke: 769/769 pass
+QEMU hardening smoke: 771/771 pass
 ```
 
 Patch artifact at this checkpoint:
 
 ```text
 patch: patches/hdn-linux-7.0.12.patch
-lines: 56,283
-bytes: 1,649,364
-sha256: 284797bd95514864d2b0ef642bc29bd5818d1916f976017d7f2213e5192ef8fb
+lines: 56,334
+bytes: 1,651,134
+sha256: 3ad9067cbf45e46bde12c598302f3c550d55ff22951bf3d69afccb4a0dbd3c45
 ```
 
 ## Development Rule

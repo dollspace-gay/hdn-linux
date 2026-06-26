@@ -1645,8 +1645,8 @@ Core oracle groups:
   that floor, and explicit `MFD_EXEC` memfd creation is rejected
 - `kernel.dmesg_restrict` starts at the restricted value and cannot be lowered
   below that floor while the exploit-mitigation baseline is enabled
-- `dev.tty.legacy_tiocsti` is forced off while TTY injection hardening is
-  enabled and cannot be re-enabled through sysctl
+- `dev.tty.legacy_tiocsti` and `dev.tty.ldisc_autoload` are forced off while
+  TTY injection hardening is enabled and cannot be re-enabled through sysctl
 - failed fork attempts emit a named `FORK_FAILED` audit reason and preserve the
   errno that caused process creation to fail
 - upstream protected symlink, hardlink, FIFO, and regular-file sticky-directory
