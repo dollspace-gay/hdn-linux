@@ -48,7 +48,9 @@ construction or locked behind `vm.unprivileged_userfaultfd=0`, while
 user-mode-only userfaultfd use remains available when the syscall is enabled.
 The shipped ROFS image list now has explicit `required` and `optional`
 mount entries, with `/usr` as the required sealed base image surface and
-common boot/app extension mountpoints sealed when present.
+common boot/app extension mountpoints sealed when present. Package/update hook
+templates now cover APT/dpkg, pacman/libalpm, DNF 4, DNF5/libdnf5, and systemd
+image sealing through stable `hdn-package-hook` actions.
 
 The largest remaining gaps are richer RBAC/userspace integration, full desktop
 and recovery UI around the admin broker, distro package/update wiring, deeper
@@ -78,16 +80,16 @@ The hardening smoke suite in the development tree is run under QEMU. Latest
 local result before this publication checkpoint:
 
 ```text
-QEMU hardening smoke: 781/781 pass
+QEMU hardening smoke: 783/783 pass
 ```
 
 Patch artifact at this checkpoint:
 
 ```text
 patch: patches/hdn-linux-7.0.12.patch
-lines: 56,891
-bytes: 1,667,191
-sha256: ee0218ef1b7f4b432cbcbaef65988650133342048b7ab87fae0bd5d677bdcea3
+lines: 56,951
+bytes: 1,670,759
+sha256: 501bd6ae3e31cbe7e49c0cad301c4edeb14d1894fb88d8115270b45d42b9e1f5
 ```
 
 ## Development Rule

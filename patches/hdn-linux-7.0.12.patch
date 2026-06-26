@@ -17507,8 +17507,8 @@ diff -urN linux-7.0.12/tools/hardening/Makefile linux-7.0.12-hdn/tools/hardening
 +.PHONY: all clean
 diff -urN linux-7.0.12/tools/hardening/README.rst linux-7.0.12-hdn/tools/hardening/README.rst
 --- linux-7.0.12/tools/hardening/README.rst	1969-12-31 18:00:00.000000000 -0600
-+++ linux-7.0.12-hdn/tools/hardening/README.rst	2026-06-26 15:29:11.101539522 -0500
-@@ -0,0 +1,1301 @@
++++ linux-7.0.12-hdn/tools/hardening/README.rst	2026-06-26 15:37:32.257522455 -0500
+@@ -0,0 +1,1304 @@
 +.. SPDX-License-Identifier: GPL-2.0-only
 +
 +Linux Hardening Policy Tools
@@ -17558,8 +17558,8 @@ diff -urN linux-7.0.12/tools/hardening/README.rst linux-7.0.12-hdn/tools/hardeni
 +``hook NAME system-transaction TRANSACTION`` or ``hook NAME image-seal SEAL``
 +and dispatches the matching backend without invoking a shell. The config must
 +be a regular root-owned file that is not group/world writable. Example product
-+hook snippets for APT/dpkg, pacman/libalpm, and systemd image sealing live
-+under ``tools/hardening/package-manager-hooks/``.
++hook snippets for APT/dpkg, pacman/libalpm, DNF 4, DNF5/libdnf5, and systemd
++image sealing live under ``tools/hardening/package-manager-hooks/``.
 +
 +``hdn-recovery-action`` is the named recovery facade for repair and rollback
 +UI. Recovery flows call a product-approved action name such as
@@ -17728,6 +17728,8 @@ diff -urN linux-7.0.12/tools/hardening/README.rst linux-7.0.12-hdn/tools/hardeni
 +  sudo install -D -o root -g root -m 0644 tools/hardening/package-hooks.conf /etc/hdn/package-hooks.conf
 +  sudo install -D -o root -g root -m 0644 tools/hardening/package-manager-hooks/apt/99-hdn-package-update /etc/apt/apt.conf.d/99-hdn-package-update
 +  sudo install -D -o root -g root -m 0644 tools/hardening/package-manager-hooks/pacman/99-hdn-package-update.hook /usr/share/libalpm/hooks/99-hdn-package-update.hook
++  sudo install -D -o root -g root -m 0644 tools/hardening/package-manager-hooks/dnf/99-hdn-package-update.action /etc/dnf/plugins/post-transaction-actions.d/99-hdn-package-update.action
++  sudo install -D -o root -g root -m 0644 tools/hardening/package-manager-hooks/dnf5/99-hdn-package-update.actions /etc/dnf/libdnf5-plugins/actions.d/99-hdn-package-update.actions
 +  sudo install -D -o root -g root -m 0644 tools/hardening/package-manager-hooks/systemd/hdn-image-seal.service /usr/lib/systemd/system/hdn-image-seal.service
 +  sudo install -D -o root -g root -m 0644 tools/hardening/recovery-actions.conf /etc/hdn/recovery-actions.conf
 +  sudo install -D -o root -g root -m 0644 tools/hardening/recovery-metadata.conf /etc/hdn/recovery-metadata.conf
@@ -18596,8 +18598,9 @@ diff -urN linux-7.0.12/tools/hardening/README.rst linux-7.0.12-hdn/tools/hardeni
 +hook names and unsafe hook configs are denied, while an approved
 +``package-update`` hook reaches the named transaction backend and preserves the
 +same read-only reseal invariant. The shipped package-manager hook snippets are
-+tested too: the APT/dpkg hook, pacman/libalpm hook, and image-seal systemd unit
-+all point at stable ``hdn-package-hook`` actions. Contained chroot file-handle
++tested too: the APT/dpkg hook, pacman/libalpm hook, DNF 4 action, DNF5/libdnf5
++action, and image-seal systemd unit all point at stable ``hdn-package-hook``
++actions. Contained chroot file-handle
 +open is denied, and contained chroot mount denial is tested with a profile that
 +can mount outside the chroot but is denied after ``chroot()``. The event
 +decoder names both the ``CHROOT_FILE_HANDLE`` and ``CHROOT_MOUNT`` reasons.
@@ -31982,6 +31985,34 @@ diff -urN linux-7.0.12/tools/hardening/package-manager-hooks/apt/99-hdn-package-
 +DPkg::Post-Invoke {
 +	"/usr/libexec/hdn-package-hook package-update";
 +};
+diff -urN linux-7.0.12/tools/hardening/package-manager-hooks/dnf/99-hdn-package-update.action linux-7.0.12-hdn/tools/hardening/package-manager-hooks/dnf/99-hdn-package-update.action
+--- linux-7.0.12/tools/hardening/package-manager-hooks/dnf/99-hdn-package-update.action	1969-12-31 18:00:00.000000000 -0600
++++ linux-7.0.12-hdn/tools/hardening/package-manager-hooks/dnf/99-hdn-package-update.action	2026-06-26 15:35:54.873539136 -0500
+@@ -0,0 +1,9 @@
++# SPDX-License-Identifier: GPL-2.0-only
++#
++# DNF 4 post-transaction-actions integration for HDN protected system updates.
++# Install as /etc/dnf/plugins/post-transaction-actions.d/99-hdn-package-update.action.
++#
++# The command is intentionally a stable product action. Raw mountpoints,
++# workers, broker tokens, and helper paths remain in root-owned HDN config.
++
++*:any:/usr/libexec/hdn-package-hook package-update
+diff -urN linux-7.0.12/tools/hardening/package-manager-hooks/dnf5/99-hdn-package-update.actions linux-7.0.12-hdn/tools/hardening/package-manager-hooks/dnf5/99-hdn-package-update.actions
+--- linux-7.0.12/tools/hardening/package-manager-hooks/dnf5/99-hdn-package-update.actions	1969-12-31 18:00:00.000000000 -0600
++++ linux-7.0.12-hdn/tools/hardening/package-manager-hooks/dnf5/99-hdn-package-update.actions	2026-06-26 15:35:54.873539136 -0500
+@@ -0,0 +1,11 @@
++# SPDX-License-Identifier: GPL-2.0-only
++#
++# DNF5/libdnf5 actions-plugin integration for HDN protected system updates.
++# Install under the distro's libdnf5 actions.d config directory, for example:
++# /etc/dnf/libdnf5-plugins/actions.d/99-hdn-package-update.actions.
++#
++# Empty package filter and direction fields make the action run once per
++# transaction instead of once per package. raise_error=1 fails loudly if the
++# product reseal hook fails.
++
++post_transaction:::enabled=host-only raise_error=1:/usr/libexec/hdn-package-hook package-update
 diff -urN linux-7.0.12/tools/hardening/package-manager-hooks/pacman/99-hdn-package-update.hook linux-7.0.12-hdn/tools/hardening/package-manager-hooks/pacman/99-hdn-package-update.hook
 --- linux-7.0.12/tools/hardening/package-manager-hooks/pacman/99-hdn-package-update.hook	1969-12-31 18:00:00.000000000 -0600
 +++ linux-7.0.12-hdn/tools/hardening/package-manager-hooks/pacman/99-hdn-package-update.hook	2026-06-25 16:17:23.445968454 -0500
@@ -32667,8 +32698,8 @@ diff -urN linux-7.0.12/tools/testing/selftests/hardening/hdn_elfnote_jit.c linux
 +}
 diff -urN linux-7.0.12/tools/testing/selftests/hardening/hdn_smoke.c linux-7.0.12-hdn/tools/testing/selftests/hardening/hdn_smoke.c
 --- linux-7.0.12/tools/testing/selftests/hardening/hdn_smoke.c	1969-12-31 18:00:00.000000000 -0600
-+++ linux-7.0.12-hdn/tools/testing/selftests/hardening/hdn_smoke.c	2026-06-26 15:27:18.541577408 -0500
-@@ -0,0 +1,22682 @@
++++ linux-7.0.12-hdn/tools/testing/selftests/hardening/hdn_smoke.c	2026-06-26 15:36:40.337529473 -0500
+@@ -0,0 +1,22707 @@
 +// SPDX-License-Identifier: GPL-2.0-only
 +
 +#define _GNU_SOURCE
@@ -33185,6 +33216,10 @@ diff -urN linux-7.0.12/tools/testing/selftests/hardening/hdn_smoke.c linux-7.0.1
 +#define HDN_APT_PACKAGE_HOOK_CONFIG "/hdn-package-manager-hooks/apt.conf"
 +#define HDN_PACMAN_PACKAGE_HOOK_CONFIG \
 +	"/hdn-package-manager-hooks/pacman.hook"
++#define HDN_DNF_PACKAGE_HOOK_CONFIG \
++	"/hdn-package-manager-hooks/dnf.action"
++#define HDN_DNF5_PACKAGE_HOOK_CONFIG \
++	"/hdn-package-manager-hooks/dnf5.actions"
 +#define HDN_IMAGE_SEAL_SERVICE_UNIT \
 +	"/hdn-package-manager-hooks/hdn-image-seal.service"
 +#define HDN_RECOVERY_ACTION_UNSAFE_CONFIG \
@@ -44139,6 +44174,21 @@ diff -urN linux-7.0.12/tools/testing/selftests/hardening/hdn_smoke.c linux-7.0.1
 +		"AbortOnFail");
 +}
 +
++static int dnf_package_hook_invokes_hdn_hook(void)
++{
++	return text_file_contains_all(
++		HDN_DNF_PACKAGE_HOOK_CONFIG, "*:any:",
++		"/usr/libexec/hdn-package-hook package-update", NULL);
++}
++
++static int dnf5_package_hook_invokes_hdn_hook(void)
++{
++	return text_file_contains_all(
++		HDN_DNF5_PACKAGE_HOOK_CONFIG, "post_transaction:::",
++		"enabled=host-only raise_error=1",
++		"/usr/libexec/hdn-package-hook package-update");
++}
++
 +static int image_seal_unit_invokes_hdn_hook(void)
 +{
 +	return text_file_contains_all(
@@ -49554,6 +49604,8 @@ diff -urN linux-7.0.12/tools/testing/selftests/hardening/hdn_smoke.c linux-7.0.1
 +		ksft_test_result_skip("recovery portal policy rollback succeeds\n");
 +		ksft_test_result_skip("APT package hook invokes hdn package hook\n");
 +		ksft_test_result_skip("pacman package hook invokes hdn package hook\n");
++		ksft_test_result_skip("DNF package hook invokes hdn package hook\n");
++		ksft_test_result_skip("DNF5 package hook invokes hdn package hook\n");
 +		ksft_test_result_skip("image seal unit invokes hdn package hook\n");
 +		ksft_test_result_skip("admin broker approval token is required when configured\n");
 +		ksft_test_result_skip("admin broker rejects unsafe approval token\n");
@@ -50206,6 +50258,10 @@ diff -urN linux-7.0.12/tools/testing/selftests/hardening/hdn_smoke.c linux-7.0.1
 +			    "APT package hook invokes hdn package hook");
 +	report_child_result(pacman_package_hook_invokes_hdn_hook(),
 +			    "pacman package hook invokes hdn package hook");
++	report_child_result(dnf_package_hook_invokes_hdn_hook(),
++			    "DNF package hook invokes hdn package hook");
++	report_child_result(dnf5_package_hook_invokes_hdn_hook(),
++			    "DNF5 package hook invokes hdn package hook");
 +	report_child_result(image_seal_unit_invokes_hdn_hook(),
 +			    "image seal unit invokes hdn package hook");
 +	report_child_result(broker_approval_missing_token_denied(),
@@ -55010,7 +55066,7 @@ diff -urN linux-7.0.12/tools/testing/selftests/hardening/hdn_smoke.c linux-7.0.1
 +	if (access(HDN_STATUS, R_OK))
 +		ksft_exit_skip("hardening securityfs status not present\n");
 +
-+	ksft_set_plan(781);
++	ksft_set_plan(783);
 +	test_securityfs_status();
 +	test_symbol_test_module_load();
 +	test_securityfs_status_contains("abi_version: 77",
@@ -55694,8 +55750,8 @@ diff -urN linux-7.0.12/tools/testing/selftests/hardening/role.policy linux-7.0.1
 +use-role 2 desktop-admin
 diff -urN linux-7.0.12/tools/testing/selftests/hardening/run-qemu-smoke.sh linux-7.0.12-hdn/tools/testing/selftests/hardening/run-qemu-smoke.sh
 --- linux-7.0.12/tools/testing/selftests/hardening/run-qemu-smoke.sh	1969-12-31 18:00:00.000000000 -0600
-+++ linux-7.0.12-hdn/tools/testing/selftests/hardening/run-qemu-smoke.sh	2026-06-26 15:23:55.805577358 -0500
-@@ -0,0 +1,1017 @@
++++ linux-7.0.12-hdn/tools/testing/selftests/hardening/run-qemu-smoke.sh	2026-06-26 15:36:56.829524537 -0500
+@@ -0,0 +1,1021 @@
 +#!/bin/sh
 +# SPDX-License-Identifier: GPL-2.0
 +
@@ -55729,7 +55785,7 @@ diff -urN linux-7.0.12/tools/testing/selftests/hardening/run-qemu-smoke.sh linux
 +QEMU_MEMORY=${QEMU_MEMORY:-1024M}
 +QEMU_SMP=${QEMU_SMP:-2}
 +QEMU_MACHINE=${QEMU_MACHINE:-q35,accel=tcg}
-+HDN_SMOKE_EXPECTED_PASS=${HDN_SMOKE_EXPECTED_PASS:-781}
++HDN_SMOKE_EXPECTED_PASS=${HDN_SMOKE_EXPECTED_PASS:-783}
 +WORK=${HDN_QEMU_WORK:-"${TMPDIR:-/tmp}/hdn-qemu-smoke.$$"}
 +LOG=${HDN_QEMU_LOG:-"$WORK/qemu.log"}
 +QMP=${HDN_QEMU_QMP:-"$WORK/qmp.sock"}
@@ -56117,6 +56173,10 @@ diff -urN linux-7.0.12/tools/testing/selftests/hardening/run-qemu-smoke.sh linux
 +	"$WORK/initramfs/hdn-package-manager-hooks/apt.conf"
 +cp "$ROOT/tools/hardening/package-manager-hooks/pacman/99-hdn-package-update.hook" \
 +	"$WORK/initramfs/hdn-package-manager-hooks/pacman.hook"
++cp "$ROOT/tools/hardening/package-manager-hooks/dnf/99-hdn-package-update.action" \
++	"$WORK/initramfs/hdn-package-manager-hooks/dnf.action"
++cp "$ROOT/tools/hardening/package-manager-hooks/dnf5/99-hdn-package-update.actions" \
++	"$WORK/initramfs/hdn-package-manager-hooks/dnf5.actions"
 +cp "$ROOT/tools/hardening/package-manager-hooks/systemd/hdn-image-seal.service" \
 +	"$WORK/initramfs/hdn-package-manager-hooks/hdn-image-seal.service"
 +cat > "$WORK/initramfs/hdn-admin-broker.conf" <<'EOF'

@@ -786,8 +786,9 @@ root-owned and fails closed if it is missing or writable. QEMU proves unknown
 hook names and unsafe configs are denied without changing the sealed mount,
 and proves an approved package-update hook reaches the named system
 transaction backend while preserving the read-only reseal invariant. The source
-tree also ships product integration snippets for APT/dpkg, pacman/libalpm, and
-a systemd image-seal unit, all pointing at stable hook names.
+tree also ships product integration snippets for APT/dpkg, pacman/libalpm,
+DNF 4, DNF5/libdnf5, and a systemd image-seal unit, all pointing at stable
+hook names.
 `hdn-recovery-action` is the recovery UI facade above the same typed backends.
 Product recovery config maps stable action names to either brokered policy
 rollback or a named system transaction, so recovery flows offer repair actions
@@ -1322,8 +1323,9 @@ tools/hardening/hdn-package-hook:
   not know backend helper paths
 
 tools/hardening/package-manager-hooks/:
-  provide installable APT/dpkg, pacman/libalpm, and systemd image-seal
-  integration snippets that call hdn-package-hook stable actions
+  provide installable APT/dpkg, pacman/libalpm, DNF 4, DNF5/libdnf5, and
+  systemd image-seal integration snippets that call hdn-package-hook stable
+  actions
 
 tools/hardening/hdn-recovery-action:
   map recovery UI action names from a root-owned product config to brokered
@@ -1622,8 +1624,9 @@ Core oracle groups:
 - the package hook helper rejects unknown package-manager hook names, rejects
   unsafe hook configs, and runs approved named hooks through the selected
   transaction or image-seal backend
-- package-manager hook snippets for APT/dpkg, pacman/libalpm, and the
-  image-seal systemd unit invoke the stable hdn-package-hook actions
+- package-manager hook snippets for APT/dpkg, pacman/libalpm, DNF 4,
+  DNF5/libdnf5, and the image-seal systemd unit invoke the stable
+  hdn-package-hook actions
 - the recovery action helper rejects unknown recovery action names, rejects
   unsafe recovery configs, runs approved policy rollback through the broker,
   and runs approved repair actions through named system transactions
