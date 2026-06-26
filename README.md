@@ -34,7 +34,8 @@ USB monitor capture is now gated separately from USB attach so device brokers
 do not implicitly gain traffic-sniffing authority. Memfd defaults are now
 locked to enforced noexec mode, including rejection of explicit executable
 memfd creation. io_uring SQPOLL setup is now behind the restricted-operation
-authority alongside other high-risk io_uring registrations. Upstream protected
+authority alongside other high-risk io_uring registrations, and
+`kernel.io_uring_disabled` can only be tightened until reboot. Upstream protected
 path sysctls are now locked at hardened floors instead of merely defaulted on.
 The dmesg restriction sysctl is also locked at the restricted value, so kernel
 log disclosure cannot be re-enabled by a later sysctl write. Legacy TIOCSTI is
@@ -102,16 +103,16 @@ The hardening smoke suite in the development tree is run under QEMU. Latest
 local result before this publication checkpoint:
 
 ```text
-QEMU hardening smoke: 799/799 pass
+QEMU hardening smoke: 801/801 pass
 ```
 
 Patch artifact at this checkpoint:
 
 ```text
 patch: patches/hdn-linux-7.0.12.patch
-lines: 59,917
-bytes: 1,760,252
-sha256: da28e31f4ad24ab4f5df6e96c585f6f0dd8fdac51c903c664813515538622bac
+lines: 60,014
+bytes: 1,763,126
+sha256: 9cb78b388096ff27c8825dee585eeedbf8298829bfdb02be9095a4d1368b87a3
 ```
 
 ## Development Rule

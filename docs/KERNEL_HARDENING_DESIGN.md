@@ -451,6 +451,7 @@ Authority gates should cover:
 - kernel log access.
 - io_uring operations that expand attack surface, including SQPOLL setup and
   privileged registration families.
+- one-way tightening of `kernel.io_uring_disabled` for recovery or image policy.
 - new USB device attachment and usbmon capture.
 - non-local socket creation, outbound connections, and server-side bind/listen/accept.
 
@@ -1316,6 +1317,7 @@ kernel/kexec*:
 io_uring/:
   gate SQPOLL setup and registration operations that meaningfully expand attack
   surface
+  make the global io_uring disable sysctl monotonic once tightened
 
 ipc/:
   harden overly permissive System V IPC and POSIX mqueue access
@@ -1768,6 +1770,8 @@ Core oracle groups:
   ioctls or block io_uring discard
 - io_uring SQPOLL setup and selected restricted registrations are denied
   without io_uring restricted-operation authority
+- `kernel.io_uring_disabled` reports as locked in status and cannot be lowered
+  after being tightened
 - new USB device attachment denied without USB attach authority
 - usbmon capture denied without USB monitor authority
 - cross-profile signal sends denied without signal authority

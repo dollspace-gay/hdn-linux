@@ -5253,7 +5253,7 @@ diff -urN linux-7.0.12/include/uapi/linux/hardening.h linux-7.0.12-hdn/include/u
 +#endif /* _UAPI_LINUX_HARDENING_H */
 diff -urN linux-7.0.12/io_uring/io_uring.c linux-7.0.12-hdn/io_uring/io_uring.c
 --- linux-7.0.12/io_uring/io_uring.c	2026-06-09 05:32:51.000000000 -0500
-+++ linux-7.0.12-hdn/io_uring/io_uring.c	2026-06-26 14:18:46.577922766 -0500
++++ linux-7.0.12-hdn/io_uring/io_uring.c	2026-06-26 17:18:34.376964093 -0500
 @@ -59,6 +59,7 @@
  #include <linux/audit.h>
  #include <linux/security.h>
@@ -5262,7 +5262,50 @@ diff -urN linux-7.0.12/io_uring/io_uring.c linux-7.0.12-hdn/io_uring/io_uring.c
  
  #define CREATE_TRACE_POINTS
  #include <trace/events/io_uring.h>
-@@ -2820,6 +2821,16 @@
+@@ -128,13 +129,41 @@
+ static int __read_mostly sysctl_io_uring_group = -1;
+ 
+ #ifdef CONFIG_SYSCTL
++static int io_uring_disabled_handler(const struct ctl_table *table, int write,
++				     void *buffer, size_t *lenp,
++				     loff_t *ppos)
++{
++	struct ctl_table tmp;
++	int old;
++	int val;
++	int ret;
++
++	if (!write ||
++	    !IS_ENABLED(CONFIG_SECURITY_HARDENING_IO_URING_SYSCTL_LOCK))
++		return proc_dointvec_minmax(table, write, buffer, lenp, ppos);
++
++	old = READ_ONCE(sysctl_io_uring_disabled);
++	val = old;
++	tmp = *table;
++	tmp.data = &val;
++
++	ret = proc_dointvec_minmax(&tmp, write, buffer, lenp, ppos);
++	if (ret)
++		return ret;
++	if (val < old)
++		return -EINVAL;
++
++	WRITE_ONCE(sysctl_io_uring_disabled, val);
++	return 0;
++}
++
+ static const struct ctl_table kernel_io_uring_disabled_table[] = {
+ 	{
+ 		.procname	= "io_uring_disabled",
+ 		.data		= &sysctl_io_uring_disabled,
+ 		.maxlen		= sizeof(sysctl_io_uring_disabled),
+ 		.mode		= 0644,
+-		.proc_handler	= proc_dointvec_minmax,
++		.proc_handler	= io_uring_disabled_handler,
+ 		.extra1		= SYSCTL_ZERO,
+ 		.extra2		= SYSCTL_TWO,
+ 	},
+@@ -2820,6 +2849,16 @@
  	return 0;
  }
  
@@ -5279,7 +5322,7 @@ diff -urN linux-7.0.12/io_uring/io_uring.c linux-7.0.12-hdn/io_uring/io_uring.c
  static int io_uring_fill_params(struct io_uring_params *p)
  {
  	unsigned entries = p->sq_entries;
-@@ -2873,6 +2884,10 @@
+@@ -2873,6 +2912,10 @@
  	if (ret)
  		return ret;
  
@@ -9390,8 +9433,8 @@ diff -urN linux-7.0.12/security/commoncap.c linux-7.0.12-hdn/security/commoncap.
  }
 diff -urN linux-7.0.12/security/hardening/Kconfig linux-7.0.12-hdn/security/hardening/Kconfig
 --- linux-7.0.12/security/hardening/Kconfig	1969-12-31 18:00:00.000000000 -0600
-+++ linux-7.0.12-hdn/security/hardening/Kconfig	2026-06-26 16:55:34.837078085 -0500
-@@ -0,0 +1,613 @@
++++ linux-7.0.12-hdn/security/hardening/Kconfig	2026-06-26 17:18:12.072970718 -0500
+@@ -0,0 +1,625 @@
 +# SPDX-License-Identifier: GPL-2.0-only
 +menuconfig SECURITY_HARDENING
 +	bool "Hardening contract layer"
@@ -9973,6 +10016,17 @@ diff -urN linux-7.0.12/security/hardening/Kconfig linux-7.0.12-hdn/security/hard
 +	  /dev/userfaultfd remains controlled by normal device permissions for
 +	  trusted virtualization and checkpoint/restore services.
 +
++config SECURITY_HARDENING_IO_URING_SYSCTL_LOCK
++	bool "Make io_uring disable sysctl monotonic"
++	default y
++	depends on IO_URING && SYSCTL
++	help
++	  Allow product policy, image sealing, or recovery flows to tighten
++	  kernel.io_uring_disabled while preventing later sysctl writes from
++	  lowering the restriction again. This keeps ordinary io_uring usable by
++	  default while making emergency or image-specific io_uring lockdown a
++	  one-way operation until reboot.
++
 +config SECURITY_HARDENING_EXPLOIT_MITIGATIONS
 +	bool "Enable exploit mitigation baseline"
 +	default y
@@ -9996,8 +10050,9 @@ diff -urN linux-7.0.12/security/hardening/Kconfig linux-7.0.12-hdn/security/hard
 +	  module W^X, locked Yama relational ptrace scope, locked dmesg
 +	  restriction, locked setuid coredump suppression, kernel
 +	  pointer/symbol disclosure restriction, a locked low-address mmap floor,
-+	  locked unprivileged userfaultfd kernel-fault handling, and kCFI when
-+	  the selected architecture and compiler support them.
++	  locked unprivileged userfaultfd kernel-fault handling, monotonic
++	  io_uring disablement, and kCFI when the selected architecture and
++	  compiler support them.
 +
 +	  This is intentionally a build-time default layer rather than a policy
 +	  prompt. Product policy can decide who may perform dangerous actions;
@@ -10014,8 +10069,8 @@ diff -urN linux-7.0.12/security/hardening/Makefile linux-7.0.12-hdn/security/har
 +obj-$(CONFIG_SECURITY_HARDENING) += core.o
 diff -urN linux-7.0.12/security/hardening/core.c linux-7.0.12-hdn/security/hardening/core.c
 --- linux-7.0.12/security/hardening/core.c	1969-12-31 18:00:00.000000000 -0600
-+++ linux-7.0.12-hdn/security/hardening/core.c	2026-06-26 16:55:58.405064964 -0500
-@@ -0,0 +1,7357 @@
++++ linux-7.0.12-hdn/security/hardening/core.c	2026-06-26 17:18:23.616970077 -0500
+@@ -0,0 +1,7363 @@
 +// SPDX-License-Identifier: GPL-2.0-only
 +
 +#include <linux/binfmts.h>
@@ -10166,6 +10221,7 @@ diff -urN linux-7.0.12/security/hardening/core.c linux-7.0.12-hdn/security/harde
 +#define HDN_MITIGATION2_USERFAULTFD_RESTRICT	(1ULL << 0)
 +#define HDN_MITIGATION2_PAGE_TABLE_CHECK	(1ULL << 1)
 +#define HDN_MITIGATION2_MMAP_MIN_ADDR		(1ULL << 2)
++#define HDN_MITIGATION2_IO_URING_SYSCTL_LOCK	(1ULL << 3)
 +
 +struct hdn_mitigation_state {
 +	u32 abi_version;
@@ -10496,6 +10552,8 @@ diff -urN linux-7.0.12/security/hardening/core.c linux-7.0.12-hdn/security/harde
 +		flags |= HDN_MITIGATION2_PAGE_TABLE_CHECK;
 +	if (IS_ENABLED(CONFIG_SECURITY_HARDENING_MMAP_MIN_ADDR))
 +		flags |= HDN_MITIGATION2_MMAP_MIN_ADDR;
++	if (IS_ENABLED(CONFIG_SECURITY_HARDENING_IO_URING_SYSCTL_LOCK))
++		flags |= HDN_MITIGATION2_IO_URING_SYSCTL_LOCK;
 +
 +	return flags;
 +}
@@ -16959,6 +17017,9 @@ diff -urN linux-7.0.12/security/hardening/core.c linux-7.0.12-hdn/security/harde
 +		   hdn_mitigation2_enabled(HDN_MITIGATION2_PAGE_TABLE_CHECK));
 +	seq_printf(m, "mitigation_mmap_min_addr: %u\n",
 +		   hdn_mitigation2_enabled(HDN_MITIGATION2_MMAP_MIN_ADDR));
++	seq_printf(m, "mitigation_io_uring_sysctl_lock: %u\n",
++		   hdn_mitigation2_enabled(
++			   HDN_MITIGATION2_IO_URING_SYSCTL_LOCK));
 +	seq_printf(m, "mitigation_privexec_arg_stack_limits: %u\n",
 +		   IS_ENABLED(CONFIG_SECURITY_HARDENING_PROC_MEMMAP));
 +	seq_printf(m, "mitigation_memfd_noexec: %u\n",
@@ -34856,8 +34917,8 @@ diff -urN linux-7.0.12/tools/testing/selftests/hardening/hdn_elfnote_jit.c linux
 +}
 diff -urN linux-7.0.12/tools/testing/selftests/hardening/hdn_smoke.c linux-7.0.12-hdn/tools/testing/selftests/hardening/hdn_smoke.c
 --- linux-7.0.12/tools/testing/selftests/hardening/hdn_smoke.c	1969-12-31 18:00:00.000000000 -0600
-+++ linux-7.0.12-hdn/tools/testing/selftests/hardening/hdn_smoke.c	2026-06-26 17:09:32.516996810 -0500
-@@ -0,0 +1,23483 @@
++++ linux-7.0.12-hdn/tools/testing/selftests/hardening/hdn_smoke.c	2026-06-26 17:19:02.868952977 -0500
+@@ -0,0 +1,23519 @@
 +// SPDX-License-Identifier: GPL-2.0-only
 +
 +#define _GNU_SOURCE
@@ -35054,6 +35115,7 @@ diff -urN linux-7.0.12/tools/testing/selftests/hardening/hdn_smoke.c linux-7.0.1
 +#define HDN_PERF_EVENT_PARANOID "/proc/sys/kernel/perf_event_paranoid"
 +#define HDN_YAMA_PTRACE_SCOPE "/proc/sys/kernel/yama/ptrace_scope"
 +#define HDN_DMESG_RESTRICT "/proc/sys/kernel/dmesg_restrict"
++#define HDN_IO_URING_DISABLED "/proc/sys/kernel/io_uring_disabled"
 +#define HDN_KPTR_RESTRICT "/proc/sys/kernel/kptr_restrict"
 +#define HDN_MEMFD_NOEXEC "/proc/sys/vm/memfd_noexec"
 +#define HDN_MMAP_MIN_ADDR "/proc/sys/vm/mmap_min_addr"
@@ -57446,6 +57508,37 @@ diff -urN linux-7.0.12/tools/testing/selftests/hardening/hdn_smoke.c linux-7.0.1
 +	return value == 0 ? 0 : 1;
 +}
 +
++static int io_uring_disabled_sysctl_monotonic(void)
++{
++	long value;
++	int ret;
++
++	ret = read_long_file(HDN_IO_URING_DISABLED, &value);
++	if (ret == -ENOENT)
++		return KSFT_SKIP;
++	if (ret || value < 0 || value > 2)
++		return 2;
++
++	if (value == 0) {
++		ret = write_text_file(HDN_IO_URING_DISABLED, "1\n");
++		if (ret)
++			return 2;
++		value = 1;
++	}
++
++	ret = write_text_file(HDN_IO_URING_DISABLED,
++			      value == 2 ? "1\n" : "0\n");
++	if (!ret)
++		return 1;
++	if (ret == -ENOENT)
++		return KSFT_SKIP;
++
++	ret = read_long_file(HDN_IO_URING_DISABLED, &value);
++	if (ret)
++		return 2;
++	return value >= 1 ? 0 : 1;
++}
++
 +static int kptr_restrict_sysctl_locked(void)
 +{
 +	int ret;
@@ -57976,7 +58069,7 @@ diff -urN linux-7.0.12/tools/testing/selftests/hardening/hdn_smoke.c linux-7.0.1
 +	if (access(HDN_STATUS, R_OK))
 +		ksft_exit_skip("hardening securityfs status not present\n");
 +
-+	ksft_set_plan(799);
++	ksft_set_plan(801);
 +	test_securityfs_status();
 +	test_symbol_test_module_load();
 +	test_securityfs_status_contains("abi_version: 77",
@@ -58039,6 +58132,8 @@ diff -urN linux-7.0.12/tools/testing/selftests/hardening/hdn_smoke.c linux-7.0.1
 +			    "mmap_min_addr sysctl cannot be lowered below floor");
 +	run_as_unprivileged(low_fixed_mmap_denied,
 +			    "unprivileged low fixed mmap below mmap_min_addr is denied");
++	test_securityfs_status_contains("mitigation_io_uring_sysctl_lock: 1",
++					"hardening status reports monotonic io_uring sysctl");
 +	test_securityfs_status_contains("mitigation_privexec_arg_stack_limits: 1",
 +					"hardening status reports privileged exec argument and stack limits");
 +	test_int_file_equals(HDN_SUID_DUMPABLE, 0,
@@ -58320,6 +58415,8 @@ diff -urN linux-7.0.12/tools/testing/selftests/hardening/hdn_smoke.c linux-7.0.1
 +	report_child_result(tty_tioclinux_denied(),
 +			    "TTY TIOCLINUX injection requires authority");
 +	test_unprivileged_io_uring_restricted_denied();
++	report_child_result(io_uring_disabled_sysctl_monotonic(),
++			    "io_uring disabled sysctl cannot be lowered after restriction");
 +	test_init_module_denied();
 +	test_unsigned_policy_denied();
 +	test_securityfs_events_contains("event_id=",
@@ -58684,7 +58781,7 @@ diff -urN linux-7.0.12/tools/testing/selftests/hardening/role.policy linux-7.0.1
 +use-role 2 desktop-admin
 diff -urN linux-7.0.12/tools/testing/selftests/hardening/run-qemu-smoke.sh linux-7.0.12-hdn/tools/testing/selftests/hardening/run-qemu-smoke.sh
 --- linux-7.0.12/tools/testing/selftests/hardening/run-qemu-smoke.sh	1969-12-31 18:00:00.000000000 -0600
-+++ linux-7.0.12-hdn/tools/testing/selftests/hardening/run-qemu-smoke.sh	2026-06-26 17:09:46.508994582 -0500
++++ linux-7.0.12-hdn/tools/testing/selftests/hardening/run-qemu-smoke.sh	2026-06-26 17:19:08.168963682 -0500
 @@ -0,0 +1,1053 @@
 +#!/bin/sh
 +# SPDX-License-Identifier: GPL-2.0
@@ -58719,7 +58816,7 @@ diff -urN linux-7.0.12/tools/testing/selftests/hardening/run-qemu-smoke.sh linux
 +QEMU_MEMORY=${QEMU_MEMORY:-1024M}
 +QEMU_SMP=${QEMU_SMP:-2}
 +QEMU_MACHINE=${QEMU_MACHINE:-q35,accel=tcg}
-+HDN_SMOKE_EXPECTED_PASS=${HDN_SMOKE_EXPECTED_PASS:-799}
++HDN_SMOKE_EXPECTED_PASS=${HDN_SMOKE_EXPECTED_PASS:-801}
 +WORK=${HDN_QEMU_WORK:-"${TMPDIR:-/tmp}/hdn-qemu-smoke.$$"}
 +LOG=${HDN_QEMU_LOG:-"$WORK/qemu.log"}
 +QMP=${HDN_QEMU_QMP:-"$WORK/qmp.sock"}
