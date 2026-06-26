@@ -26,10 +26,11 @@ This is not a finished distro kernel yet. Current rough parity estimates:
 
 Recent coverage includes signed/sealed HDN policy, authority-gated BPF/perf/proc
 disclosure, module admission hardening, read-only mount controls, object policy
-rules, chroot restrictions, TPE-style execution controls, IPC/socket/device
-hardening, privileged-exec restrictions, RWX/textrel/exec-stack controls,
-thread-stack placement randomization, proc-visible kernel symbol redaction,
-expanded BPF metadata/query gating, and broad audit/event decoding.
+rules including AF_UNIX connect and bind controls, chroot restrictions,
+TPE-style execution controls, IPC/socket/device hardening, privileged-exec
+restrictions, RWX/textrel/exec-stack controls, thread-stack placement
+randomization, proc-visible kernel symbol redaction, expanded BPF metadata/query
+gating, and broad audit/event decoding.
 Authorized `kernel.modprobe` writes now also validate the helper path as an
 absolute, symlink-free, root-owned executable through non-writable ancestry.
 Upstream one-way module and kexec load disable sysctls are reported in sealed
@@ -112,16 +113,16 @@ The hardening smoke suite in the development tree is run under QEMU. Latest
 local result before this publication checkpoint:
 
 ```text
-QEMU hardening smoke: 810/810 pass
+QEMU hardening smoke: 813/813 pass
 ```
 
 Patch artifact at this checkpoint:
 
 ```text
 patch: patches/hdn-linux-7.0.12.patch
-lines: 60,632
-bytes: 1,782,003
-sha256: e8bff3ecbf1c439c5c4979dda7d0ba951196c194c8b09c169eb89ed0b284cd97
+lines: 60,767
+bytes: 1,790,176
+sha256: a34c86a641f3a568c00a2d75c9240d4733e688de355c8bef38e9e79085b3e2ac
 ```
 
 ## Development Rule
