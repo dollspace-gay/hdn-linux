@@ -1531,6 +1531,8 @@ Core oracle groups:
 - compatibility exceptions are profile-scoped
 - page-table checking is enforced on architectures that support upstream
   `PAGE_TABLE_CHECK`
+- `vm.mmap_min_addr` has a locked low-address floor and unprivileged fixed
+  mappings below that floor are denied
 
 ### Attack Surface
 
@@ -1720,6 +1722,8 @@ Core oracle groups:
   below that floor while the exploit-mitigation baseline is enabled
 - `fs.suid_dumpable` starts disabled and cannot be raised while the
   exploit-mitigation baseline is enabled
+- `vm.mmap_min_addr` starts at or above the HDN 64 KiB floor and cannot be
+  lowered below that floor while the exploit-mitigation baseline is enabled
 - `vm.unprivileged_userfaultfd` cannot be raised when `CONFIG_USERFAULTFD` is
   enabled; when that syscall is not built, the same attack surface is absent
 - `dev.tty.legacy_tiocsti` and `dev.tty.ldisc_autoload` are forced off while
