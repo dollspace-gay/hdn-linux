@@ -439,8 +439,10 @@ Authority gates should cover:
   read bypass.
 - user namespace creation.
 - kernel module load.
+- one-way global module-load disablement through `kernel.modules_disabled`.
 - firmware load.
 - kexec.
+- one-way global kexec-load disablement through `kernel.kexec_load_disabled`.
 - raw I/O, port I/O, and x86 VM86 mode.
 - debugfs and tracefs visibility and mutation.
 - kernel symbol visibility, user-driven symbol resolution, symbolic pointer
@@ -612,6 +614,8 @@ Default rules:
   root profiles from redirecting future autoload execution.
 - Authorized helper-path writes must still be empty or point to an absolute,
   symlink-free, root-owned executable through non-group/world-writable ancestry.
+- Product policy can irreversibly close later module loads for the boot through
+  upstream `kernel.modules_disabled`; HDN reports that lockout in sealed status.
 - Approval records exact module identity, signer, version, target kernel ABI, and package source.
 - Approval can be one-shot, until reboot, until update, or permanent.
 - Permanent approval is stored as a signed local policy transaction.
@@ -1210,6 +1214,7 @@ mm/mmap.c and mm/mprotect paths:
 
 kernel/module/:
   authorize module admission and seal module memory
+  report upstream module-load lockout availability
 
 drivers/base/firmware_loader/:
   authorize firmware admission
@@ -1315,6 +1320,7 @@ fs/sysfs/ and driver core:
 
 kernel/kexec*:
   authorize kexec image load
+  report upstream kexec-load lockout availability
 
 io_uring/:
   gate SQPOLL setup and registration operations that meaningfully expand attack
@@ -1597,6 +1603,7 @@ Core oracle groups:
 - implicit module autoload denied without profile authority
 - modprobe helper path writes denied without module-autoload authority
 - unsafe modprobe helper path writes denied even with module-autoload authority
+- one-way module and kexec load lockouts reported in sealed status
 - same-binary daemon worker crashes temporarily delay later daemon forks
 - successful exec operations emit structured exec audit events
 - successful exec operations emit privacy-preserving `EXEC_ARGS` argument and
@@ -1741,6 +1748,8 @@ Core oracle groups:
   lowered below that floor while the exploit-mitigation baseline is enabled
 - `vm.unprivileged_userfaultfd` cannot be raised when `CONFIG_USERFAULTFD` is
   enabled; when that syscall is not built, the same attack surface is absent
+- upstream `kernel.modules_disabled` and `kernel.kexec_load_disabled` are
+  reported as available one-way code-loading lockouts when built
 - `dev.tty.legacy_tiocsti` and `dev.tty.ldisc_autoload` are forced off while
   TTY injection hardening is enabled and cannot be re-enabled through sysctl
 - failed fork attempts emit a named `FORK_FAILED` audit reason and preserve the
@@ -1774,6 +1783,8 @@ Core oracle groups:
 - io_uring SQPOLL setup and selected restricted registrations are denied
   without io_uring restricted-operation authority
 - `kernel.io_uring_disabled` reports as locked in status and cannot be lowered
+  after being tightened
+- `kernel.modules_disabled` and `kernel.kexec_load_disabled` cannot be lowered
   after being tightened
 - new USB device attachment denied without USB attach authority
 - usbmon capture denied without USB monitor authority
