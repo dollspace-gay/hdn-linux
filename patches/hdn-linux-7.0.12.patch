@@ -8068,6 +8068,25 @@ diff -urN linux-7.0.12/mm/Kconfig linux-7.0.12-hdn/mm/Kconfig
  	default n
  	depends on !SLUB_TINY
  	bool "Randomize slab caches for normal kmalloc"
+diff -urN linux-7.0.12/mm/Kconfig.debug linux-7.0.12-hdn/mm/Kconfig.debug
+--- linux-7.0.12/mm/Kconfig.debug	2026-06-09 05:32:51.000000000 -0500
++++ linux-7.0.12-hdn/mm/Kconfig.debug	2026-06-26 16:31:25.737194706 -0500
+@@ -124,6 +124,7 @@
+ 	depends on ARCH_SUPPORTS_PAGE_TABLE_CHECK
+ 	depends on EXCLUSIVE_SYSTEM_RAM
+ 	select PAGE_EXTENSION
++	default y if SECURITY_HARDENING_EXPLOIT_MITIGATIONS
+ 	help
+ 	  Check that anonymous page is not being mapped twice with read write
+ 	  permissions. Check that anonymous and file pages are not being
+@@ -136,6 +137,7 @@
+ config PAGE_TABLE_CHECK_ENFORCED
+ 	bool "Enforce the page table checking by default"
+ 	depends on PAGE_TABLE_CHECK
++	default y if SECURITY_HARDENING_EXPLOIT_MITIGATIONS
+ 	help
+ 	  Always enable page table checking.  By default the page table checking
+ 	  is disabled, and can be optionally enabled via page_table_check=on
 diff -urN linux-7.0.12/mm/madvise.c linux-7.0.12-hdn/mm/madvise.c
 --- linux-7.0.12/mm/madvise.c	2026-06-09 05:32:51.000000000 -0500
 +++ linux-7.0.12-hdn/mm/madvise.c	2026-06-26 03:09:48.303251204 -0500
@@ -9371,8 +9390,8 @@ diff -urN linux-7.0.12/security/commoncap.c linux-7.0.12-hdn/security/commoncap.
  }
 diff -urN linux-7.0.12/security/hardening/Kconfig linux-7.0.12-hdn/security/hardening/Kconfig
 --- linux-7.0.12/security/hardening/Kconfig	1969-12-31 18:00:00.000000000 -0600
-+++ linux-7.0.12-hdn/security/hardening/Kconfig	2026-06-26 15:07:12.105686607 -0500
-@@ -0,0 +1,600 @@
++++ linux-7.0.12-hdn/security/hardening/Kconfig	2026-06-26 16:31:47.585196762 -0500
+@@ -0,0 +1,603 @@
 +# SPDX-License-Identifier: GPL-2.0-only
 +menuconfig SECURITY_HARDENING
 +	bool "Hardening contract layer"
@@ -9954,14 +9973,17 @@ diff -urN linux-7.0.12/security/hardening/Kconfig linux-7.0.12-hdn/security/hard
 +	select STRICT_KERNEL_RWX if ARCH_HAS_STRICT_KERNEL_RWX
 +	select STRICT_MODULE_RWX if ARCH_HAS_STRICT_MODULE_RWX && MODULES
 +	select LIST_HARDENED
++	select PAGE_TABLE_CHECK if ARCH_SUPPORTS_PAGE_TABLE_CHECK && EXCLUSIVE_SYSTEM_RAM
++	select PAGE_TABLE_CHECK_ENFORCED if ARCH_SUPPORTS_PAGE_TABLE_CHECK && EXCLUSIVE_SYSTEM_RAM
 +	help
 +	  Enable the upstream exploit-mitigation baseline expected by this
 +	  hardening contract layer. This makes the distro profile prefer
 +	  memory initialization, hardened usercopy, fortified string/memory
 +	  helpers, slab freelist hardening and randomization, non-merged slab
-+	  caches, vmapped kernel stacks, kernel stack offset randomization,
-+	  strong stack protector, structure layout randomization, strict kernel
-+	  and module W^X, locked Yama relational ptrace scope, locked dmesg
++	  caches, enforced page-table checking on supported architectures,
++	  vmapped kernel stacks, kernel stack offset randomization, strong
++	  stack protector, structure layout randomization, strict kernel and
++	  module W^X, locked Yama relational ptrace scope, locked dmesg
 +	  restriction, locked setuid coredump suppression, kernel
 +	  pointer/symbol disclosure restriction, locked unprivileged
 +	  userfaultfd kernel-fault handling, and kCFI when the selected
@@ -9982,8 +10004,8 @@ diff -urN linux-7.0.12/security/hardening/Makefile linux-7.0.12-hdn/security/har
 +obj-$(CONFIG_SECURITY_HARDENING) += core.o
 diff -urN linux-7.0.12/security/hardening/core.c linux-7.0.12-hdn/security/hardening/core.c
 --- linux-7.0.12/security/hardening/core.c	1969-12-31 18:00:00.000000000 -0600
-+++ linux-7.0.12-hdn/security/hardening/core.c	2026-06-26 16:21:36.401264237 -0500
-@@ -0,0 +1,7347 @@
++++ linux-7.0.12-hdn/security/hardening/core.c	2026-06-26 16:31:25.741194706 -0500
+@@ -0,0 +1,7352 @@
 +// SPDX-License-Identifier: GPL-2.0-only
 +
 +#include <linux/binfmts.h>
@@ -10132,6 +10154,7 @@ diff -urN linux-7.0.12/security/hardening/core.c linux-7.0.12-hdn/security/harde
 +#define HDN_MITIGATION_PROC_MEMMAP_REDACT	(1ULL << 63)
 +
 +#define HDN_MITIGATION2_USERFAULTFD_RESTRICT	(1ULL << 0)
++#define HDN_MITIGATION2_PAGE_TABLE_CHECK	(1ULL << 1)
 +
 +struct hdn_mitigation_state {
 +	u32 abi_version;
@@ -10458,6 +10481,8 @@ diff -urN linux-7.0.12/security/hardening/core.c linux-7.0.12-hdn/security/harde
 +	if (!IS_ENABLED(CONFIG_USERFAULTFD) ||
 +	    IS_ENABLED(CONFIG_SECURITY_HARDENING_USERFAULTFD_RESTRICT))
 +		flags |= HDN_MITIGATION2_USERFAULTFD_RESTRICT;
++	if (IS_ENABLED(CONFIG_PAGE_TABLE_CHECK_ENFORCED))
++		flags |= HDN_MITIGATION2_PAGE_TABLE_CHECK;
 +
 +	return flags;
 +}
@@ -16917,6 +16942,8 @@ diff -urN linux-7.0.12/security/hardening/core.c linux-7.0.12-hdn/security/harde
 +		   hdn_mitigation_enabled(HDN_MITIGATION_PROC_MEMMAP_REDACT));
 +	seq_printf(m, "mitigation_userfaultfd_restrict: %u\n",
 +		   hdn_mitigation2_enabled(HDN_MITIGATION2_USERFAULTFD_RESTRICT));
++	seq_printf(m, "mitigation_page_table_check: %u\n",
++		   hdn_mitigation2_enabled(HDN_MITIGATION2_PAGE_TABLE_CHECK));
 +	seq_printf(m, "mitigation_privexec_arg_stack_limits: %u\n",
 +		   IS_ENABLED(CONFIG_SECURITY_HARDENING_PROC_MEMMAP));
 +	seq_printf(m, "mitigation_memfd_noexec: %u\n",
@@ -17609,8 +17636,8 @@ diff -urN linux-7.0.12/tools/hardening/Makefile linux-7.0.12-hdn/tools/hardening
 +.PHONY: all clean install
 diff -urN linux-7.0.12/tools/hardening/README.rst linux-7.0.12-hdn/tools/hardening/README.rst
 --- linux-7.0.12/tools/hardening/README.rst	1969-12-31 18:00:00.000000000 -0600
-+++ linux-7.0.12-hdn/tools/hardening/README.rst	2026-06-26 16:27:02.021219759 -0500
-@@ -0,0 +1,1318 @@
++++ linux-7.0.12-hdn/tools/hardening/README.rst	2026-06-26 16:36:02.877184613 -0500
+@@ -0,0 +1,1324 @@
 +.. SPDX-License-Identifier: GPL-2.0-only
 +
 +Linux Hardening Policy Tools
@@ -18291,6 +18318,12 @@ diff -urN linux-7.0.12/tools/hardening/README.rst linux-7.0.12-hdn/tools/hardeni
 +module data is made non-executable through the normal module loader path. The
 +QEMU smoke suite asserts both strict kernel RWX and strict module RWX in the
 +sealed mitigation status.
++
++On architectures that support it, the same baseline enables and enforces
++upstream page-table checking. This catches invalid user page-table sharing and
++double-mapping states synchronously when mappings are installed or removed. The
++sealed mitigation status reports ``mitigation_page_table_check: 1`` when the
++enforced check is present, and the QEMU smoke suite asserts that status.
 +
 +The same baseline selects upstream vmapped kernel stacks, default kernel stack
 +offset randomization, and strong stack protector where supported. The sealed
@@ -33961,8 +33994,8 @@ diff -urN linux-7.0.12/tools/testing/selftests/hardening/hdn_elfnote_jit.c linux
 +}
 diff -urN linux-7.0.12/tools/testing/selftests/hardening/hdn_smoke.c linux-7.0.12-hdn/tools/testing/selftests/hardening/hdn_smoke.c
 --- linux-7.0.12/tools/testing/selftests/hardening/hdn_smoke.c	1969-12-31 18:00:00.000000000 -0600
-+++ linux-7.0.12-hdn/tools/testing/selftests/hardening/hdn_smoke.c	2026-06-26 16:22:46.801236109 -0500
-@@ -0,0 +1,23003 @@
++++ linux-7.0.12-hdn/tools/testing/selftests/hardening/hdn_smoke.c	2026-06-26 16:31:25.749194706 -0500
+@@ -0,0 +1,23005 @@
 +// SPDX-License-Identifier: GPL-2.0-only
 +
 +#define _GNU_SOURCE
@@ -56617,7 +56650,7 @@ diff -urN linux-7.0.12/tools/testing/selftests/hardening/hdn_smoke.c linux-7.0.1
 +	if (access(HDN_STATUS, R_OK))
 +		ksft_exit_skip("hardening securityfs status not present\n");
 +
-+	ksft_set_plan(789);
++	ksft_set_plan(790);
 +	test_securityfs_status();
 +	test_symbol_test_module_load();
 +	test_securityfs_status_contains("abi_version: 77",
@@ -56672,6 +56705,8 @@ diff -urN linux-7.0.12/tools/testing/selftests/hardening/hdn_smoke.c linux-7.0.1
 +					"hardening status reports proc memmap redaction");
 +	test_securityfs_status_contains("mitigation_userfaultfd_restrict: 1",
 +					"hardening status reports userfaultfd restriction");
++	test_securityfs_status_contains("mitigation_page_table_check: 1",
++					"hardening status reports page table checking");
 +	test_securityfs_status_contains("mitigation_privexec_arg_stack_limits: 1",
 +					"hardening status reports privileged exec argument and stack limits");
 +	test_int_file_equals(HDN_SUID_DUMPABLE, 0,
@@ -57309,7 +57344,7 @@ diff -urN linux-7.0.12/tools/testing/selftests/hardening/role.policy linux-7.0.1
 +use-role 2 desktop-admin
 diff -urN linux-7.0.12/tools/testing/selftests/hardening/run-qemu-smoke.sh linux-7.0.12-hdn/tools/testing/selftests/hardening/run-qemu-smoke.sh
 --- linux-7.0.12/tools/testing/selftests/hardening/run-qemu-smoke.sh	1969-12-31 18:00:00.000000000 -0600
-+++ linux-7.0.12-hdn/tools/testing/selftests/hardening/run-qemu-smoke.sh	2026-06-26 16:22:55.629253530 -0500
++++ linux-7.0.12-hdn/tools/testing/selftests/hardening/run-qemu-smoke.sh	2026-06-26 16:31:25.749194706 -0500
 @@ -0,0 +1,1028 @@
 +#!/bin/sh
 +# SPDX-License-Identifier: GPL-2.0
@@ -57344,7 +57379,7 @@ diff -urN linux-7.0.12/tools/testing/selftests/hardening/run-qemu-smoke.sh linux
 +QEMU_MEMORY=${QEMU_MEMORY:-1024M}
 +QEMU_SMP=${QEMU_SMP:-2}
 +QEMU_MACHINE=${QEMU_MACHINE:-q35,accel=tcg}
-+HDN_SMOKE_EXPECTED_PASS=${HDN_SMOKE_EXPECTED_PASS:-789}
++HDN_SMOKE_EXPECTED_PASS=${HDN_SMOKE_EXPECTED_PASS:-790}
 +WORK=${HDN_QEMU_WORK:-"${TMPDIR:-/tmp}/hdn-qemu-smoke.$$"}
 +LOG=${HDN_QEMU_LOG:-"$WORK/qemu.log"}
 +QMP=${HDN_QEMU_QMP:-"$WORK/qmp.sock"}

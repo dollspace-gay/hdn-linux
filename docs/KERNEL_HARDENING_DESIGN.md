@@ -1505,6 +1505,8 @@ Core oracle groups:
 - trusted HDN ELF memory note allows only its scoped memory compatibility exceptions
 - fixed executable mapping restrictions hold
 - compatibility exceptions are profile-scoped
+- page-table checking is enforced on architectures that support upstream
+  `PAGE_TABLE_CHECK`
 
 ### Attack Surface
 

@@ -22,7 +22,7 @@ The current patch is carried as a generated diff against upstream Linux
 This is not a finished distro kernel yet. Current rough parity estimates:
 
 - Strict grsecurity/PaX-style patch feature parity: about 38%.
-- Practical daily-driver hardening equivalence: about 63%.
+- Practical daily-driver hardening equivalence: about 64%.
 
 Recent coverage includes signed/sealed HDN policy, authority-gated BPF/perf/proc
 disclosure, module admission hardening, read-only mount controls, object policy
@@ -62,6 +62,8 @@ mitigation counts, audit-flood state, and decoded audit-flood names.
 Sensitive sysfs kernel metadata such as `/sys/kernel/vmcoreinfo` now requires
 the sysfs-read authority and is hidden from restricted directory enumeration,
 while ordinary device-discovery sysfs remains visible.
+The exploit-mitigation baseline also enables and enforces upstream page-table
+checking on supported architectures, with sealed status and QEMU coverage.
 
 The largest remaining gaps are richer RBAC/userspace integration, full desktop
 and recovery UI around the admin broker, final image-specific update wiring,
@@ -91,16 +93,16 @@ The hardening smoke suite in the development tree is run under QEMU. Latest
 local result before this publication checkpoint:
 
 ```text
-QEMU hardening smoke: 789/789 pass
+QEMU hardening smoke: 790/790 pass
 ```
 
 Patch artifact at this checkpoint:
 
 ```text
 patch: patches/hdn-linux-7.0.12.patch
-lines: 58,517
-bytes: 1,716,907
-sha256: 87520cc1781de62947fb3d4398116c4f4d098d3baf9ea8078d16e73f4d6c726d
+lines: 58,552
+bytes: 1,718,811
+sha256: b45dd0ad96e85ea7d3bce5d9baafb6109bd4cfd00eecd5624c40d859bded24fb
 ```
 
 ## Development Rule
