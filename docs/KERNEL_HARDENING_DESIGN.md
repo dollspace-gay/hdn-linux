@@ -765,6 +765,10 @@ commands. The config is root-owned and fails closed if it is missing or
 writable. QEMU proves unknown seal names and unsafe configs are denied without
 sealing the test mount, and proves an approved seal applies a broker-approved
 read-only mount list and leaves the mount read-only.
+The shipped default read-only list uses `required /usr` for the base image and
+`optional` entries for boot, EFI, `/opt`, `/usr/local`, Flatpak, and snapd
+mounts so one product config can cover common split-layout images without
+failing when an optional filesystem is absent.
 `hdn-system-transaction` is the package-manager/image-updater facade above the
 broker. Product config maps stable operation names to a mountpoint and worker,
 so package tools call `hdn-system-transaction package-update` instead of
@@ -1295,7 +1299,9 @@ tools/hardening/hdn-rofs-apply:
   make product-selected already-mounted paths read-only after policy commit
   without granting the helper authority to make them writable again; list files
   must be root-owned, non-writable by group/other, regular files, and not
-  symlinks
+  symlinks; entries may be legacy bare required paths, explicit
+  `required PATH`, or `optional PATH` entries that are skipped unless the path
+  is currently a mounted filesystem
 
 tools/hardening/hdn-rofs-transaction:
   temporarily relax a product-selected read-only mount for an updater command,
@@ -1573,6 +1579,9 @@ Core oracle groups:
 - the product ROFS apply helper can make an already-mounted path read-only
   under a narrow `AUTH_MOUNT_ADMIN` profile that lacks `AUTH_ROFS_RELAX`, and
   writes through that mount fail afterward
+- the ROFS apply helper accepts root-owned path lists with `required` and
+  `optional` entries, skips absent or non-mounted optional paths, and still
+  seals required mounted paths
 - the admin broker denies unapproved read-only mount lists and can broker an
   approved `rofs-apply -f` list into the narrow apply helper only when the list
   itself is a safe root-owned file, leaving listed mounts read-only

@@ -46,6 +46,9 @@ privileged-helper core modes cannot be globally enabled after boot.
 Unprivileged userfaultfd kernel-fault handling is now unavailable by
 construction or locked behind `vm.unprivileged_userfaultfd=0`, while
 user-mode-only userfaultfd use remains available when the syscall is enabled.
+The shipped ROFS image list now has explicit `required` and `optional`
+mount entries, with `/usr` as the required sealed base image surface and
+common boot/app extension mountpoints sealed when present.
 
 The largest remaining gaps are richer RBAC/userspace integration, full desktop
 and recovery UI around the admin broker, distro package/update wiring, deeper
@@ -75,16 +78,16 @@ The hardening smoke suite in the development tree is run under QEMU. Latest
 local result before this publication checkpoint:
 
 ```text
-QEMU hardening smoke: 780/780 pass
+QEMU hardening smoke: 781/781 pass
 ```
 
 Patch artifact at this checkpoint:
 
 ```text
 patch: patches/hdn-linux-7.0.12.patch
-lines: 56,596
-bytes: 1,659,270
-sha256: f2031899cd847034e8324bdcf4156c7cccc9a610bca65665a1b4cd65d6a4a629
+lines: 56,891
+bytes: 1,667,191
+sha256: ee0218ef1b7f4b432cbcbaef65988650133342048b7ab87fae0bd5d677bdcea3
 ```
 
 ## Development Rule
