@@ -17575,8 +17575,8 @@ diff -urN linux-7.0.12/tools/hardening/Makefile linux-7.0.12-hdn/tools/hardening
 +.PHONY: all clean install
 diff -urN linux-7.0.12/tools/hardening/README.rst linux-7.0.12-hdn/tools/hardening/README.rst
 --- linux-7.0.12/tools/hardening/README.rst	1969-12-31 18:00:00.000000000 -0600
-+++ linux-7.0.12-hdn/tools/hardening/README.rst	2026-06-26 15:45:45.369456852 -0500
-@@ -0,0 +1,1293 @@
++++ linux-7.0.12-hdn/tools/hardening/README.rst	2026-06-26 16:00:23.421377157 -0500
+@@ -0,0 +1,1299 @@
 +.. SPDX-License-Identifier: GPL-2.0-only
 +
 +Linux Hardening Policy Tools
@@ -17745,7 +17745,10 @@ diff -urN linux-7.0.12/tools/hardening/README.rst linux-7.0.12-hdn/tools/hardeni
 +UAPI names for product UI, logging, and harness consumers. It can also assert
 +decoded expectations such as ``--expect reason=USER_WX_MAPPING`` and
 +``--expect action=DENY_AUDIT`` without depending on raw numeric IDs in
-+scripts.
++scripts. Common packed ``object`` payloads are also decoded for UI/log
++consumers, including exec argument counts, severe-signal and coredump signal
++numbers, resource IDs and resource-pressure values, time-change operations, USB
++bus/port context, and socket family/type/protocol or endpoint context.
 +
 +``hdn-policy-learn`` consumes the same event records and emits a reviewable
 +policy fragment for settings UI, support tools, and developer-mode workflows.
@@ -18776,13 +18779,16 @@ diff -urN linux-7.0.12/tools/hardening/README.rst linux-7.0.12-hdn/tools/hardeni
 +chroots. Failed fork attempts use ``HDN_REASON_FORK_FAILED``.
 +``hdn-event-decode`` maps the numeric ``event_id``, ``authority``,
 +``transition``, ``action``, ``reason``, and flag fields to UAPI names for
-+desktop notification and log-export consumers. The QEMU smoke suite proves the
-+decoder can identify a W+X denial by decoded ``USER_WX_MAPPING`` reason and
-+``DENY_AUDIT`` action, a severe signal audit event by decoded ``SIGNAL``
-+transition, a remote process-memory denial by decoded ``PROCESS_MEMORY``
-+authority, a remote page-migration denial by decoded ``MEMORY_MIGRATE``
-+authority, a remote file-descriptor extraction denial by decoded
-+``PROCESS_FD`` authority, a failed fork audit event by decoded
++desktop notification and log-export consumers. It also maps common packed
++``object`` payloads to named details for exec arguments, severe signals,
++coredumps, resources, time changes, USB devices, and socket operations. The
++QEMU smoke suite proves the decoder can identify a W+X denial by decoded
++``USER_WX_MAPPING`` reason and ``DENY_AUDIT`` action, a severe signal audit
++event by decoded ``SIGNAL`` transition, packed event object details from a
++synthetic fixture, a remote process-memory denial by decoded
++``PROCESS_MEMORY`` authority, a remote page-migration denial by decoded
++``MEMORY_MIGRATE`` authority, a remote file-descriptor extraction denial by
++decoded ``PROCESS_FD`` authority, a failed fork audit event by decoded
 +``FORK_FAILED`` reason, a process-accounting audit event by decoded
 +``PROCESS_ACCOUNT`` transition, plus
 +filesystem protection audit by decoded ``FS_PROTECTION`` transition and
@@ -21593,19 +21599,24 @@ diff -urN linux-7.0.12/tools/hardening/hdn-desktop-daemon.c linux-7.0.12-hdn/too
 +}
 diff -urN linux-7.0.12/tools/hardening/hdn-event-decode.c linux-7.0.12-hdn/tools/hardening/hdn-event-decode.c
 --- linux-7.0.12/tools/hardening/hdn-event-decode.c	1969-12-31 18:00:00.000000000 -0600
-+++ linux-7.0.12-hdn/tools/hardening/hdn-event-decode.c	2026-06-26 14:00:35.178043147 -0500
-@@ -0,0 +1,684 @@
++++ linux-7.0.12-hdn/tools/hardening/hdn-event-decode.c	2026-06-26 15:55:03.537405568 -0500
+@@ -0,0 +1,907 @@
 +// SPDX-License-Identifier: GPL-2.0-only
 +
 +#define _GNU_SOURCE
 +
 +#include <errno.h>
++#include <arpa/inet.h>
 +#include <linux/hardening.h>
++#include <netinet/in.h>
 +#include <stdbool.h>
 +#include <stdio.h>
 +#include <stdlib.h>
 +#include <string.h>
 +#include <strings.h>
++#include <signal.h>
++#include <sys/resource.h>
++#include <sys/socket.h>
 +
 +#ifndef HDN_EVENTS_PATH
 +#define HDN_EVENTS_PATH "/sys/kernel/security/hardening/events"
@@ -21893,6 +21904,60 @@ diff -urN linux-7.0.12/tools/hardening/hdn-event-decode.c linux-7.0.12-hdn/tools
 +	{ HDN_REASON_KERNEL_LOCKOUT, "KERNEL_LOCKOUT" },
 +};
 +
++static const struct hdn_name resource_names[] = {
++	{ RLIMIT_CPU, "CPU" },
++	{ RLIMIT_FSIZE, "FSIZE" },
++	{ RLIMIT_DATA, "DATA" },
++	{ RLIMIT_STACK, "STACK" },
++	{ RLIMIT_CORE, "CORE" },
++	{ RLIMIT_RSS, "RSS" },
++	{ RLIMIT_NPROC, "NPROC" },
++	{ RLIMIT_NOFILE, "NOFILE" },
++	{ RLIMIT_MEMLOCK, "MEMLOCK" },
++	{ RLIMIT_AS, "AS" },
++	{ RLIMIT_LOCKS, "LOCKS" },
++	{ RLIMIT_SIGPENDING, "SIGPENDING" },
++	{ RLIMIT_MSGQUEUE, "MSGQUEUE" },
++	{ RLIMIT_NICE, "NICE" },
++	{ RLIMIT_RTPRIO, "RTPRIO" },
++	{ RLIMIT_RTTIME, "RTTIME" },
++};
++
++static const struct hdn_name signal_names[] = {
++	{ SIGABRT, "SIGABRT" },
++	{ SIGBUS, "SIGBUS" },
++	{ SIGFPE, "SIGFPE" },
++	{ SIGILL, "SIGILL" },
++	{ SIGSEGV, "SIGSEGV" },
++	{ SIGSYS, "SIGSYS" },
++	{ SIGTRAP, "SIGTRAP" },
++	{ SIGXCPU, "SIGXCPU" },
++	{ SIGXFSZ, "SIGXFSZ" },
++};
++
++static const struct hdn_name time_operation_names[] = {
++	{ HDN_TIME_SET_WALL, "SET_WALL" },
++	{ HDN_TIME_SET_TIMEZONE, "SET_TIMEZONE" },
++	{ HDN_TIME_ADJTIMEX, "ADJTIMEX" },
++};
++
++static const struct hdn_name socket_family_names[] = {
++	{ AF_UNSPEC, "AF_UNSPEC" },
++	{ AF_UNIX, "AF_UNIX" },
++	{ AF_INET, "AF_INET" },
++	{ AF_INET6, "AF_INET6" },
++	{ AF_NETLINK, "AF_NETLINK" },
++	{ AF_PACKET, "AF_PACKET" },
++};
++
++static const struct hdn_name socket_type_names[] = {
++	{ SOCK_STREAM, "SOCK_STREAM" },
++	{ SOCK_DGRAM, "SOCK_DGRAM" },
++	{ SOCK_RAW, "SOCK_RAW" },
++	{ SOCK_RDM, "SOCK_RDM" },
++	{ SOCK_SEQPACKET, "SOCK_SEQPACKET" },
++};
++
 +static const char *lookup_name(const struct hdn_name *names, size_t count,
 +			       unsigned int value)
 +{
@@ -22155,6 +22220,169 @@ diff -urN linux-7.0.12/tools/hardening/hdn-event-decode.c linux-7.0.12-hdn/tools
 +		printf("none");
 +}
 +
++static void print_resource_detail(unsigned long long object)
++{
++	unsigned int resource = object >> 56;
++	unsigned long long wanted =
++		object & ((1ULL << 56) - 1);
++	bool packed_pressure = resource != 0;
++
++	if (!packed_pressure)
++		resource = (unsigned int)object;
++
++	printf(" object_detail=resource resource_id=%u resource=%s",
++	       resource,
++	       lookup_name(resource_names,
++			   sizeof(resource_names) / sizeof(resource_names[0]),
++			   resource));
++	if (packed_pressure)
++		printf(" resource_wanted=%llu", wanted);
++}
++
++static void print_signal_detail(unsigned long long object)
++{
++	unsigned int sig = object >> 56;
++	unsigned long long addr = object & ((1ULL << 56) - 1);
++
++	printf(" object_detail=signal signal_id=%u signal=%s fault_addr_low=0x%llx",
++	       sig,
++	       lookup_name(signal_names,
++			   sizeof(signal_names) / sizeof(signal_names[0]),
++			   sig),
++	       addr);
++}
++
++static void print_signal_number_detail(unsigned int sig)
++{
++	printf(" object_detail=signal signal_id=%u signal=%s",
++	       sig,
++	       lookup_name(signal_names,
++			   sizeof(signal_names) / sizeof(signal_names[0]),
++			   sig));
++}
++
++static void print_socket_create_detail(unsigned long long object)
++{
++	unsigned int family = object >> 32;
++	unsigned int type = (object >> 16) & 0xffff;
++	unsigned int protocol = object & 0xffff;
++
++	printf(" object_detail=socket socket_family_id=%u socket_family=%s socket_type_id=%u socket_type=%s socket_protocol=%u",
++	       family,
++	       lookup_name(socket_family_names,
++			   sizeof(socket_family_names) /
++			   sizeof(socket_family_names[0]), family),
++	       type,
++	       lookup_name(socket_type_names,
++			   sizeof(socket_type_names) /
++			   sizeof(socket_type_names[0]), type),
++	       protocol);
++}
++
++static void print_ipv4_endpoint(unsigned long long object)
++{
++	unsigned int type = (object >> 48) & 0xff;
++	unsigned int port = (object >> 32) & 0xffff;
++	unsigned int addr = object & 0xffffffff;
++	unsigned char octets[4];
++
++	octets[0] = (addr >> 24) & 0xff;
++	octets[1] = (addr >> 16) & 0xff;
++	octets[2] = (addr >> 8) & 0xff;
++	octets[3] = addr & 0xff;
++
++	printf(" object_detail=socket socket_family_id=%u socket_family=AF_INET socket_type_id=%u socket_type=%s socket_port=%u socket_address=%u.%u.%u.%u",
++	       AF_INET, type,
++	       lookup_name(socket_type_names,
++			   sizeof(socket_type_names) /
++			   sizeof(socket_type_names[0]), type),
++	       port, octets[0], octets[1], octets[2], octets[3]);
++}
++
++static void print_ipv6_endpoint(unsigned long long object)
++{
++	unsigned int type = (object >> 48) & 0xff;
++	unsigned int port = (object >> 32) & 0xffff;
++	unsigned int hash = object & 0xffffffff;
++
++	printf(" object_detail=socket socket_family_id=%u socket_family=AF_INET6 socket_type_id=%u socket_type=%s socket_port=%u socket_addr_hash=0x%x",
++	       AF_INET6, type,
++	       lookup_name(socket_type_names,
++			   sizeof(socket_type_names) /
++			   sizeof(socket_type_names[0]), type),
++	       port, hash);
++}
++
++static void print_socket_endpoint_detail(unsigned long long object)
++{
++	unsigned int family = object >> 56;
++
++	if (family == AF_INET) {
++		print_ipv4_endpoint(object);
++		return;
++	}
++	if (family == AF_INET6) {
++		print_ipv6_endpoint(object);
++		return;
++	}
++
++	print_socket_create_detail(object);
++}
++
++static void print_object_detail(const struct hdn_decoded_event *event)
++{
++	switch (event->transition) {
++	case HDN_TRANS_EXEC_ARGS:
++		printf(" object_detail=exec_args argc=%u envc=%u",
++		       (unsigned int)(event->object >> 32),
++		       (unsigned int)(event->object & 0xffffffff));
++		break;
++	case HDN_TRANS_FORK:
++		if (event->object)
++			printf(" object_detail=process related_pid=%llu",
++			       event->object);
++		break;
++	case HDN_TRANS_PROCESS_ACCOUNT:
++		printf(" object_detail=process exit_code=%u",
++		       (unsigned int)event->object);
++		break;
++	case HDN_TRANS_SIGNAL:
++		print_signal_detail(event->object);
++		break;
++	case HDN_TRANS_COREDUMP:
++		print_signal_number_detail((unsigned int)event->object);
++		break;
++	case HDN_TRANS_TIME_CHANGE:
++		printf(" object_detail=time time_operation_id=%u time_operation=%s",
++		       (unsigned int)event->object,
++		       lookup_name(time_operation_names,
++				   sizeof(time_operation_names) /
++				   sizeof(time_operation_names[0]),
++				   (unsigned int)event->object));
++		break;
++	case HDN_TRANS_RESOURCE_LIMIT:
++		print_resource_detail(event->object);
++		break;
++	case HDN_TRANS_USB_ATTACH:
++		printf(" object_detail=usb usb_bus=%u usb_port=%u",
++		       (unsigned int)(event->object >> 32),
++		       (unsigned int)(event->object & 0xffffffff));
++		break;
++	case HDN_TRANS_USB_MONITOR:
++		printf(" object_detail=usb usb_bus=%llu", event->object);
++		break;
++	case HDN_TRANS_SOCKET_CREATE:
++		print_socket_create_detail(event->object);
++		break;
++	case HDN_TRANS_SOCKET_CONNECT:
++	case HDN_TRANS_SOCKET_SERVER:
++		print_socket_endpoint_detail(event->object);
++		break;
++	default:
++		break;
++	}
++}
++
 +static void print_event(const struct hdn_decoded_event *event)
 +{
 +	printf("sequence=%llu timestamp_ns=%llu pid=%u uid=%u profile=%llu ",
@@ -22185,6 +22413,7 @@ diff -urN linux-7.0.12/tools/hardening/hdn-event-decode.c linux-7.0.12-hdn/tools
 +			   event->reason),
 +	       event->error, event->subject, event->object, event->flags);
 +	print_flag_names(event->flags);
++	print_object_detail(event);
 +	printf("\n");
 +}
 +
@@ -32755,8 +32984,8 @@ diff -urN linux-7.0.12/tools/testing/selftests/hardening/hdn_elfnote_jit.c linux
 +}
 diff -urN linux-7.0.12/tools/testing/selftests/hardening/hdn_smoke.c linux-7.0.12-hdn/tools/testing/selftests/hardening/hdn_smoke.c
 --- linux-7.0.12/tools/testing/selftests/hardening/hdn_smoke.c	1969-12-31 18:00:00.000000000 -0600
-+++ linux-7.0.12-hdn/tools/testing/selftests/hardening/hdn_smoke.c	2026-06-26 15:36:40.337529473 -0500
-@@ -0,0 +1,22707 @@
++++ linux-7.0.12-hdn/tools/testing/selftests/hardening/hdn_smoke.c	2026-06-26 15:57:56.169392522 -0500
+@@ -0,0 +1,22856 @@
 +// SPDX-License-Identifier: GPL-2.0-only
 +
 +#define _GNU_SOURCE
@@ -33234,6 +33463,7 @@ diff -urN linux-7.0.12/tools/testing/selftests/hardening/hdn_smoke.c linux-7.0.1
 +#define HDN_IMAGE_SEAL_EXEC "/hdn-image-seal"
 +#define HDN_PACKAGE_HOOK_EXEC "/hdn-package-hook"
 +#define HDN_EVENT_DECODE_EXEC "/hdn-event-decode"
++#define HDN_EVENT_DECODE_DETAILS_INPUT "/hdn-event-decode-details.events"
 +#define HDN_POLICY_LEARN_EXEC "/hdn-policy-learn"
 +#define HDN_POLICY_LEARN_EVENTS "/hdn-policy-learn-events"
 +#define HDN_POLICY_LEARN_OUTPUT "/hdn-policy-learn.out"
@@ -35769,6 +35999,152 @@ diff -urN linux-7.0.12/tools/testing/selftests/hardening/hdn_smoke.c linux-7.0.1
 +	}
 +
 +	return child_exit_result(child);
++}
++
++static int event_decoder_read_output(int fd, char *buf, size_t size)
++{
++	size_t offset = 0;
++
++	if (!size)
++		return -EINVAL;
++
++	for (;;) {
++		ssize_t len;
++
++		if (offset == size - 1)
++			return -ENOSPC;
++		len = read(fd, buf + offset, size - 1 - offset);
++		if (len < 0) {
++			if (errno == EINTR)
++				continue;
++			return -errno;
++		}
++		if (!len)
++			break;
++		offset += len;
++	}
++
++	buf[offset] = '\0';
++	return 0;
++}
++
++static int event_decoder_run_capture(const char *input, char *buf, size_t size)
++{
++	int pipefd[2];
++	int status;
++	pid_t child;
++	int ret;
++
++	if (pipe(pipefd))
++		return -errno;
++
++	child = fork();
++	if (child < 0) {
++		ret = -errno;
++		close(pipefd[0]);
++		close(pipefd[1]);
++		return ret;
++	}
++
++	if (!child) {
++		close(pipefd[0]);
++		if (dup2(pipefd[1], STDOUT_FILENO) < 0)
++			_exit(2);
++		close(pipefd[1]);
++		execl(HDN_EVENT_DECODE_EXEC, "hdn-event-decode",
++		      "--input", input, NULL);
++		fprintf(stderr, "event decoder exec failed: %s\n",
++			strerror(errno));
++		_exit(2);
++	}
++
++	close(pipefd[1]);
++	ret = event_decoder_read_output(pipefd[0], buf, size);
++	close(pipefd[0]);
++
++	if (waitpid(child, &status, 0) < 0)
++		return -errno;
++	if (ret)
++		return ret;
++	if (!WIFEXITED(status))
++		return 2;
++	return WEXITSTATUS(status);
++}
++
++static int event_decoder_names_object_details(void)
++{
++	static const char * const needles[] = {
++		"object_detail=exec_args argc=3 envc=4",
++		"object_detail=signal signal_id=11 signal=SIGSEGV",
++		"fault_addr_low=0x1234",
++		"object_detail=resource resource_id=",
++		"resource=NOFILE",
++		"resource=FSIZE resource_wanted=123",
++		"time_operation=SET_WALL",
++		"usb_bus=5 usb_port=7",
++		"socket_family=AF_INET socket_type_id=1 socket_type=SOCK_STREAM socket_protocol=6",
++		"socket_port=443 socket_address=127.0.0.1",
++		"object_detail=signal signal_id=25 signal=SIGXFSZ",
++	};
++	char fixture[4096];
++	char output[8192];
++	unsigned long long exec_args_object = (3ULL << 32) | 4ULL;
++	unsigned long long signal_object =
++		((unsigned long long)SIGSEGV << 56) | 0x1234ULL;
++	unsigned long long resource_pressure_object =
++		((unsigned long long)RLIMIT_FSIZE << 56) | 123ULL;
++	unsigned long long usb_object = (5ULL << 32) | 7ULL;
++	unsigned long long socket_create_object =
++		((unsigned long long)AF_INET << 32) |
++		((unsigned long long)SOCK_STREAM << 16) |
++		(unsigned long long)IPPROTO_TCP;
++	unsigned long long socket_endpoint_object =
++		((unsigned long long)AF_INET << 56) |
++		((unsigned long long)SOCK_STREAM << 48) |
++		(443ULL << 32) | 0x7f000001ULL;
++	size_t i;
++	int ret;
++
++	if (access(HDN_EVENT_DECODE_EXEC, X_OK))
++		return KSFT_SKIP;
++
++	ret = snprintf(fixture, sizeof(fixture),
++		       "sequence=1 timestamp_ns=1 event_id=88 pid=1 uid=0 profile=1 authority=1 transition=88 action=3 reason=0 error=0 subject=1 object=%llu flags=0x0\n"
++		       "sequence=2 timestamp_ns=1 event_id=46 pid=1 uid=0 profile=1 authority=0 transition=46 action=3 reason=0 error=0 subject=1 object=%llu flags=0x0\n"
++		       "sequence=3 timestamp_ns=1 event_id=38 pid=1 uid=0 profile=1 authority=33 transition=38 action=3 reason=0 error=0 subject=1 object=%u flags=0x0\n"
++		       "sequence=4 timestamp_ns=1 event_id=38 pid=1 uid=0 profile=1 authority=33 transition=38 action=3 reason=0 error=0 subject=1 object=%llu flags=0x0\n"
++		       "sequence=5 timestamp_ns=1 event_id=37 pid=1 uid=0 profile=1 authority=32 transition=37 action=3 reason=0 error=0 subject=1 object=1 flags=0x0\n"
++		       "sequence=6 timestamp_ns=1 event_id=32 pid=1 uid=0 profile=1 authority=27 transition=32 action=4 reason=7 error=-1 subject=1 object=%llu flags=0x0\n"
++		       "sequence=7 timestamp_ns=1 event_id=33 pid=1 uid=0 profile=1 authority=28 transition=33 action=4 reason=7 error=-1 subject=1 object=%llu flags=0x0\n"
++		       "sequence=8 timestamp_ns=1 event_id=34 pid=1 uid=0 profile=1 authority=29 transition=34 action=4 reason=7 error=-1 subject=1 object=%llu flags=0x0\n"
++		       "sequence=9 timestamp_ns=1 event_id=87 pid=1 uid=0 profile=1 authority=0 transition=87 action=4 reason=53 error=-1 subject=1 object=%u flags=0x0\n",
++		       exec_args_object, signal_object, RLIMIT_NOFILE,
++		       resource_pressure_object, usb_object,
++		       socket_create_object, socket_endpoint_object, SIGXFSZ);
++	if (ret < 0 || (size_t)ret >= sizeof(fixture))
++		return 2;
++
++	ret = write_created_text_file(HDN_EVENT_DECODE_DETAILS_INPUT,
++				      fixture);
++	if (ret)
++		return 2;
++
++	ret = event_decoder_run_capture(HDN_EVENT_DECODE_DETAILS_INPUT,
++					output, sizeof(output));
++	unlink(HDN_EVENT_DECODE_DETAILS_INPUT);
++	if (ret)
++		return ret;
++
++	for (i = 0; i < ARRAY_SIZE(needles); i++) {
++		if (!strstr(output, needles[i])) {
++			fprintf(stderr, "event decoder output missing %s\n",
++				needles[i]);
++			fprintf(stderr, "%s\n", output);
++			return 1;
++		}
++	}
++
++	return 0;
 +}
 +
 +static void test_securityfs_events_contains(const char *needle,
@@ -55123,7 +55499,7 @@ diff -urN linux-7.0.12/tools/testing/selftests/hardening/hdn_smoke.c linux-7.0.1
 +	if (access(HDN_STATUS, R_OK))
 +		ksft_exit_skip("hardening securityfs status not present\n");
 +
-+	ksft_set_plan(783);
++	ksft_set_plan(784);
 +	test_securityfs_status();
 +	test_symbol_test_module_load();
 +	test_securityfs_status_contains("abi_version: 77",
@@ -55344,6 +55720,8 @@ diff -urN linux-7.0.12/tools/testing/selftests/hardening/hdn_smoke.c linux-7.0.1
 +	test_signal_event_logged();
 +	report_child_result(event_decoder_finds_signal_audit(),
 +			    "event decoder names severe signal audit transition");
++	report_child_result(event_decoder_names_object_details(),
++			    "event decoder names packed event object details");
 +	report_child_result(policy_learner_suggests_authorities(),
 +			    "policy learner suggests denied profile authorities");
 +	report_child_result(policy_learner_suggests_memory_flags(),
@@ -55807,7 +56185,7 @@ diff -urN linux-7.0.12/tools/testing/selftests/hardening/role.policy linux-7.0.1
 +use-role 2 desktop-admin
 diff -urN linux-7.0.12/tools/testing/selftests/hardening/run-qemu-smoke.sh linux-7.0.12-hdn/tools/testing/selftests/hardening/run-qemu-smoke.sh
 --- linux-7.0.12/tools/testing/selftests/hardening/run-qemu-smoke.sh	1969-12-31 18:00:00.000000000 -0600
-+++ linux-7.0.12-hdn/tools/testing/selftests/hardening/run-qemu-smoke.sh	2026-06-26 15:36:56.829524537 -0500
++++ linux-7.0.12-hdn/tools/testing/selftests/hardening/run-qemu-smoke.sh	2026-06-26 15:57:04.153397378 -0500
 @@ -0,0 +1,1021 @@
 +#!/bin/sh
 +# SPDX-License-Identifier: GPL-2.0
@@ -55842,7 +56220,7 @@ diff -urN linux-7.0.12/tools/testing/selftests/hardening/run-qemu-smoke.sh linux
 +QEMU_MEMORY=${QEMU_MEMORY:-1024M}
 +QEMU_SMP=${QEMU_SMP:-2}
 +QEMU_MACHINE=${QEMU_MACHINE:-q35,accel=tcg}
-+HDN_SMOKE_EXPECTED_PASS=${HDN_SMOKE_EXPECTED_PASS:-783}
++HDN_SMOKE_EXPECTED_PASS=${HDN_SMOKE_EXPECTED_PASS:-784}
 +WORK=${HDN_QEMU_WORK:-"${TMPDIR:-/tmp}/hdn-qemu-smoke.$$"}
 +LOG=${HDN_QEMU_LOG:-"$WORK/qemu.log"}
 +QMP=${HDN_QEMU_QMP:-"$WORK/qmp.sock"}

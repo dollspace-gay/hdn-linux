@@ -489,8 +489,10 @@ Userspace consumes these events for:
 
 The reference event reader is `tools/hardening/hdn-event-decode`. It leaves
 the kernel record format compact, maps numeric event/action/authority/
-transition/reason fields to stable UAPI names, and supports decoded
-expectations such as `--expect reason=USER_WX_MAPPING` for automation.
+transition/reason fields to stable UAPI names, decodes common packed `object`
+payloads for exec arguments, signals, resources, time changes, USB, coredumps,
+and socket context, and supports decoded expectations such as
+`--expect reason=USER_WX_MAPPING` for automation.
 `tools/hardening/hdn-policy-learn` consumes the same stable event records for
 userspace learning mode: denied profile-authority events become de-duplicated
 reviewable `allow` suggestions, selected memory-compatibility denials become
@@ -1384,7 +1386,9 @@ tools/hardening/hdn-auth-prompt:
 
 tools/hardening/hdn-event-decode:
   translate raw securityfs hardening event records into stable UAPI names for
-  product UI, log export, and smoke harness assertions
+  product UI, log export, and smoke harness assertions, including common packed
+  object payload details for exec arguments, signals, resources, time changes,
+  USB, coredumps, and sockets
 
 tools/hardening/hdn-policy-learn:
   translate denied hardening events into a reviewable HDN-native policy
@@ -1648,8 +1652,10 @@ Core oracle groups:
 - the prompt dispatch helper rejects unknown post-auth action names, rejects
   unsafe prompt configs, and runs an approved named package-update action
   through fresh approval-token issuance and the strict token-required broker
-- the event decoder maps raw hardening event records to stable UAPI names and
-  identifies a denied W+X event by decoded reason/action
+- the event decoder maps raw hardening event records to stable UAPI names,
+  identifies a denied W+X event by decoded reason/action, and names common
+  packed object details for exec arguments, signals, resources, time changes,
+  USB, coredumps, and sockets
 - explicit denied W+X `mmap()` and `mprotect()` attempts also emit a dedicated
   `RWXMAP_DENIED` audit reason for grsec-class RWX-map telemetry without
   changing the existing `USER_WX_MAPPING` enforcement event

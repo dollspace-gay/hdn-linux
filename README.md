@@ -52,7 +52,10 @@ common boot/app extension mountpoints sealed when present. Package/update hook
 templates now cover APT/dpkg, pacman/libalpm, DNF 4, DNF5/libdnf5, and systemd
 image sealing through stable `hdn-package-hook` actions, and the hardening
 helper `Makefile` now has a packaging install target for helper binaries,
-root-owned config templates, and those hook snippets.
+root-owned config templates, and those hook snippets. The event decoder now
+also names common packed event object details for exec arguments, signals,
+resource limits, time changes, USB, coredumps, and socket context, so UI and
+log consumers do not need to unpack those raw integers themselves.
 
 The largest remaining gaps are richer RBAC/userspace integration, full desktop
 and recovery UI around the admin broker, final image-specific update wiring,
@@ -82,16 +85,16 @@ The hardening smoke suite in the development tree is run under QEMU. Latest
 local result before this publication checkpoint:
 
 ```text
-QEMU hardening smoke: 783/783 pass
+QEMU hardening smoke: 784/784 pass
 ```
 
 Patch artifact at this checkpoint:
 
 ```text
 patch: patches/hdn-linux-7.0.12.patch
-lines: 57,008
-bytes: 1,670,195
-sha256: 7acde10f4a7046bc0b9b214923fe98e049643ad0e89d75eb55f2bae3d165e05b
+lines: 57,386
+bytes: 1,682,366
+sha256: 88c527448fb92690413d07e66e81bd09e23446aaa72c036344dcbc93d9a92e1a
 ```
 
 ## Development Rule
