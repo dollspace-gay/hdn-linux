@@ -5073,6 +5073,45 @@ diff -urN linux-7.0.12/include/uapi/linux/hardening.h linux-7.0.12-hdn/include/u
 +};
 +
 +#endif /* _UAPI_LINUX_HARDENING_H */
+diff -urN linux-7.0.12/io_uring/io_uring.c linux-7.0.12-hdn/io_uring/io_uring.c
+--- linux-7.0.12/io_uring/io_uring.c	2026-06-09 05:32:51.000000000 -0500
++++ linux-7.0.12-hdn/io_uring/io_uring.c	2026-06-26 14:18:46.577922766 -0500
+@@ -59,6 +59,7 @@
+ #include <linux/audit.h>
+ #include <linux/security.h>
+ #include <linux/jump_label.h>
++#include <linux/hardening.h>
+ 
+ #define CREATE_TRACE_POINTS
+ #include <trace/events/io_uring.h>
+@@ -2820,6 +2821,16 @@
+ 	return 0;
+ }
+ 
++static int io_uring_hardening_restricted_setup(unsigned int flags)
++{
++	if (!(flags & IORING_SETUP_SQPOLL))
++		return 0;
++
++	return hdn_authorize(HDN_AUTH_IO_URING_RESTRICTED_OP,
++			     HDN_TRANS_IO_URING_OP,
++			     HDN_REASON_PROFILE_DENIED, -EPERM);
++}
++
+ static int io_uring_fill_params(struct io_uring_params *p)
+ {
+ 	unsigned entries = p->sq_entries;
+@@ -2873,6 +2884,10 @@
+ 	if (ret)
+ 		return ret;
+ 
++	ret = io_uring_hardening_restricted_setup(p->flags);
++	if (ret)
++		return ret;
++
+ 	ret = io_uring_fill_params(p);
+ 	if (ret)
+ 		return ret;
 diff -urN linux-7.0.12/io_uring/register.c linux-7.0.12-hdn/io_uring/register.c
 --- linux-7.0.12/io_uring/register.c	2026-06-09 05:32:51.000000000 -0500
 +++ linux-7.0.12-hdn/io_uring/register.c	2026-06-22 18:24:58.409509259 -0500
@@ -17233,8 +17272,8 @@ diff -urN linux-7.0.12/tools/hardening/Makefile linux-7.0.12-hdn/tools/hardening
 +.PHONY: all clean
 diff -urN linux-7.0.12/tools/hardening/README.rst linux-7.0.12-hdn/tools/hardening/README.rst
 --- linux-7.0.12/tools/hardening/README.rst	1969-12-31 18:00:00.000000000 -0600
-+++ linux-7.0.12-hdn/tools/hardening/README.rst	2026-06-26 14:14:23.149957320 -0500
-@@ -0,0 +1,1249 @@
++++ linux-7.0.12-hdn/tools/hardening/README.rst	2026-06-26 14:21:29.109929306 -0500
+@@ -0,0 +1,1257 @@
 +.. SPDX-License-Identifier: GPL-2.0-only
 +
 +Linux Hardening Policy Tools
@@ -18153,6 +18192,14 @@ diff -urN linux-7.0.12/tools/hardening/README.rst linux-7.0.12-hdn/tools/hardeni
 +kernel and namespace perf visibility behind the ``PERF_OPEN`` profile authority
 +for privileged service policy. QEMU proves the locked sysctl value, failed
 +lowering attempts, unprivileged kernel perf denial, and sealed status reporting.
++
++HDN keeps selected io_uring attack-surface expansion paths behind the
++``IO_URING_RESTRICTED_OP`` profile authority while leaving ordinary rings
++available. The gate covers SQPOLL ring setup, which creates kernel-side
++submission polling work, and selected privileged registration operations such
++as worker affinity/limits, NAPI, zero-copy receive, user memory regions, and
++BPF filters. QEMU proves unprivileged SQPOLL setup denial, denial event
++emission, and denial of a restricted registration operation.
 +
 +``CONFIG_SECURITY_HARDENING_EXPLOIT_MITIGATIONS`` locks
 +``/proc/sys/kernel/kptr_restrict`` at level ``2``. Kernel pointers printed
@@ -32154,8 +32201,8 @@ diff -urN linux-7.0.12/tools/testing/selftests/hardening/hdn_elfnote_jit.c linux
 +}
 diff -urN linux-7.0.12/tools/testing/selftests/hardening/hdn_smoke.c linux-7.0.12-hdn/tools/testing/selftests/hardening/hdn_smoke.c
 --- linux-7.0.12/tools/testing/selftests/hardening/hdn_smoke.c	1969-12-31 18:00:00.000000000 -0600
-+++ linux-7.0.12-hdn/tools/testing/selftests/hardening/hdn_smoke.c	2026-06-26 14:10:29.169987501 -0500
-@@ -0,0 +1,22330 @@
++++ linux-7.0.12-hdn/tools/testing/selftests/hardening/hdn_smoke.c	2026-06-26 14:18:46.585922765 -0500
+@@ -0,0 +1,22365 @@
 +// SPDX-License-Identifier: GPL-2.0-only
 +
 +#define _GNU_SOURCE
@@ -53929,6 +53976,23 @@ diff -urN linux-7.0.12/tools/testing/selftests/hardening/hdn_smoke.c linux-7.0.1
 +}
 +
 +#ifdef __NR_io_uring_setup
++static int unprivileged_io_uring_sqpoll_denied(void)
++{
++	struct io_uring_params params = {};
++	int fd;
++
++	params.flags = IORING_SETUP_SQPOLL;
++
++	errno = 0;
++	fd = syscall(__NR_io_uring_setup, 2, &params);
++	if (fd >= 0) {
++		close(fd);
++		return 1;
++	}
++
++	return errno_is_denial(errno) ? 0 : 2;
++}
++
 +static int unprivileged_io_uring_restricted_denied(void)
 +{
 +	struct io_uring_params params = {};
@@ -53958,6 +54022,23 @@ diff -urN linux-7.0.12/tools/testing/selftests/hardening/hdn_smoke.c linux-7.0.1
 +	return errno_is_denial(saved_errno) ? 0 : 2;
 +}
 +#endif
++
++static void test_unprivileged_io_uring_sqpoll_denied(void)
++{
++#ifdef __NR_io_uring_setup
++	unsigned int before;
++
++	before = securityfs_events_count("authority=14 transition=13");
++	run_as_unprivileged(unprivileged_io_uring_sqpoll_denied,
++			    "unprivileged io_uring SQPOLL setup is denied");
++	ksft_test_result(securityfs_events_count("authority=14 transition=13") >
++			 before,
++			 "hardening events report io_uring SQPOLL denial\n");
++#else
++	ksft_test_result_skip("io_uring syscall numbers unavailable\n");
++	ksft_test_result_skip("io_uring syscall numbers unavailable\n");
++#endif
++}
 +
 +static void test_unprivileged_io_uring_restricted_denied(void)
 +{
@@ -54185,7 +54266,7 @@ diff -urN linux-7.0.12/tools/testing/selftests/hardening/hdn_smoke.c linux-7.0.1
 +	if (access(HDN_STATUS, R_OK))
 +		ksft_exit_skip("hardening securityfs status not present\n");
 +
-+	ksft_set_plan(759);
++	ksft_set_plan(761);
 +	test_securityfs_status();
 +	test_symbol_test_module_load();
 +	test_securityfs_status_contains("abi_version: 77",
@@ -54448,6 +54529,7 @@ diff -urN linux-7.0.12/tools/testing/selftests/hardening/hdn_smoke.c linux-7.0.1
 +	test_unprivileged_perf_kernel_denied();
 +	test_unprivileged_kernel_log_denied();
 +	test_unprivileged_raw_io_denied();
++	test_unprivileged_io_uring_sqpoll_denied();
 +	report_child_result(sysvipc_msg_overpermissive_denied(),
 +			    "over-permissive message queue denies cross-uid access");
 +	report_child_result(sysvipc_sem_overpermissive_denied(),
@@ -54829,7 +54911,7 @@ diff -urN linux-7.0.12/tools/testing/selftests/hardening/role.policy linux-7.0.1
 +use-role 2 desktop-admin
 diff -urN linux-7.0.12/tools/testing/selftests/hardening/run-qemu-smoke.sh linux-7.0.12-hdn/tools/testing/selftests/hardening/run-qemu-smoke.sh
 --- linux-7.0.12/tools/testing/selftests/hardening/run-qemu-smoke.sh	1969-12-31 18:00:00.000000000 -0600
-+++ linux-7.0.12-hdn/tools/testing/selftests/hardening/run-qemu-smoke.sh	2026-06-26 14:10:35.629987027 -0500
++++ linux-7.0.12-hdn/tools/testing/selftests/hardening/run-qemu-smoke.sh	2026-06-26 14:19:02.373921522 -0500
 @@ -0,0 +1,1017 @@
 +#!/bin/sh
 +# SPDX-License-Identifier: GPL-2.0
@@ -54864,7 +54946,7 @@ diff -urN linux-7.0.12/tools/testing/selftests/hardening/run-qemu-smoke.sh linux
 +QEMU_MEMORY=${QEMU_MEMORY:-1024M}
 +QEMU_SMP=${QEMU_SMP:-2}
 +QEMU_MACHINE=${QEMU_MACHINE:-q35,accel=tcg}
-+HDN_SMOKE_EXPECTED_PASS=${HDN_SMOKE_EXPECTED_PASS:-759}
++HDN_SMOKE_EXPECTED_PASS=${HDN_SMOKE_EXPECTED_PASS:-761}
 +WORK=${HDN_QEMU_WORK:-"${TMPDIR:-/tmp}/hdn-qemu-smoke.$$"}
 +LOG=${HDN_QEMU_LOG:-"$WORK/qemu.log"}
 +QMP=${HDN_QEMU_QMP:-"$WORK/qmp.sock"}

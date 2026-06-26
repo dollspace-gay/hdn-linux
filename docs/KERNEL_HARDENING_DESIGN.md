@@ -448,7 +448,8 @@ Authority gates should cover:
 - procfs disclosure.
 - owner-only sysfs disclosure and sysfs mutation.
 - kernel log access.
-- io_uring operations that expand attack surface.
+- io_uring operations that expand attack surface, including SQPOLL setup and
+  privileged registration families.
 - new USB device attachment and usbmon capture.
 - non-local socket creation, outbound connections, and server-side bind/listen/accept.
 
@@ -1272,7 +1273,8 @@ kernel/kexec*:
   authorize kexec image load
 
 io_uring/:
-  gate operations that meaningfully expand attack surface
+  gate SQPOLL setup and registration operations that meaningfully expand attack
+  surface
 
 ipc/:
   harden overly permissive System V IPC and POSIX mqueue access
@@ -1668,6 +1670,8 @@ Core oracle groups:
 - direct raw block-device opens denied without block-device authority
 - raw block-device query can be allowed without granting block-device admin
   ioctls or block io_uring discard
+- io_uring SQPOLL setup and selected restricted registrations are denied
+  without io_uring restricted-operation authority
 - new USB device attachment denied without USB attach authority
 - usbmon capture denied without USB monitor authority
 - cross-profile signal sends denied without signal authority

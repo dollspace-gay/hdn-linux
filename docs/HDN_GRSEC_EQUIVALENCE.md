@@ -40,7 +40,7 @@ call sites, tests, and implementation structure.
 | `GRKERNSEC_SYSFS_RESTRICT` | Partial | HDN gates sysfs mutation by profile and mount namespace profile, gates owner-only readable sysfs attributes behind a separate `SYSFS_READ` authority, and hides owner-only sysfs entries from directory enumeration while preserving normal group/world-readable sysfs discovery. QEMU proves restricted-profile denial for sysfs mutation, owner-only sysfs read, and owner-only sysfs readdir visibility. Remaining difference: HDN does not expose grsecurity-compatible sysctl/group selector names or hide ordinary world-readable sysfs entries that desktop/device discovery expects. |
 | Debugfs/tracefs | Covered | HDN gates debugfs and tracefs access by profile and mount namespace profile through the shared debug observability authority. QEMU proves restricted-profile denial for both debugfs and tracefs. |
 | Kexec | Covered | HDN gates kexec load by profile. |
-| io_uring restricted ops | Covered | HDN gates selected restricted operations by profile. |
+| io_uring restricted ops | Covered | HDN gates selected restricted operations by profile, including SQPOLL ring setup plus worker affinity/limit, NAPI, zero-copy receive, memory-region, and BPF-filter registrations. QEMU proves unprivileged SQPOLL setup denial, denial event emission, and denial of a restricted registration operation. |
 
 ## Userspace Memory And Executable Policy
 
