@@ -6608,7 +6608,7 @@ diff -urN linux-7.0.12/kernel/module/kmod.c linux-7.0.12-hdn/kernel/module/kmod.
  		pr_warn_ratelimited("request_module: modprobe %s cannot be processed, kmod busy with %d threads for more than %d seconds now",
 diff -urN linux-7.0.12/kernel/module/main.c linux-7.0.12-hdn/kernel/module/main.c
 --- linux-7.0.12/kernel/module/main.c	2026-06-09 05:32:51.000000000 -0500
-+++ linux-7.0.12-hdn/kernel/module/main.c	2026-06-26 12:30:42.806523650 -0500
++++ linux-7.0.12-hdn/kernel/module/main.c	2026-06-26 17:28:20.328916464 -0500
 @@ -16,6 +16,7 @@
  #include <linux/kallsyms.h>
  #include <linux/buildid.h>
@@ -6617,22 +6617,136 @@ diff -urN linux-7.0.12/kernel/module/main.c linux-7.0.12-hdn/kernel/module/main.
  #include <linux/kernel.h>
  #include <linux/kernel_read_file.h>
  #include <linux/kstrtox.h>
-@@ -129,13 +130,27 @@
+@@ -37,6 +38,8 @@
+ #include <linux/device.h>
+ #include <linux/string.h>
+ #include <linux/mutex.h>
++#include <linux/mnt_idmapping.h>
++#include <linux/namei.h>
+ #include <linux/rculist.h>
+ #include <linux/uaccess.h>
+ #include <asm/cacheflush.h>
+@@ -129,13 +132,132 @@
  static int modules_disabled;
  core_param(nomodule, modules_disabled, bint, 0);
  
++static bool modprobe_inode_root_unwritable(const struct path *path,
++					   const struct inode *inode)
++{
++	struct mnt_idmap *idmap;
++	kuid_t uid;
++
++	if (!inode)
++		return false;
++
++	idmap = mnt_idmap(path->mnt);
++	uid = vfsuid_into_kuid(i_uid_into_vfsuid(idmap, inode));
++	if (!uid_valid(uid) || !uid_eq(uid, GLOBAL_ROOT_UID))
++		return false;
++	if (inode->i_mode & (S_IWGRP | S_IWOTH))
++		return false;
++
++	return true;
++}
++
++static bool modprobe_path_root_unwritable(const struct path *path)
++{
++	struct path walker;
++	struct dentry *dentry;
++	bool trusted = false;
++
++	if (!path || !path->dentry)
++		return false;
++
++	walker = *path;
++	path_get(&walker);
++	for (;;) {
++		if (!modprobe_inode_root_unwritable(&walker,
++						    d_inode(walker.dentry)))
++			goto out;
++
++		if (walker.dentry == walker.mnt->mnt_root) {
++			if (follow_up(&walker))
++				continue;
++			break;
++		}
++
++		if (unlikely(IS_ROOT(walker.dentry))) {
++			dput(walker.dentry);
++			walker.dentry = dget(walker.mnt->mnt_root);
++			continue;
++		}
++
++		dentry = dget_parent(walker.dentry);
++		dput(walker.dentry);
++		walker.dentry = dentry;
++	}
++
++	trusted = true;
++out:
++	path_put(&walker);
++	return trusted;
++}
++
++static bool modprobe_path_allowed(const char *name)
++{
++	struct inode *inode;
++	struct path path;
++	bool allowed = false;
++	int ret;
++
++	if (!IS_ENABLED(CONFIG_SECURITY_HARDENING_MODULE_AUTOLOAD_PATH))
++		return true;
++	if (!name[0])
++		return true;
++	if (name[0] != '/')
++		return false;
++
++	ret = kern_path(name, LOOKUP_NO_SYMLINKS | LOOKUP_NO_MAGICLINKS, &path);
++	if (ret)
++		return false;
++
++	inode = d_inode(path.dentry);
++	if (!S_ISREG(inode->i_mode))
++		goto out;
++	if (!(inode->i_mode & (S_IXUSR | S_IXGRP | S_IXOTH)))
++		goto out;
++	if (!modprobe_path_root_unwritable(&path))
++		goto out;
++
++	allowed = true;
++out:
++	path_put(&path);
++	return allowed;
++}
++
 +static int proc_dostring_modprobe(const struct ctl_table *table, int write,
 +				  void *buffer, size_t *lenp, loff_t *ppos)
 +{
++	char new_path[KMOD_PATH_LEN];
++	struct ctl_table tmp;
 +	int ret;
 +
-+	if (write) {
-+		ret = hdn_authorize_module_autoload_control();
-+		if (ret)
-+			return ret;
-+	}
++	if (!write)
++		return proc_dostring(table, write, buffer, lenp, ppos);
 +
-+	return proc_dostring(table, write, buffer, lenp, ppos);
++	ret = hdn_authorize_module_autoload_control();
++	if (ret)
++		return ret;
++
++	strscpy(new_path, table->data, sizeof(new_path));
++	tmp = *table;
++	tmp.data = new_path;
++	tmp.maxlen = sizeof(new_path);
++
++	ret = proc_dostring(&tmp, write, buffer, lenp, ppos);
++	if (ret)
++		return ret;
++	if (!modprobe_path_allowed(new_path))
++		return -EINVAL;
++
++	strscpy(table->data, new_path, table->maxlen);
++	return 0;
 +}
 +
  static const struct ctl_table module_sysctl_table[] = {
@@ -6646,7 +6760,7 @@ diff -urN linux-7.0.12/kernel/module/main.c linux-7.0.12-hdn/kernel/module/main.
  	},
  	{
  		.procname	= "modules_disabled",
-@@ -3577,6 +3592,10 @@
+@@ -3577,6 +3699,10 @@
  	if (err)
  		return err;
  
@@ -6657,7 +6771,7 @@ diff -urN linux-7.0.12/kernel/module/main.c linux-7.0.12-hdn/kernel/module/main.
  	pr_debug("init_module: umod=%p, len=%lu, uargs=%p\n",
  	       umod, len, uargs);
  
-@@ -3748,6 +3767,11 @@
+@@ -3748,6 +3874,11 @@
  	CLASS(fd, f)(fd);
  	if (fd_empty(f))
  		return -EBADF;
@@ -9433,8 +9547,8 @@ diff -urN linux-7.0.12/security/commoncap.c linux-7.0.12-hdn/security/commoncap.
  }
 diff -urN linux-7.0.12/security/hardening/Kconfig linux-7.0.12-hdn/security/hardening/Kconfig
 --- linux-7.0.12/security/hardening/Kconfig	1969-12-31 18:00:00.000000000 -0600
-+++ linux-7.0.12-hdn/security/hardening/Kconfig	2026-06-26 17:18:12.072970718 -0500
-@@ -0,0 +1,625 @@
++++ linux-7.0.12-hdn/security/hardening/Kconfig	2026-06-26 17:28:20.320916464 -0500
+@@ -0,0 +1,636 @@
 +# SPDX-License-Identifier: GPL-2.0-only
 +menuconfig SECURITY_HARDENING
 +	bool "Hardening contract layer"
@@ -9645,6 +9759,17 @@ diff -urN linux-7.0.12/security/hardening/Kconfig linux-7.0.12-hdn/security/hard
 +	  redirect future helper execution. Existing LSM, module signature, and
 +	  modprobe behavior still run after this gate for authorized autoload
 +	  requests.
++
++config SECURITY_HARDENING_MODULE_AUTOLOAD_PATH
++	bool "Validate module autoload helper paths"
++	default y
++	depends on SECURITY_HARDENING_MODULE_AUTOLOAD
++	help
++	  Require writes to kernel.modprobe to either disable autoload with an
++	  empty path or select an absolute, symlink-free, root-owned helper
++	  through non-group/world-writable ancestry. This keeps an authorized
++	  policy-admin operation from accidentally turning future module
++	  autoloads into execution through a mutable path.
 +
 +config SECURITY_HARDENING_PATH_DEFAULTS
 +	bool "Use hardened path-handling defaults"
@@ -10069,8 +10194,8 @@ diff -urN linux-7.0.12/security/hardening/Makefile linux-7.0.12-hdn/security/har
 +obj-$(CONFIG_SECURITY_HARDENING) += core.o
 diff -urN linux-7.0.12/security/hardening/core.c linux-7.0.12-hdn/security/hardening/core.c
 --- linux-7.0.12/security/hardening/core.c	1969-12-31 18:00:00.000000000 -0600
-+++ linux-7.0.12-hdn/security/hardening/core.c	2026-06-26 17:18:23.616970077 -0500
-@@ -0,0 +1,7363 @@
++++ linux-7.0.12-hdn/security/hardening/core.c	2026-06-26 17:28:20.324916464 -0500
+@@ -0,0 +1,7369 @@
 +// SPDX-License-Identifier: GPL-2.0-only
 +
 +#include <linux/binfmts.h>
@@ -10222,6 +10347,7 @@ diff -urN linux-7.0.12/security/hardening/core.c linux-7.0.12-hdn/security/harde
 +#define HDN_MITIGATION2_PAGE_TABLE_CHECK	(1ULL << 1)
 +#define HDN_MITIGATION2_MMAP_MIN_ADDR		(1ULL << 2)
 +#define HDN_MITIGATION2_IO_URING_SYSCTL_LOCK	(1ULL << 3)
++#define HDN_MITIGATION2_MODULE_AUTOLOAD_PATH	(1ULL << 4)
 +
 +struct hdn_mitigation_state {
 +	u32 abi_version;
@@ -10554,6 +10680,8 @@ diff -urN linux-7.0.12/security/hardening/core.c linux-7.0.12-hdn/security/harde
 +		flags |= HDN_MITIGATION2_MMAP_MIN_ADDR;
 +	if (IS_ENABLED(CONFIG_SECURITY_HARDENING_IO_URING_SYSCTL_LOCK))
 +		flags |= HDN_MITIGATION2_IO_URING_SYSCTL_LOCK;
++	if (IS_ENABLED(CONFIG_SECURITY_HARDENING_MODULE_AUTOLOAD_PATH))
++		flags |= HDN_MITIGATION2_MODULE_AUTOLOAD_PATH;
 +
 +	return flags;
 +}
@@ -17020,6 +17148,9 @@ diff -urN linux-7.0.12/security/hardening/core.c linux-7.0.12-hdn/security/harde
 +	seq_printf(m, "mitigation_io_uring_sysctl_lock: %u\n",
 +		   hdn_mitigation2_enabled(
 +			   HDN_MITIGATION2_IO_URING_SYSCTL_LOCK));
++	seq_printf(m, "mitigation_module_autoload_path: %u\n",
++		   hdn_mitigation2_enabled(
++			   HDN_MITIGATION2_MODULE_AUTOLOAD_PATH));
 +	seq_printf(m, "mitigation_privexec_arg_stack_limits: %u\n",
 +		   IS_ENABLED(CONFIG_SECURITY_HARDENING_PROC_MEMMAP));
 +	seq_printf(m, "mitigation_memfd_noexec: %u\n",
@@ -34917,8 +35048,8 @@ diff -urN linux-7.0.12/tools/testing/selftests/hardening/hdn_elfnote_jit.c linux
 +}
 diff -urN linux-7.0.12/tools/testing/selftests/hardening/hdn_smoke.c linux-7.0.12-hdn/tools/testing/selftests/hardening/hdn_smoke.c
 --- linux-7.0.12/tools/testing/selftests/hardening/hdn_smoke.c	1969-12-31 18:00:00.000000000 -0600
-+++ linux-7.0.12-hdn/tools/testing/selftests/hardening/hdn_smoke.c	2026-06-26 17:19:02.868952977 -0500
-@@ -0,0 +1,23519 @@
++++ linux-7.0.12-hdn/tools/testing/selftests/hardening/hdn_smoke.c	2026-06-26 17:31:02.772904545 -0500
+@@ -0,0 +1,23567 @@
 +// SPDX-License-Identifier: GPL-2.0-only
 +
 +#define _GNU_SOURCE
@@ -35123,6 +35254,8 @@ diff -urN linux-7.0.12/tools/testing/selftests/hardening/hdn_smoke.c linux-7.0.1
 +#define HDN_LEGACY_TIOCSTI "/proc/sys/dev/tty/legacy_tiocsti"
 +#define HDN_LDISC_AUTOLOAD "/proc/sys/dev/tty/ldisc_autoload"
 +#define HDN_MODPROBE_PATH "/proc/sys/kernel/modprobe"
++#define HDN_MODPROBE_UNSAFE_DIR "/hdn-modprobe-unsafe"
++#define HDN_MODPROBE_UNSAFE_PATH HDN_MODPROBE_UNSAFE_DIR "/modprobe"
 +#define HDN_SIGNED_POLICY "/default.hdn"
 +#define HDN_BROKER_SIGNED_POLICY "/hdn-policies/default.hdn"
 +#define HDN_RESTRICTED_POLICY "/restricted.hdn"
@@ -43247,6 +43380,46 @@ diff -urN linux-7.0.12/tools/testing/selftests/hardening/hdn_smoke.c linux-7.0.1
 +static int module_helper_path_write_allowed_by_policy(void)
 +{
 +	return module_helper_path_write_current_value() ? 2 : 0;
++}
++
++static int module_helper_unsafe_path_denied_by_policy(void)
++{
++	char current[256];
++	char restore[300];
++	int ret;
++
++	ret = read_text_file_small(HDN_MODPROBE_PATH, current, sizeof(current));
++	if (ret)
++		return ret == -ENOENT ? KSFT_SKIP : 2;
++
++	(void)unlink(HDN_MODPROBE_UNSAFE_PATH);
++	(void)rmdir(HDN_MODPROBE_UNSAFE_DIR);
++	if (mkdir(HDN_MODPROBE_UNSAFE_DIR, 0777) && errno != EEXIST)
++		return 2;
++	if (chmod(HDN_MODPROBE_UNSAFE_DIR, 0777))
++		return 2;
++	ret = copy_file("/hdn_smoke", HDN_MODPROBE_UNSAFE_PATH, 0755);
++	if (ret)
++		return 2;
++	if (chmod(HDN_MODPROBE_UNSAFE_PATH, 0755))
++		return 2;
++
++	ret = write_text_file(HDN_MODPROBE_PATH,
++			      HDN_MODPROBE_UNSAFE_PATH "\n");
++	if (!ret) {
++		snprintf(restore, sizeof(restore), "%s\n", current);
++		(void)write_text_file(HDN_MODPROBE_PATH, restore);
++		(void)unlink(HDN_MODPROBE_UNSAFE_PATH);
++		(void)rmdir(HDN_MODPROBE_UNSAFE_DIR);
++		return 1;
++	}
++
++	(void)unlink(HDN_MODPROBE_UNSAFE_PATH);
++	(void)rmdir(HDN_MODPROBE_UNSAFE_DIR);
++	if (ret == -ENOENT)
++		return KSFT_SKIP;
++
++	return ret == -EINVAL ? 0 : 2;
 +}
 +
 +static int module_helper_path_write_without_authority_denied(void)
@@ -52397,6 +52570,7 @@ diff -urN linux-7.0.12/tools/testing/selftests/hardening/hdn_smoke.c linux-7.0.1
 +			ksft_test_result_skip("proc memmap disclosure policy exposes target addresses\n");
 +			ksft_test_result_skip("proc resource-map disclosure policy exposes address ranges\n");
 +			ksft_test_result_skip("module-autoload profile can write modprobe helper path\n");
++			ksft_test_result_skip("module-autoload profile denies unsafe modprobe helper path\n");
 +			ksft_test_result_skip("setuid exec caps inherited stack resource limit\n");
 +		ksft_test_result_skip("signed policy denies unknown module file\n");
 +		ksft_test_result_skip("signed policy denies ptrace execute-only read\n");
@@ -53107,6 +53281,9 @@ diff -urN linux-7.0.12/tools/testing/selftests/hardening/hdn_smoke.c linux-7.0.1
 +	report_child_result(committed ?
 +			    module_helper_path_write_allowed_by_policy() : 2,
 +			    "module-autoload profile can write modprobe helper path");
++	report_child_result(committed ?
++			    module_helper_unsafe_path_denied_by_policy() : 2,
++			    "module-autoload profile denies unsafe modprobe helper path");
 +	report_child_result(committed ?
 +			    setuid_exec_stack_limit_capped() : 2,
 +			    "setuid exec caps inherited stack resource limit");
@@ -58069,7 +58246,7 @@ diff -urN linux-7.0.12/tools/testing/selftests/hardening/hdn_smoke.c linux-7.0.1
 +	if (access(HDN_STATUS, R_OK))
 +		ksft_exit_skip("hardening securityfs status not present\n");
 +
-+	ksft_set_plan(801);
++	ksft_set_plan(803);
 +	test_securityfs_status();
 +	test_symbol_test_module_load();
 +	test_securityfs_status_contains("abi_version: 77",
@@ -58134,6 +58311,8 @@ diff -urN linux-7.0.12/tools/testing/selftests/hardening/hdn_smoke.c linux-7.0.1
 +			    "unprivileged low fixed mmap below mmap_min_addr is denied");
 +	test_securityfs_status_contains("mitigation_io_uring_sysctl_lock: 1",
 +					"hardening status reports monotonic io_uring sysctl");
++	test_securityfs_status_contains("mitigation_module_autoload_path: 1",
++					"hardening status reports validated modprobe helper paths");
 +	test_securityfs_status_contains("mitigation_privexec_arg_stack_limits: 1",
 +					"hardening status reports privileged exec argument and stack limits");
 +	test_int_file_equals(HDN_SUID_DUMPABLE, 0,
@@ -58781,8 +58960,8 @@ diff -urN linux-7.0.12/tools/testing/selftests/hardening/role.policy linux-7.0.1
 +use-role 2 desktop-admin
 diff -urN linux-7.0.12/tools/testing/selftests/hardening/run-qemu-smoke.sh linux-7.0.12-hdn/tools/testing/selftests/hardening/run-qemu-smoke.sh
 --- linux-7.0.12/tools/testing/selftests/hardening/run-qemu-smoke.sh	1969-12-31 18:00:00.000000000 -0600
-+++ linux-7.0.12-hdn/tools/testing/selftests/hardening/run-qemu-smoke.sh	2026-06-26 17:19:08.168963682 -0500
-@@ -0,0 +1,1053 @@
++++ linux-7.0.12-hdn/tools/testing/selftests/hardening/run-qemu-smoke.sh	2026-06-26 17:31:02.772904545 -0500
+@@ -0,0 +1,1056 @@
 +#!/bin/sh
 +# SPDX-License-Identifier: GPL-2.0
 +
@@ -58816,7 +58995,7 @@ diff -urN linux-7.0.12/tools/testing/selftests/hardening/run-qemu-smoke.sh linux
 +QEMU_MEMORY=${QEMU_MEMORY:-1024M}
 +QEMU_SMP=${QEMU_SMP:-2}
 +QEMU_MACHINE=${QEMU_MACHINE:-q35,accel=tcg}
-+HDN_SMOKE_EXPECTED_PASS=${HDN_SMOKE_EXPECTED_PASS:-801}
++HDN_SMOKE_EXPECTED_PASS=${HDN_SMOKE_EXPECTED_PASS:-803}
 +WORK=${HDN_QEMU_WORK:-"${TMPDIR:-/tmp}/hdn-qemu-smoke.$$"}
 +LOG=${HDN_QEMU_LOG:-"$WORK/qemu.log"}
 +QMP=${HDN_QEMU_QMP:-"$WORK/qmp.sock"}
@@ -58892,6 +59071,7 @@ diff -urN linux-7.0.12/tools/testing/selftests/hardening/run-qemu-smoke.sh linux
 +
 +rm -rf "$WORK"
 +mkdir -p "$WORK/initramfs"
++mkdir -p "$WORK/initramfs/sbin"
 +
 +"$CC" -static -D__EXPORTED_HEADERS__ -I"$ROOT/include/uapi" -O2 -Wall -Wextra \
 +	-o "$WORK/hdn-policy" "$ROOT/tools/hardening/hdn-policy.c"
@@ -59184,6 +59364,8 @@ diff -urN linux-7.0.12/tools/testing/selftests/hardening/run-qemu-smoke.sh linux
 +	-o "$WORK/init" "$SCRIPT_DIR/vm_init.c"
 +
 +cp "$WORK/hdn_smoke" "$WORK/initramfs/hdn_smoke"
++cp "$WORK/hdn_smoke" "$WORK/initramfs/sbin/modprobe"
++chmod 0755 "$WORK/initramfs/sbin/modprobe"
 +cp "$WORK/hdn_smoke" "$WORK/initramfs/hdn-identity-trusted"
 +cp "$WORK/hdn_smoke" "$WORK/initramfs/hdn-identity-copy"
 +cp "$WORK/hdn_smoke" "$WORK/initramfs/hdn-object-exec-protected"

@@ -30,6 +30,8 @@ rules, chroot restrictions, TPE-style execution controls, IPC/socket/device
 hardening, privileged-exec restrictions, RWX/textrel/exec-stack controls,
 thread-stack placement randomization, proc-visible kernel symbol redaction,
 expanded BPF metadata/query gating, and broad audit/event decoding.
+Authorized `kernel.modprobe` writes now also validate the helper path as an
+absolute, symlink-free, root-owned executable through non-writable ancestry.
 USB monitor capture is now gated separately from USB attach so device brokers
 do not implicitly gain traffic-sniffing authority. Memfd defaults are now
 locked to enforced noexec mode, including rejection of explicit executable
@@ -103,16 +105,16 @@ The hardening smoke suite in the development tree is run under QEMU. Latest
 local result before this publication checkpoint:
 
 ```text
-QEMU hardening smoke: 801/801 pass
+QEMU hardening smoke: 803/803 pass
 ```
 
 Patch artifact at this checkpoint:
 
 ```text
 patch: patches/hdn-linux-7.0.12.patch
-lines: 60,014
-bytes: 1,763,126
-sha256: 9cb78b388096ff27c8825dee585eeedbf8298829bfdb02be9095a4d1368b87a3
+lines: 60,196
+bytes: 1,768,153
+sha256: 0869259acc3be805e615802aaf4783a859eb832cda2437d3bab13558c2f94b6b
 ```
 
 ## Development Rule

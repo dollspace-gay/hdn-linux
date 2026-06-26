@@ -610,6 +610,8 @@ Default rules:
 - The `kernel.modprobe` helper path cannot be changed unless the caller is in
   policy-admin context and has `AUTH_MODULE_AUTOLOAD`, preventing restricted
   root profiles from redirecting future autoload execution.
+- Authorized helper-path writes must still be empty or point to an absolute,
+  symlink-free, root-owned executable through non-group/world-writable ancestry.
 - Approval records exact module identity, signer, version, target kernel ABI, and package source.
 - Approval can be one-shot, until reboot, until update, or permanent.
 - Permanent approval is stored as a signed local policy transaction.
@@ -1594,6 +1596,7 @@ Core oracle groups:
 - unsigned module load denied
 - implicit module autoload denied without profile authority
 - modprobe helper path writes denied without module-autoload authority
+- unsafe modprobe helper path writes denied even with module-autoload authority
 - same-binary daemon worker crashes temporarily delay later daemon forks
 - successful exec operations emit structured exec audit events
 - successful exec operations emit privacy-preserving `EXEC_ARGS` argument and
