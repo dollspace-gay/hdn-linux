@@ -6786,7 +6786,7 @@ diff -urN linux-7.0.12/kernel/printk/printk.c linux-7.0.12-hdn/kernel/printk/pri
  			/* No unread messages. */
 diff -urN linux-7.0.12/kernel/printk/sysctl.c linux-7.0.12-hdn/kernel/printk/sysctl.c
 --- linux-7.0.12/kernel/printk/sysctl.c	2026-06-09 05:32:51.000000000 -0500
-+++ linux-7.0.12-hdn/kernel/printk/sysctl.c	2026-06-26 00:54:31.683975569 -0500
++++ linux-7.0.12-hdn/kernel/printk/sysctl.c	2026-06-26 14:31:49.577861373 -0500
 @@ -5,6 +5,7 @@
  
  #include <linux/printk.h>
@@ -6795,7 +6795,19 @@ diff -urN linux-7.0.12/kernel/printk/sysctl.c linux-7.0.12-hdn/kernel/printk/sys
  #include <linux/ratelimit.h>
  #include "internal.h"
  
-@@ -72,7 +73,11 @@
+@@ -63,7 +64,11 @@
+ 		.maxlen		= sizeof(int),
+ 		.mode		= 0644,
+ 		.proc_handler	= proc_dointvec_minmax_sysadmin,
++#if IS_ENABLED(CONFIG_SECURITY_HARDENING_EXPLOIT_MITIGATIONS)
++		.extra1		= SYSCTL_ONE,
++#else
+ 		.extra1		= SYSCTL_ZERO,
++#endif
+ 		.extra2		= SYSCTL_ONE,
+ 	},
+ 	{
+@@ -72,7 +77,11 @@
  		.maxlen		= sizeof(int),
  		.mode		= 0644,
  		.proc_handler	= proc_dointvec_minmax_sysadmin,
@@ -9231,7 +9243,7 @@ diff -urN linux-7.0.12/security/commoncap.c linux-7.0.12-hdn/security/commoncap.
  }
 diff -urN linux-7.0.12/security/hardening/Kconfig linux-7.0.12-hdn/security/hardening/Kconfig
 --- linux-7.0.12/security/hardening/Kconfig	1969-12-31 18:00:00.000000000 -0600
-+++ linux-7.0.12-hdn/security/hardening/Kconfig	2026-06-26 14:24:37.081918199 -0500
++++ linux-7.0.12-hdn/security/hardening/Kconfig	2026-06-26 14:31:54.257856877 -0500
 @@ -0,0 +1,584 @@
 +# SPDX-License-Identifier: GPL-2.0-only
 +menuconfig SECURITY_HARDENING
@@ -9807,9 +9819,9 @@ diff -urN linux-7.0.12/security/hardening/Kconfig linux-7.0.12-hdn/security/hard
 +	  helpers, slab freelist hardening and randomization, non-merged slab
 +	  caches, vmapped kernel stacks, kernel stack offset randomization,
 +	  strong stack protector, structure layout randomization, strict kernel
-+	  and module W^X, dmesg restriction, kernel pointer/symbol disclosure
-+	  restriction, and kCFI when the selected architecture and compiler
-+	  support them.
++	  and module W^X, locked dmesg restriction, kernel pointer/symbol
++	  disclosure restriction, and kCFI when the selected architecture and
++	  compiler support them.
 +
 +	  This is intentionally a build-time default layer rather than a policy
 +	  prompt. Product policy can decide who may perform dangerous actions;
@@ -17322,8 +17334,8 @@ diff -urN linux-7.0.12/tools/hardening/Makefile linux-7.0.12-hdn/tools/hardening
 +.PHONY: all clean
 diff -urN linux-7.0.12/tools/hardening/README.rst linux-7.0.12-hdn/tools/hardening/README.rst
 --- linux-7.0.12/tools/hardening/README.rst	1969-12-31 18:00:00.000000000 -0600
-+++ linux-7.0.12-hdn/tools/hardening/README.rst	2026-06-26 14:27:06.913894121 -0500
-@@ -0,0 +1,1264 @@
++++ linux-7.0.12-hdn/tools/hardening/README.rst	2026-06-26 14:32:34.185857993 -0500
+@@ -0,0 +1,1272 @@
 +.. SPDX-License-Identifier: GPL-2.0-only
 +
 +Linux Hardening Policy Tools
@@ -18230,6 +18242,14 @@ diff -urN linux-7.0.12/tools/hardening/README.rst linux-7.0.12-hdn/tools/hardeni
 +keeps sticky-directory link and replacement protections from being downgraded
 +after boot. The QEMU smoke suite proves the hardened values and rejection of
 +lower sysctl writes for all four controls.
++
++``CONFIG_SECURITY_HARDENING_EXPLOIT_MITIGATIONS`` locks
++``/proc/sys/kernel/dmesg_restrict`` at level ``1``. Kernel log reads remain
++restricted after boot even if a later admin path attempts to lower the sysctl.
++HDN still keeps direct kernel log reads behind the ``KERNEL_LOG_READ`` profile
++authority for privileged service policy. QEMU proves the locked sysctl value,
++failed lowering attempts, unprivileged kernel log denial, and sealed status
++reporting.
 +
 +``CONFIG_SECURITY_HARDENING_UNPRIV_BPF`` locks
 +``/proc/sys/kernel/unprivileged_bpf_disabled`` to ``1``. That is the upstream
@@ -32258,8 +32278,8 @@ diff -urN linux-7.0.12/tools/testing/selftests/hardening/hdn_elfnote_jit.c linux
 +}
 diff -urN linux-7.0.12/tools/testing/selftests/hardening/hdn_smoke.c linux-7.0.12-hdn/tools/testing/selftests/hardening/hdn_smoke.c
 --- linux-7.0.12/tools/testing/selftests/hardening/hdn_smoke.c	1969-12-31 18:00:00.000000000 -0600
-+++ linux-7.0.12-hdn/tools/testing/selftests/hardening/hdn_smoke.c	2026-06-26 14:24:37.093918197 -0500
-@@ -0,0 +1,22392 @@
++++ linux-7.0.12-hdn/tools/testing/selftests/hardening/hdn_smoke.c	2026-06-26 14:32:13.357838070 -0500
+@@ -0,0 +1,22412 @@
 +// SPDX-License-Identifier: GPL-2.0-only
 +
 +#define _GNU_SOURCE
@@ -32447,6 +32467,7 @@ diff -urN linux-7.0.12/tools/testing/selftests/hardening/hdn_smoke.c linux-7.0.1
 +#define HDN_BPF_JIT_HARDEN "/proc/sys/net/core/bpf_jit_harden"
 +#define HDN_BPF_JIT_KALLSYMS "/proc/sys/net/core/bpf_jit_kallsyms"
 +#define HDN_PERF_EVENT_PARANOID "/proc/sys/kernel/perf_event_paranoid"
++#define HDN_DMESG_RESTRICT "/proc/sys/kernel/dmesg_restrict"
 +#define HDN_KPTR_RESTRICT "/proc/sys/kernel/kptr_restrict"
 +#define HDN_MEMFD_NOEXEC "/proc/sys/vm/memfd_noexec"
 +#define HDN_MODPROBE_PATH "/proc/sys/kernel/modprobe"
@@ -53914,6 +53935,21 @@ diff -urN linux-7.0.12/tools/testing/selftests/hardening/hdn_smoke.c linux-7.0.1
 +	return 0;
 +}
 +
++static int dmesg_restrict_sysctl_locked(void)
++{
++	int ret;
++
++	ret = write_text_file(HDN_DMESG_RESTRICT, "0\n");
++	if (!ret) {
++		(void)write_text_file(HDN_DMESG_RESTRICT, "1\n");
++		return 1;
++	}
++	if (ret == -ENOENT)
++		return KSFT_SKIP;
++
++	return 0;
++}
++
 +static int memfd_noexec_sysctl_locked(void)
 +{
 +	int ret;
@@ -54338,7 +54374,7 @@ diff -urN linux-7.0.12/tools/testing/selftests/hardening/hdn_smoke.c linux-7.0.1
 +	if (access(HDN_STATUS, R_OK))
 +		ksft_exit_skip("hardening securityfs status not present\n");
 +
-+	ksft_set_plan(765);
++	ksft_set_plan(767);
 +	test_securityfs_status();
 +	test_symbol_test_module_load();
 +	test_securityfs_status_contains("abi_version: 77",
@@ -54383,6 +54419,10 @@ diff -urN linux-7.0.12/tools/testing/selftests/hardening/hdn_smoke.c linux-7.0.1
 +					"hardening status reports disabled slab merging");
 +	test_securityfs_status_contains("mitigation_dmesg_restrict: 1",
 +					"hardening status reports dmesg restriction");
++	test_int_file_equals(HDN_DMESG_RESTRICT, 1,
++			     "dmesg sysctl is locked restricted");
++	report_child_result(dmesg_restrict_sysctl_locked(),
++			    "dmesg sysctl cannot be lowered");
 +	test_securityfs_status_contains("mitigation_proc_mem_restrict: 1",
 +					"hardening status reports proc mem restriction");
 +	test_securityfs_status_contains("mitigation_proc_memmap_redact: 1",
@@ -54995,7 +55035,7 @@ diff -urN linux-7.0.12/tools/testing/selftests/hardening/role.policy linux-7.0.1
 +use-role 2 desktop-admin
 diff -urN linux-7.0.12/tools/testing/selftests/hardening/run-qemu-smoke.sh linux-7.0.12-hdn/tools/testing/selftests/hardening/run-qemu-smoke.sh
 --- linux-7.0.12/tools/testing/selftests/hardening/run-qemu-smoke.sh	1969-12-31 18:00:00.000000000 -0600
-+++ linux-7.0.12-hdn/tools/testing/selftests/hardening/run-qemu-smoke.sh	2026-06-26 14:24:37.093918197 -0500
++++ linux-7.0.12-hdn/tools/testing/selftests/hardening/run-qemu-smoke.sh	2026-06-26 14:32:16.797840427 -0500
 @@ -0,0 +1,1017 @@
 +#!/bin/sh
 +# SPDX-License-Identifier: GPL-2.0
@@ -55030,7 +55070,7 @@ diff -urN linux-7.0.12/tools/testing/selftests/hardening/run-qemu-smoke.sh linux
 +QEMU_MEMORY=${QEMU_MEMORY:-1024M}
 +QEMU_SMP=${QEMU_SMP:-2}
 +QEMU_MACHINE=${QEMU_MACHINE:-q35,accel=tcg}
-+HDN_SMOKE_EXPECTED_PASS=${HDN_SMOKE_EXPECTED_PASS:-765}
++HDN_SMOKE_EXPECTED_PASS=${HDN_SMOKE_EXPECTED_PASS:-767}
 +WORK=${HDN_QEMU_WORK:-"${TMPDIR:-/tmp}/hdn-qemu-smoke.$$"}
 +LOG=${HDN_QEMU_LOG:-"$WORK/qemu.log"}
 +QMP=${HDN_QEMU_QMP:-"$WORK/qmp.sock"}

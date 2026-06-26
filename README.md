@@ -36,6 +36,8 @@ locked to enforced noexec mode, including rejection of explicit executable
 memfd creation. io_uring SQPOLL setup is now behind the restricted-operation
 authority alongside other high-risk io_uring registrations. Upstream protected
 path sysctls are now locked at hardened floors instead of merely defaulted on.
+The dmesg restriction sysctl is also locked at the restricted value, so kernel
+log disclosure cannot be re-enabled by a later sysctl write.
 
 The largest remaining gaps are richer RBAC/userspace integration, full desktop
 and recovery UI around the admin broker, distro package/update wiring, deeper
@@ -65,16 +67,16 @@ The hardening smoke suite in the development tree is run under QEMU. Latest
 local result before this publication checkpoint:
 
 ```text
-QEMU hardening smoke: 765/765 pass
+QEMU hardening smoke: 767/767 pass
 ```
 
 Patch artifact at this checkpoint:
 
 ```text
 patch: patches/hdn-linux-7.0.12.patch
-lines: 56,192
-bytes: 1,646,569
-sha256: 938664970e9868e268b97df7cf63c61806b6b9fd1cd30f197ac9526b3fcdbb5e
+lines: 56,232
+bytes: 1,647,833
+sha256: 7c978beb298b3accad238576f3abab87a0542c88cb0090745c613df4dee70633
 ```
 
 ## Development Rule

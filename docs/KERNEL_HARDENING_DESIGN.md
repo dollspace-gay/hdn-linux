@@ -1643,6 +1643,8 @@ Core oracle groups:
   logging signal without changing HDN's mprotect enforcement decisions
 - `vm.memfd_noexec` starts at enforced noexec mode, cannot be lowered below
   that floor, and explicit `MFD_EXEC` memfd creation is rejected
+- `kernel.dmesg_restrict` starts at the restricted value and cannot be lowered
+  below that floor while the exploit-mitigation baseline is enabled
 - failed fork attempts emit a named `FORK_FAILED` audit reason and preserve the
   errno that caused process creation to fail
 - upstream protected symlink, hardlink, FIFO, and regular-file sticky-directory
