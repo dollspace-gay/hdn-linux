@@ -949,6 +949,18 @@ approved repair action reports stable metadata through the panel, and proves
 approved rollback dry-run plus real rollback reaches recovery-portal while
 preserving policy rollback behavior.
 
+`hdn-recovery-ui` is the starter graphical recovery frontend above
+`hdn-recovery-panel`. Product config owns the approved repair/rollback action
+list, title, message, and panel helper path. The UI obtains metadata for
+approved actions from the panel, displays a desktop selection dialog when
+`zenity` or `kdialog` is available, and sends only the selected approved action
+back through the panel. Deterministic test modes let product harnesses select
+or cancel without a graphical session. QEMU proves unknown UI choices and
+unsafe UI configs fail closed, proves canceled selections and no-display
+sessions fail closed before selection or mutation, and proves approved rollback
+dry-run plus real rollback reaches recovery-panel while preserving policy
+rollback behavior.
+
 Broker decisions become signed policy transactions consumed by the policy state manager and kernel interface.
 
 ## Policy Compiler
@@ -1546,6 +1558,11 @@ tools/hardening/hdn-recovery-panel:
   recovery metadata and portal actions, so recovery UI calls stable describe,
   action, repair, and rollback commands instead of lower helper names
 
+tools/hardening/hdn-recovery-ui:
+  provide a dependency-light graphical recovery action selector above
+  recovery-panel, so recovery shells can offer repair and rollback without
+  exposing panel, portal, session, broker, or securityfs details
+
 tools/hardening/hdn-recovery-prompt:
   read root-owned recovery metadata from stdin, display a dependency-light
   graphical continue/cancel prompt through the desktop session, and fail
@@ -1902,6 +1919,11 @@ Core oracle groups:
   approved rollback routing without confirmation UI or protected-state mutation,
   and maps approved panel actions to recovery metadata and portal routes without
   exposing lower helper, broker, or securityfs command lines
+- the recovery UI helper rejects unknown UI choices, rejects unsafe UI configs,
+  fails closed on canceled selection and without a graphical session, dry-runs
+  approved rollback routing without confirmation UI or protected-state
+  mutation, and maps approved UI choices through recovery-panel without
+  exposing panel, portal, session, broker, or securityfs command lines
 - the prompt dispatch helper rejects unknown post-auth action names, rejects
   unsafe prompt configs, and runs an approved named package-update action
   through fresh approval-token issuance and the strict token-required broker
@@ -2068,7 +2090,7 @@ Core oracle groups:
   that must reseal before returning.
 - Build a package-manager hook facade above named transactions and image seals,
   with shipped package-manager and image-seal hook snippets.
-- Build recovery session, portal, and panel facades above named recovery
+- Build recovery session, portal, panel, and UI facades above named recovery
   actions so recovery UI has one stable product contract.
 
 ### Phase 1: Upstream-Hardening Baseline

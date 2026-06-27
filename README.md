@@ -134,6 +134,12 @@ unknown panel actions and unsafe panel manifests fail closed, proves approved
 repair metadata is reported through the panel, and proves rollback preflight
 plus real rollback reaches the recovery portal without exposing lower helper
 or broker details.
+`hdn-recovery-ui` now provides a dependency-light graphical recovery frontend
+above `hdn-recovery-panel`: it owns the allowed repair/rollback action list in
+a root-owned manifest, obtains action metadata through the panel, selects via a
+desktop dialog when available, and fails closed without a graphical session.
+QEMU proves unknown choices, unsafe UI manifests, canceled selection,
+no-display denial, and rollback dry-run plus real rollback through the UI route.
 Other-user proc task visibility now has grouped proc mount compatibility plus
 an HDN-native global task-view group for proc, pidfd, and proc task-directory
 mode visibility.
@@ -149,7 +155,7 @@ checking on supported architectures, with sealed status and QEMU coverage.
 
 The largest remaining gaps are richer RBAC/userspace integration beyond the
 current policy workflow/daemon facade, full branded desktop and recovery UI
-around the settings/control-center/admin-broker/recovery-panel contracts, final image-specific
+around the settings/control-center/admin-broker/recovery-ui contracts, final image-specific
 update wiring, deeper internal symbol hiding, and PaX-style
 compiler/architecture mechanisms beyond the
 upstream-equivalent families already grouped in status.
@@ -177,16 +183,16 @@ The hardening smoke suite in the development tree is run under QEMU. Latest
 local result before this publication checkpoint:
 
 ```text
-QEMU hardening smoke: 977/977 pass
+QEMU hardening smoke: 982/982 pass
 ```
 
 Patch artifact at this checkpoint:
 
 ```text
 patch: patches/hdn-linux-7.0.12.patch
-lines: 69,856
-bytes: 2,080,905
-sha256: fa64e6f795992a1b0035fead5eac05ed3d9325fffb429d387d68cf65b796fd7e
+lines: 70,934
+bytes: 2,107,532
+sha256: 21c70f3e6e6da5aed3d29038d999d881995f44fa7730fc1196fc068f1eae81b0
 ```
 
 ## Development Rule
