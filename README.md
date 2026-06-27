@@ -40,8 +40,8 @@ IPC/socket/device hardening, non-controlling terminal descriptor access
 hardening,
 privileged-exec restrictions, RWX/textrel/exec-stack controls, thread-stack
 placement randomization, proc-visible kernel symbol redaction, cross-process
-proc argv/env/auxv/syscall/io/personality/coredump-filter/limits/sched/schedstat
-gating,
+proc argv/env/auxv/syscall/io/personality/coredump-filter/limits/statm plus
+scheduler-state gating,
 expanded BPF metadata/query gating, and
 broad audit/event decoding.
 Authorized `kernel.modprobe` writes now also validate the helper path as an
@@ -170,10 +170,11 @@ Cross-process `/proc/<pid>/cmdline`, `/proc/<pid>/environ`,
 `/proc/<pid>/auxv`, `/proc/<pid>/syscall`, `/proc/<pid>/io`, and
 `/proc/<pid>/personality` reads now also require disclosure authority, as do
 cross-process `/proc/<pid>/coredump_filter` reads and writes plus
-`/proc/<pid>/limits`, `/proc/<pid>/sched`, and `/proc/<pid>/schedstat` reads.
-Self inspection stays compatible while argv, environment, auxv, live syscall
-metadata, I/O accounting, personality flags, future core-dump selection,
-resource ceilings, and scheduler timing stay out of restricted profiles.
+`/proc/<pid>/limits`, `/proc/<pid>/statm`, `/proc/<pid>/sched`, and
+`/proc/<pid>/schedstat` reads. Self inspection stays compatible while argv,
+environment, auxv, live syscall metadata, I/O accounting, personality flags,
+future core-dump selection, memory accounting, resource ceilings, and scheduler
+timing stay out of restricted profiles.
 Sensitive sysfs kernel metadata such as `/sys/kernel/vmcoreinfo`,
 `/sys/kernel/notes`, and `/sys/kernel/boot_params/data` now requires the
 sysfs-read authority and is hidden from restricted directory enumeration, while
@@ -211,16 +212,16 @@ The hardening smoke suite in the development tree is run under QEMU. Latest
 local result before this publication checkpoint:
 
 ```text
-QEMU hardening smoke: 1039/1039 pass
+QEMU hardening smoke: 1041/1041 pass
 ```
 
 Patch artifact at this checkpoint:
 
 ```text
 patch: patches/hdn-linux-7.0.12.patch
-lines: 74,998
-bytes: 2,248,889
-sha256: aa6fca501247cf71a94f452a58532564290e2d08a2533e0e63510524a7ef185f
+lines: 75,032
+bytes: 2,250,039
+sha256: 27e366328c1da2573154ac01a0202c08de9cb3b8f5919a96074a112ac6131cd2
 ```
 
 ## Development Rule

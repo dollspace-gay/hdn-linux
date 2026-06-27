@@ -2468,7 +2468,7 @@ diff -ruN '--exclude=.git' '--exclude=.config' '--exclude=*.o' '--exclude=*.cmd'
  		goto out_inode_unlock;
 diff -ruN '--exclude=.git' '--exclude=.config' '--exclude=*.o' '--exclude=*.cmd' '--exclude=.tmp_*' '--exclude=certs/signing_key*' linux-7.0.12/fs/proc/array.c linux-7.0.12-hdn/fs/proc/array.c
 --- linux-7.0.12/fs/proc/array.c	2026-06-09 05:32:51.000000000 -0500
-+++ linux-7.0.12-hdn/fs/proc/array.c	2026-06-26 10:28:00.055206398 -0500
++++ linux-7.0.12-hdn/fs/proc/array.c	2026-06-27 07:27:39.300163243 -0500
 @@ -88,6 +88,7 @@
  #include <linux/pid_namespace.h>
  #include <linux/prctl.h>
@@ -2535,6 +2535,21 @@ diff -ruN '--exclude=.git' '--exclude=.config' '--exclude=*.o' '--exclude=*.cmd'
  		seq_put_decimal_ull(m, " ", mm->start_data);
  		seq_put_decimal_ull(m, " ", mm->end_data);
  		seq_put_decimal_ull(m, " ", mm->start_brk);
+@@ -678,6 +685,14 @@
+ 			struct pid *pid, struct task_struct *task)
+ {
+ 	struct mm_struct *mm = get_task_mm(task);
++	int err;
++
++	err = hdn_authorize_proc_sensitive_read(task, mm);
++	if (err) {
++		if (mm)
++			mmput(mm);
++		return err;
++	}
+ 
+ 	if (mm) {
+ 		unsigned long size;
 diff -ruN '--exclude=.git' '--exclude=.config' '--exclude=*.o' '--exclude=*.cmd' '--exclude=.tmp_*' '--exclude=certs/signing_key*' linux-7.0.12/fs/proc/base.c linux-7.0.12-hdn/fs/proc/base.c
 --- linux-7.0.12/fs/proc/base.c	2026-06-09 05:32:51.000000000 -0500
 +++ linux-7.0.12-hdn/fs/proc/base.c	2026-06-27 07:19:44.328188496 -0500
@@ -19909,8 +19924,8 @@ diff -ruN '--exclude=.git' '--exclude=.config' '--exclude=*.o' '--exclude=*.cmd'
 +.PHONY: all clean install
 diff -ruN '--exclude=.git' '--exclude=.config' '--exclude=*.o' '--exclude=*.cmd' '--exclude=.tmp_*' '--exclude=certs/signing_key*' linux-7.0.12/tools/hardening/README.rst linux-7.0.12-hdn/tools/hardening/README.rst
 --- linux-7.0.12/tools/hardening/README.rst	1969-12-31 18:00:00.000000000 -0600
-+++ linux-7.0.12-hdn/tools/hardening/README.rst	2026-06-27 07:22:49.648176105 -0500
-@@ -0,0 +1,1691 @@
++++ linux-7.0.12-hdn/tools/hardening/README.rst	2026-06-27 07:28:17.168160021 -0500
+@@ -0,0 +1,1693 @@
 +.. SPDX-License-Identifier: GPL-2.0-only
 +
 +Linux Hardening Policy Tools
@@ -20398,7 +20413,7 @@ diff -ruN '--exclude=.git' '--exclude=.config' '--exclude=*.o' '--exclude=*.cmd'
 +to point it at a non-default kernel build directory. The QEMU firmware policy
 +proof uses the upstream ``test_firmware`` driver, so the smoke kernel must be
 +built with ``CONFIG_TEST_FIRMWARE=y``. The current development harness expects
-+1039 passing hardening checks, including support-bundle fail-closed, collection
++1041 passing hardening checks, including support-bundle fail-closed, collection
 +proofs, object-scoped ptrace denial, protected shared-memory attach policy, and
 +abstract AF_UNIX object policy plus proc-sensitive syscall, metadata, and
 +scheduler-state disclosure checks.
@@ -21093,6 +21108,8 @@ diff -ruN '--exclude=.git' '--exclude=.config' '--exclude=*.o' '--exclude=*.cmd'
 +restricted profiles cannot alter another process' future core-dump selection.
 +Cross-task ``/proc/<pid>/limits`` reads also require ``PROC_DISCLOSE`` so
 +restricted peers cannot inventory another process' resource ceilings.
++Cross-task ``/proc/<pid>/statm`` reads require ``PROC_DISCLOSE`` so restricted
++peers cannot sample another process' memory accounting.
 +Cross-task ``/proc/<pid>/sched`` and ``/proc/<pid>/schedstat`` reads require
 +the same authority so restricted peers cannot sample another process'
 +scheduler timing and accounting state.
@@ -42472,8 +42489,8 @@ diff -ruN '--exclude=.git' '--exclude=.config' '--exclude=*.o' '--exclude=*.cmd'
 +}
 diff -ruN '--exclude=.git' '--exclude=.config' '--exclude=*.o' '--exclude=*.cmd' '--exclude=.tmp_*' '--exclude=certs/signing_key*' linux-7.0.12/tools/testing/selftests/hardening/hdn_smoke.c linux-7.0.12-hdn/tools/testing/selftests/hardening/hdn_smoke.c
 --- linux-7.0.12/tools/testing/selftests/hardening/hdn_smoke.c	1969-12-31 18:00:00.000000000 -0600
-+++ linux-7.0.12-hdn/tools/testing/selftests/hardening/hdn_smoke.c	2026-06-27 07:20:11.972183994 -0500
-@@ -0,0 +1,30572 @@
++++ linux-7.0.12-hdn/tools/testing/selftests/hardening/hdn_smoke.c	2026-06-27 07:28:05.528160910 -0500
+@@ -0,0 +1,30589 @@
 +// SPDX-License-Identifier: GPL-2.0-only
 +
 +#define _GNU_SOURCE
@@ -53273,6 +53290,11 @@ diff -ruN '--exclude=.git' '--exclude=.config' '--exclude=*.o' '--exclude=*.cmd'
 +	return proc_sensitive_file_visibility("limits", "Limit", true);
 +}
 +
++static int proc_statm_disclosed_by_policy(void)
++{
++	return proc_sensitive_file_visibility("statm", NULL, true);
++}
++
 +static int proc_sched_disclosed_by_policy(void)
 +{
 +	return proc_sensitive_file_visibility("sched", "se.exec_start", true);
@@ -53329,6 +53351,11 @@ diff -ruN '--exclude=.git' '--exclude=.config' '--exclude=*.o' '--exclude=*.cmd'
 +static int proc_limits_denied_without_disclosure(void)
 +{
 +	return proc_sensitive_file_visibility("limits", "Limit", false);
++}
++
++static int proc_statm_denied_without_disclosure(void)
++{
++	return proc_sensitive_file_visibility("statm", NULL, false);
 +}
 +
 +static int proc_sched_denied_without_disclosure(void)
@@ -65311,6 +65338,7 @@ diff -ruN '--exclude=.git' '--exclude=.config' '--exclude=*.o' '--exclude=*.cmd'
 +						ksft_test_result_skip("proc disclosure policy exposes target coredump filter\n");
 +						ksft_test_result_skip("proc disclosure policy allows target coredump filter writes\n");
 +						ksft_test_result_skip("proc disclosure policy exposes target resource limits\n");
++						ksft_test_result_skip("proc disclosure policy exposes target statm accounting\n");
 +						ksft_test_result_skip("proc disclosure policy exposes target scheduler state\n");
 +						ksft_test_result_skip("proc disclosure policy exposes target scheduler statistics\n");
 +						ksft_test_result_skip("proc resource-map disclosure policy exposes address ranges\n");
@@ -65378,6 +65406,7 @@ diff -ruN '--exclude=.git' '--exclude=.config' '--exclude=*.o' '--exclude=*.cmd'
 +						ksft_test_result_skip("restricted profile denies cross-process coredump filter reads\n");
 +						ksft_test_result_skip("restricted profile denies cross-process coredump filter writes\n");
 +						ksft_test_result_skip("restricted profile denies cross-process resource-limit reads\n");
++						ksft_test_result_skip("restricted profile denies cross-process statm reads\n");
 +						ksft_test_result_skip("restricted profile denies cross-process scheduler-state reads\n");
 +						ksft_test_result_skip("restricted profile denies cross-process scheduler-statistic reads\n");
 +						ksft_test_result_skip("restricted profile redacts proc resource-map addresses\n");
@@ -66261,6 +66290,8 @@ diff -ruN '--exclude=.git' '--exclude=.config' '--exclude=*.o' '--exclude=*.cmd'
 +						    "proc disclosure policy allows target coredump filter writes");
 +				report_child_result(committed ? proc_limits_disclosed_by_policy() : 2,
 +						    "proc disclosure policy exposes target resource limits");
++				report_child_result(committed ? proc_statm_disclosed_by_policy() : 2,
++						    "proc disclosure policy exposes target statm accounting");
 +				report_child_result(committed ? proc_sched_disclosed_by_policy() : 2,
 +						    "proc disclosure policy exposes target scheduler state");
 +				report_child_result(committed ? proc_schedstat_disclosed_by_policy() : 2,
@@ -66512,6 +66543,9 @@ diff -ruN '--exclude=.git' '--exclude=.config' '--exclude=*.o' '--exclude=*.cmd'
 +				report_child_result(restricted_committed ?
 +						    proc_limits_denied_without_disclosure() : 2,
 +						    "restricted profile denies cross-process resource-limit reads");
++				report_child_result(restricted_committed ?
++						    proc_statm_denied_without_disclosure() : 2,
++						    "restricted profile denies cross-process statm reads");
 +				report_child_result(restricted_committed ?
 +						    proc_sched_denied_without_disclosure() : 2,
 +						    "restricted profile denies cross-process scheduler-state reads");
@@ -72601,7 +72635,7 @@ diff -ruN '--exclude=.git' '--exclude=.config' '--exclude=*.o' '--exclude=*.cmd'
 +	if (access(HDN_STATUS, R_OK))
 +		ksft_exit_skip("hardening securityfs status not present\n");
 +
-+	ksft_set_plan(1039);
++	ksft_set_plan(1041);
 +	test_securityfs_status();
 +	test_symbol_test_module_load();
 +	test_securityfs_status_contains("abi_version: 93",
@@ -73447,7 +73481,7 @@ diff -ruN '--exclude=.git' '--exclude=.config' '--exclude=*.o' '--exclude=*.cmd'
 +use-role 2 desktop-admin
 diff -ruN '--exclude=.git' '--exclude=.config' '--exclude=*.o' '--exclude=*.cmd' '--exclude=.tmp_*' '--exclude=certs/signing_key*' linux-7.0.12/tools/testing/selftests/hardening/run-qemu-smoke.sh linux-7.0.12-hdn/tools/testing/selftests/hardening/run-qemu-smoke.sh
 --- linux-7.0.12/tools/testing/selftests/hardening/run-qemu-smoke.sh	1969-12-31 18:00:00.000000000 -0600
-+++ linux-7.0.12-hdn/tools/testing/selftests/hardening/run-qemu-smoke.sh	2026-06-27 07:20:17.560183424 -0500
++++ linux-7.0.12-hdn/tools/testing/selftests/hardening/run-qemu-smoke.sh	2026-06-27 07:28:09.532160613 -0500
 @@ -0,0 +1,1370 @@
 +#!/bin/sh
 +# SPDX-License-Identifier: GPL-2.0
@@ -73482,7 +73516,7 @@ diff -ruN '--exclude=.git' '--exclude=.config' '--exclude=*.o' '--exclude=*.cmd'
 +QEMU_MEMORY=${QEMU_MEMORY:-1024M}
 +QEMU_SMP=${QEMU_SMP:-2}
 +QEMU_MACHINE=${QEMU_MACHINE:-q35,accel=tcg}
-+HDN_SMOKE_EXPECTED_PASS=${HDN_SMOKE_EXPECTED_PASS:-1039}
++HDN_SMOKE_EXPECTED_PASS=${HDN_SMOKE_EXPECTED_PASS:-1041}
 +WORK=${HDN_QEMU_WORK:-"${TMPDIR:-/tmp}/hdn-qemu-smoke.$$"}
 +LOG=${HDN_QEMU_LOG:-"$WORK/qemu.log"}
 +QMP=${HDN_QEMU_QMP:-"$WORK/qmp.sock"}
