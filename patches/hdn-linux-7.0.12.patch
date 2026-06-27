@@ -507,7 +507,7 @@ diff -ruN --exclude .git linux-7.0.12/drivers/char/mem.c linux-7.0.12-hdn/driver
  
 diff -ruN --exclude .git linux-7.0.12/drivers/tty/tty_io.c linux-7.0.12-hdn/drivers/tty/tty_io.c
 --- linux-7.0.12/drivers/tty/tty_io.c	2026-06-09 05:32:51.000000000 -0500
-+++ linux-7.0.12-hdn/drivers/tty/tty_io.c	2026-06-26 14:45:21.101786405 -0500
++++ linux-7.0.12-hdn/drivers/tty/tty_io.c	2026-06-27 05:44:11.280680308 -0500
 @@ -102,6 +102,7 @@
  #include <linux/uaccess.h>
  #include <linux/termios_internal.h>
@@ -516,7 +516,27 @@ diff -ruN --exclude .git linux-7.0.12/drivers/tty/tty_io.c linux-7.0.12-hdn/driv
  
  #include <linux/kbd_kern.h>
  #include <linux/vt_kern.h>
-@@ -2255,7 +2256,30 @@
+@@ -910,6 +911,9 @@
+ 		return -EIO;
+ 	if (!tty || tty_io_error(tty))
+ 		return -EIO;
++	ret = hdn_authorize_tty_access(tty, HDN_TTY_ACCESS_READ);
++	if (ret)
++		return ret;
+ 
+ 	/* We want to wait for the line discipline to sort out in this
+ 	 * situation.
+@@ -1069,6 +1073,9 @@
+ 		return -EIO;
+ 	if (!tty || !tty->ops->write ||	tty_io_error(tty))
+ 		return -EIO;
++	ret = hdn_authorize_tty_access(tty, HDN_TTY_ACCESS_WRITE);
++	if (ret)
++		return ret;
+ 	/* Short term debug to catch buggy drivers */
+ 	if (tty->ops->write_room == NULL)
+ 		tty_err(tty, "missing write_room method\n");
+@@ -2255,7 +2262,30 @@
  	return retval;
  }
  
@@ -548,7 +568,7 @@ diff -ruN --exclude .git linux-7.0.12/drivers/tty/tty_io.c linux-7.0.12-hdn/driv
  /**
   * tiocsti - fake input character
   * @tty: tty to fake input into
-@@ -2273,6 +2297,11 @@
+@@ -2273,6 +2303,11 @@
  {
  	struct tty_ldisc *ld;
  	u8 ch;
@@ -560,7 +580,29 @@ diff -ruN --exclude .git linux-7.0.12/drivers/tty/tty_io.c linux-7.0.12-hdn/driv
  
  	if (!tty_legacy_tiocsti && !capable(CAP_SYS_ADMIN))
  		return -EIO;
-@@ -3606,14 +3635,14 @@
+@@ -2677,6 +2712,11 @@
+ 		return -EINVAL;
+ 
+ 	real_tty = tty_pair_get_tty(tty);
++	if (cmd != TIOCSTI) {
++		retval = hdn_authorize_tty_access(tty, HDN_TTY_ACCESS_IOCTL);
++		if (retval)
++			return retval;
++	}
+ 
+ 	/*
+ 	 * Factor out some common prep work
+@@ -2960,6 +3000,9 @@
+ 
+ 	if (tty_paranoia_check(tty, file_inode(file), "tty_ioctl"))
+ 		return -EINVAL;
++	retval = hdn_authorize_tty_access(tty, HDN_TTY_ACCESS_IOCTL);
++	if (retval)
++		return retval;
+ 
+ 	switch (cmd) {
+ 	case TIOCSSERIAL:
+@@ -3606,14 +3649,14 @@
  		.data		= &tty_legacy_tiocsti,
  		.maxlen		= sizeof(tty_legacy_tiocsti),
  		.mode		= 0644,
@@ -3752,8 +3794,8 @@ diff -ruN --exclude .git linux-7.0.12/include/linux/fs_struct.h linux-7.0.12-hdn
  #endif /* _LINUX_FS_STRUCT_H */
 diff -ruN --exclude .git linux-7.0.12/include/linux/hardening.h linux-7.0.12-hdn/include/linux/hardening.h
 --- linux-7.0.12/include/linux/hardening.h	1969-12-31 18:00:00.000000000 -0600
-+++ linux-7.0.12-hdn/include/linux/hardening.h	2026-06-27 05:28:59.568788675 -0500
-@@ -0,0 +1,1048 @@
++++ linux-7.0.12-hdn/include/linux/hardening.h	2026-06-27 05:42:45.472728531 -0500
+@@ -0,0 +1,1063 @@
 +/* SPDX-License-Identifier: GPL-2.0-only */
 +#ifndef _LINUX_HARDENING_H
 +#define _LINUX_HARDENING_H
@@ -3782,6 +3824,7 @@ diff -ruN --exclude .git linux-7.0.12/include/linux/hardening.h linux-7.0.12-hdn
 +struct socket;
 +struct super_block;
 +struct task_struct;
++struct tty_struct;
 +struct user_namespace;
 +struct vfsmount;
 +struct vm_area_struct;
@@ -3820,6 +3863,12 @@ diff -ruN --exclude .git linux-7.0.12/include/linux/hardening.h linux-7.0.12-hdn
 +
 +enum hdn_process_fd_operation {
 +	HDN_PROCESS_FD_GETFD = 1,
++};
++
++enum hdn_tty_access_operation {
++	HDN_TTY_ACCESS_READ = 1,
++	HDN_TTY_ACCESS_WRITE = 2,
++	HDN_TTY_ACCESS_IOCTL = 3,
 +};
 +
 +enum hdn_xattr_operation {
@@ -3991,6 +4040,8 @@ diff -ruN --exclude .git linux-7.0.12/include/linux/hardening.h linux-7.0.12-hdn
 +				      const struct inode *inode,
 +				      int requested_mode);
 +int hdn_authorize_tty_injection(unsigned int cmd);
++int hdn_authorize_tty_access(const struct tty_struct *tty,
++			     enum hdn_tty_access_operation operation);
 +int hdn_authorize_mount_type(const struct file_system_type *type);
 +int hdn_authorize_writable_mount(const struct file_system_type *type,
 +				 bool requested_readonly);
@@ -4614,6 +4665,12 @@ diff -ruN --exclude .git linux-7.0.12/include/linux/hardening.h linux-7.0.12-hdn
 +	return 0;
 +}
 +
++static inline int hdn_authorize_tty_access(
++	const struct tty_struct *tty, enum hdn_tty_access_operation operation)
++{
++	return 0;
++}
++
 +static inline int hdn_authorize_chroot_mount(const struct path *path)
 +{
 +	return 0;
@@ -4989,15 +5046,15 @@ diff -ruN --exclude .git linux-7.0.12/include/trace/events/mmap.h linux-7.0.12-h
  TRACE_EVENT(exit_mmap,
 diff -ruN --exclude .git linux-7.0.12/include/uapi/linux/hardening.h linux-7.0.12-hdn/include/uapi/linux/hardening.h
 --- linux-7.0.12/include/uapi/linux/hardening.h	1969-12-31 18:00:00.000000000 -0600
-+++ linux-7.0.12-hdn/include/uapi/linux/hardening.h	2026-06-27 05:28:26.112816474 -0500
-@@ -0,0 +1,650 @@
++++ linux-7.0.12-hdn/include/uapi/linux/hardening.h	2026-06-27 05:42:33.536716953 -0500
+@@ -0,0 +1,654 @@
 +/* SPDX-License-Identifier: GPL-2.0 WITH Linux-syscall-note */
 +#ifndef _UAPI_LINUX_HARDENING_H
 +#define _UAPI_LINUX_HARDENING_H
 +
 +#include <linux/types.h>
 +
-+#define HDN_POLICY_ABI_VERSION 91
++#define HDN_POLICY_ABI_VERSION 92
 +#define HDN_POLICY_MAGIC 0x48444e50 /* "HDNP" */
 +#define HDN_PROFILE_NAME_LEN 32
 +#define HDN_POLICY_PATH_LEN 256
@@ -5119,6 +5176,7 @@ diff -ruN --exclude .git linux-7.0.12/include/uapi/linux/hardening.h linux-7.0.1
 +	HDN_AUTH_OBJECT_MOUNT_SOURCE = 87,
 +	HDN_AUTH_OBJECT_SETID = 88,
 +	HDN_AUTH_OBJECT_PTRACE = 89,
++	HDN_AUTH_TTY_ACCESS = 90,
 +	HDN_AUTH__MAX,
 +};
 +
@@ -5225,6 +5283,7 @@ diff -ruN --exclude .git linux-7.0.12/include/uapi/linux/hardening.h linux-7.0.1
 +	HDN_TRANS_OBJECT_MOUNT_SOURCE = 99,
 +	HDN_TRANS_OBJECT_SETID = 100,
 +	HDN_TRANS_OBJECT_PTRACE = 101,
++	HDN_TRANS_TTY_ACCESS = 102,
 +	HDN_TRANS__MAX,
 +};
 +
@@ -5331,6 +5390,7 @@ diff -ruN --exclude .git linux-7.0.12/include/uapi/linux/hardening.h linux-7.0.1
 +	HDN_EVENT_ID_OBJECT_MOUNT_SOURCE = HDN_TRANS_OBJECT_MOUNT_SOURCE,
 +	HDN_EVENT_ID_OBJECT_SETID = HDN_TRANS_OBJECT_SETID,
 +	HDN_EVENT_ID_OBJECT_PTRACE = HDN_TRANS_OBJECT_PTRACE,
++	HDN_EVENT_ID_TTY_ACCESS = HDN_TRANS_TTY_ACCESS,
 +};
 +
 +enum hdn_decision_action {
@@ -5405,6 +5465,7 @@ diff -ruN --exclude .git linux-7.0.12/include/uapi/linux/hardening.h linux-7.0.1
 +	HDN_REASON_KERNEL_LOCKOUT = 55,
 +	HDN_REASON_RESOURCE_PROFILE_LIMIT = 56,
 +	HDN_REASON_PROTECTED_SHM = 57,
++	HDN_REASON_TTY_ACCESS = 58,
 +};
 +
 +enum hdn_phase {
@@ -10419,8 +10480,8 @@ diff -ruN --exclude .git linux-7.0.12/security/commoncap.c linux-7.0.12-hdn/secu
  }
 diff -ruN --exclude .git linux-7.0.12/security/hardening/Kconfig linux-7.0.12-hdn/security/hardening/Kconfig
 --- linux-7.0.12/security/hardening/Kconfig	1969-12-31 18:00:00.000000000 -0600
-+++ linux-7.0.12-hdn/security/hardening/Kconfig	2026-06-27 01:39:21.622057285 -0500
-@@ -0,0 +1,664 @@
++++ linux-7.0.12-hdn/security/hardening/Kconfig	2026-06-27 05:43:56.540664863 -0500
+@@ -0,0 +1,676 @@
 +# SPDX-License-Identifier: GPL-2.0-only
 +menuconfig SECURITY_HARDENING
 +	bool "Hardening contract layer"
@@ -10867,6 +10928,18 @@ diff -ruN --exclude .git linux-7.0.12/security/hardening/Kconfig linux-7.0.12-hd
 +	  The legacy TIOCSTI and line-discipline autoload sysctls are forced
 +	  off and locked while this hardening is enabled.
 +
++config SECURITY_HARDENING_TTY_ACCESS
++	bool "Gate non-controlling terminal descriptor access"
++	default y
++	depends on TTY
++	help
++	  Require TTY_ACCESS profile authority before a task reads, writes, or
++	  ioctls a terminal that is not its controlling terminal. PTY masters
++	  remain available for terminal emulators and brokers, and ordinary
++	  controlling-terminal access remains available for shells and console
++	  applications. This blocks inherited or preopened descriptor abuse
++	  without asking normal desktop users to manage terminal policy.
++
 +config SECURITY_HARDENING_VM86
 +	bool "Gate x86 VM86 mode"
 +	default y
@@ -11094,8 +11167,8 @@ diff -ruN --exclude .git linux-7.0.12/security/hardening/Makefile linux-7.0.12-h
 +obj-$(CONFIG_SECURITY_HARDENING) += core.o
 diff -ruN --exclude .git linux-7.0.12/security/hardening/core.c linux-7.0.12-hdn/security/hardening/core.c
 --- linux-7.0.12/security/hardening/core.c	1969-12-31 18:00:00.000000000 -0600
-+++ linux-7.0.12-hdn/security/hardening/core.c	2026-06-27 05:28:59.572788665 -0500
-@@ -0,0 +1,7839 @@
++++ linux-7.0.12-hdn/security/hardening/core.c	2026-06-27 05:43:48.136671147 -0500
+@@ -0,0 +1,7873 @@
 +// SPDX-License-Identifier: GPL-2.0-only
 +
 +#include <linux/binfmts.h>
@@ -11148,6 +11221,8 @@ diff -ruN --exclude .git linux-7.0.12/security/hardening/core.c linux-7.0.12-hdn
 +#include <linux/socket.h>
 +#include <linux/spinlock.h>
 +#include <linux/string.h>
++#include <linux/tty.h>
++#include <linux/tty_driver.h>
 +#include <linux/uaccess.h>
 +#include <linux/user_namespace.h>
 +#include <linux/verification.h>
@@ -11257,6 +11332,7 @@ diff -ruN --exclude .git linux-7.0.12/security/hardening/core.c linux-7.0.12-hdn
 +#define HDN_MITIGATION2_MODULE_LOAD_DISABLE	(1ULL << 6)
 +#define HDN_MITIGATION2_MODULE_REQUEST_NAME	(1ULL << 7)
 +#define HDN_MITIGATION2_MODULE_AUTOLOAD_CONTEXT	(1ULL << 8)
++#define HDN_MITIGATION2_TTY_ACCESS_HARDEN	(1ULL << 9)
 +
 +struct hdn_mitigation_state {
 +	u32 abi_version;
@@ -11387,9 +11463,10 @@ diff -ruN --exclude .git linux-7.0.12/security/hardening/core.c linux-7.0.12-hdn
 +			HDN_AUTHORITY_MASK(HDN_AUTH_PROCESS_MEMORY) |
 +			HDN_AUTHORITY_MASK(HDN_AUTH_MEMORY_MIGRATE) |
 +			HDN_AUTHORITY_MASK(HDN_AUTH_PROCESS_FD),
-+		.authority_allow_hi =
-+			HDN_AUTHORITY_MASK(HDN_AUTH_USB_MONITOR) |
-+			HDN_AUTHORITY_MASK(HDN_AUTH_KERNEL_LOG_WRITE),
++			.authority_allow_hi =
++				HDN_AUTHORITY_MASK(HDN_AUTH_USB_MONITOR) |
++				HDN_AUTHORITY_MASK(HDN_AUTH_KERNEL_LOG_WRITE) |
++				HDN_AUTHORITY_MASK(HDN_AUTH_TTY_ACCESS),
 +		.name = "privileged",
 +	},
 +};
@@ -11618,6 +11695,8 @@ diff -ruN --exclude .git linux-7.0.12/security/hardening/core.c linux-7.0.12-hdn
 +		flags |= HDN_MITIGATION2_MODULE_REQUEST_NAME;
 +	if (IS_ENABLED(CONFIG_MODULES))
 +		flags |= HDN_MITIGATION2_MODULE_AUTOLOAD_CONTEXT;
++	if (IS_ENABLED(CONFIG_SECURITY_HARDENING_TTY_ACCESS))
++		flags |= HDN_MITIGATION2_TTY_ACCESS_HARDEN;
 +
 +	return flags;
 +}
@@ -11964,16 +12043,17 @@ diff -ruN --exclude .git linux-7.0.12/security/hardening/core.c linux-7.0.12-hdn
 +	case HDN_AUTH_SYSFS_MUTATE:
 +	case HDN_AUTH_SYSFS_READ:
 +	case HDN_AUTH_KEXEC_LOAD:
-+		case HDN_AUTH_FIRMWARE_LOAD:
-+		case HDN_AUTH_IO_URING_RESTRICTED_OP:
-+		case HDN_AUTH_KERNEL_LOG_READ:
-+		case HDN_AUTH_KERNEL_LOG_WRITE:
-+		case HDN_AUTH_RAW_IO:
-+		case HDN_AUTH_MOUNT_ADMIN:
++	case HDN_AUTH_FIRMWARE_LOAD:
++	case HDN_AUTH_IO_URING_RESTRICTED_OP:
++	case HDN_AUTH_KERNEL_LOG_READ:
++	case HDN_AUTH_KERNEL_LOG_WRITE:
++	case HDN_AUTH_RAW_IO:
++	case HDN_AUTH_MOUNT_ADMIN:
 +	case HDN_AUTH_NAMESPACE_ADMIN:
 +	case HDN_AUTH_CHROOT_ADMIN:
 +	case HDN_AUTH_IPC_ADMIN:
 +	case HDN_AUTH_TTY_INJECT:
++	case HDN_AUTH_TTY_ACCESS:
 +	case HDN_AUTH_FUSE_MOUNT:
 +	case HDN_AUTH_ROFS_RELAX:
 +	case HDN_AUTH_USB_ATTACH:
@@ -16873,6 +16953,31 @@ diff -ruN --exclude .git linux-7.0.12/security/hardening/core.c linux-7.0.12-hdn
 +			       HDN_REASON_TTY_INJECTION, -EPERM, cmd);
 +}
 +
++static bool hdn_tty_is_pty_master(const struct tty_struct *tty)
++{
++	return tty && tty->driver &&
++	       tty->driver->type == TTY_DRIVER_TYPE_PTY &&
++	       tty->driver->subtype == PTY_TYPE_MASTER;
++}
++
++int hdn_authorize_tty_access(const struct tty_struct *tty,
++			     enum hdn_tty_access_operation operation)
++{
++	if (!IS_ENABLED(CONFIG_SECURITY_HARDENING_TTY_ACCESS))
++		return 0;
++	if (!tty)
++		return 0;
++	if (hdn_tty_is_pty_master(tty))
++		return 0;
++	if (current->signal && current->signal->tty == tty)
++		return 0;
++	if (hdn_profile_allows(HDN_AUTH_TTY_ACCESS, HDN_TRANS_TTY_ACCESS))
++		return 0;
++
++	return hdn_deny_object(HDN_AUTH_TTY_ACCESS, HDN_TRANS_TTY_ACCESS,
++			       HDN_REASON_TTY_ACCESS, -EACCES, operation);
++}
++
 +int hdn_authorize_mount_type(const struct file_system_type *type)
 +{
 +	int ret;
@@ -18532,6 +18637,8 @@ diff -ruN --exclude .git linux-7.0.12/security/hardening/core.c linux-7.0.12-hdn
 +		   hdn_mitigation_enabled(HDN_MITIGATION_POSIX_MQUEUE_HARDEN));
 +	seq_printf(m, "mitigation_tty_injection_harden: %u\n",
 +		   hdn_mitigation_enabled(HDN_MITIGATION_TTY_INJECTION_HARDEN));
++	seq_printf(m, "mitigation_tty_access_harden: %u\n",
++		   hdn_mitigation2_enabled(HDN_MITIGATION2_TTY_ACCESS_HARDEN));
 +	seq_printf(m, "mitigation_fuse_restrict: %u\n",
 +		   hdn_mitigation_enabled(HDN_MITIGATION_FUSE_RESTRICT));
 +	seq_printf(m, "mitigation_rofs_harden: %u\n",
@@ -19340,8 +19447,8 @@ diff -ruN --exclude .git linux-7.0.12/tools/hardening/Makefile linux-7.0.12-hdn/
 +.PHONY: all clean install
 diff -ruN --exclude .git linux-7.0.12/tools/hardening/README.rst linux-7.0.12-hdn/tools/hardening/README.rst
 --- linux-7.0.12/tools/hardening/README.rst	1969-12-31 18:00:00.000000000 -0600
-+++ linux-7.0.12-hdn/tools/hardening/README.rst	2026-06-27 05:30:50.192768332 -0500
-@@ -0,0 +1,1656 @@
++++ linux-7.0.12-hdn/tools/hardening/README.rst	2026-06-27 05:46:30.108685395 -0500
+@@ -0,0 +1,1664 @@
 +.. SPDX-License-Identifier: GPL-2.0-only
 +
 +Linux Hardening Policy Tools
@@ -19829,7 +19936,7 @@ diff -ruN --exclude .git linux-7.0.12/tools/hardening/README.rst linux-7.0.12-hd
 +to point it at a non-default kernel build directory. The QEMU firmware policy
 +proof uses the upstream ``test_firmware`` driver, so the smoke kernel must be
 +built with ``CONFIG_TEST_FIRMWARE=y``. The current development harness expects
-+997 passing hardening checks, including support-bundle fail-closed, collection
++1003 passing hardening checks, including support-bundle fail-closed, collection
 +proofs, object-scoped ptrace denial, and protected shared-memory attach policy.
 +
 +The kernel loader requires the compiled payload to carry an appended PKCS#7
@@ -19871,7 +19978,7 @@ diff -ruN --exclude .git linux-7.0.12/tools/hardening/README.rst linux-7.0.12-hd
 +  allow 2 KEXEC_LOAD FIRMWARE_LOAD IO_URING_RESTRICTED_OP
 +  allow 2 KERNEL_LOG_READ KERNEL_LOG_WRITE RAW_IO MOUNT_ADMIN POLICY_ADMIN
 +  allow 2 NAMESPACE_ADMIN CRED_CHANGE CHROOT_ADMIN TRUSTED_EXEC_BYPASS
-+  allow 2 IPC_ADMIN TTY_INJECT FUSE_MOUNT ROFS_RELAX USB_ATTACH USB_MONITOR
++  allow 2 IPC_ADMIN TTY_INJECT TTY_ACCESS FUSE_MOUNT ROFS_RELAX USB_ATTACH USB_MONITOR
 +  allow 2 SOCKET_CREATE SOCKET_CONNECT SOCKET_SERVER TIME_ADMIN RESOURCE_ADMIN
 +  allow 2 BLOCK_DEVICE_ACCESS BLOCK_DEVICE_ADMIN SIGNAL PROCESS_MEMORY MEMORY_MIGRATE PROCESS_FD
 +  audit 2 MODULE_LOAD KEXEC_LOAD
@@ -20647,6 +20754,14 @@ diff -ruN --exclude .git linux-7.0.12/tools/hardening/README.rst linux-7.0.12-hd
 +runtime knob. The QEMU smoke suite verifies the locked sysctl values, failed
 +enable attempts, both ioctl denials, and the corresponding event records.
 +
++``TTY_ACCESS`` authority gates inherited or preopened terminal descriptors.
++Profiles without that authority may still use their controlling terminal, and
++PTY masters remain available for terminal emulators and trusted brokers, but
++reads, writes, and generic ioctls against another terminal are denied before the
++line discipline or tty driver runs. The QEMU smoke suite verifies denied
++non-controlling read, write, and ioctl attempts plus the corresponding event
++records.
++
 +``FUSE_MOUNT`` authority gates userspace-backed FUSE filesystems separately
 +from broad ``MOUNT_ADMIN`` authority. Profiles without it are denied FUSE and
 +FUSE block-device mount creation through both legacy and fd-based mount paths.
@@ -21034,7 +21149,7 @@ diff -ruN --exclude .git linux-7.0.12/tools/hardening/admin-broker.conf linux-7.
 +allow-policy-rollback
 diff -ruN --exclude .git linux-7.0.12/tools/hardening/default.policy linux-7.0.12-hdn/tools/hardening/default.policy
 --- linux-7.0.12/tools/hardening/default.policy	1969-12-31 18:00:00.000000000 -0600
-+++ linux-7.0.12-hdn/tools/hardening/default.policy	2026-06-26 21:50:26.263304069 -0500
++++ linux-7.0.12-hdn/tools/hardening/default.policy	2026-06-27 05:44:24.336717822 -0500
 @@ -0,0 +1,19 @@
 +# Built-in-style starter policy for the hardening profile loader.
 +
@@ -21051,7 +21166,7 @@ diff -ruN --exclude .git linux-7.0.12/tools/hardening/default.policy linux-7.0.1
 +allow 2 KEXEC_LOAD FIRMWARE_LOAD IO_URING_RESTRICTED_OP
 +allow 2 KERNEL_LOG_READ KERNEL_LOG_WRITE RAW_IO MOUNT_ADMIN POLICY_ADMIN
 +allow 2 NAMESPACE_ADMIN CRED_CHANGE CHROOT_ADMIN TRUSTED_EXEC_BYPASS
-+allow 2 IPC_ADMIN TTY_INJECT FUSE_MOUNT ROFS_RELAX USB_ATTACH USB_MONITOR
++allow 2 IPC_ADMIN TTY_INJECT TTY_ACCESS FUSE_MOUNT ROFS_RELAX USB_ATTACH USB_MONITOR
 +allow 2 SOCKET_CREATE SOCKET_CONNECT SOCKET_SERVER TIME_ADMIN RESOURCE_ADMIN
 +allow 2 BLOCK_DEVICE_ACCESS BLOCK_DEVICE_ADMIN SIGNAL PROCESS_MEMORY MEMORY_MIGRATE PROCESS_FD
 +audit 2 MODULE_LOAD KEXEC_LOAD
@@ -24208,8 +24323,8 @@ diff -ruN --exclude .git linux-7.0.12/tools/hardening/hdn-desktop-daemon.c linux
 +}
 diff -ruN --exclude .git linux-7.0.12/tools/hardening/hdn-event-decode.c linux-7.0.12-hdn/tools/hardening/hdn-event-decode.c
 --- linux-7.0.12/tools/hardening/hdn-event-decode.c	1969-12-31 18:00:00.000000000 -0600
-+++ linux-7.0.12-hdn/tools/hardening/hdn-event-decode.c	2026-06-27 05:28:37.816813463 -0500
-@@ -0,0 +1,931 @@
++++ linux-7.0.12-hdn/tools/hardening/hdn-event-decode.c	2026-06-27 05:44:44.064719197 -0500
+@@ -0,0 +1,934 @@
 +// SPDX-License-Identifier: GPL-2.0-only
 +
 +#define _GNU_SOURCE
@@ -24295,6 +24410,7 @@ diff -ruN --exclude .git linux-7.0.12/tools/hardening/hdn-event-decode.c linux-7
 +	{ HDN_AUTH_TRUSTED_EXEC_BYPASS, "TRUSTED_EXEC_BYPASS" },
 +	{ HDN_AUTH_IPC_ADMIN, "IPC_ADMIN" },
 +	{ HDN_AUTH_TTY_INJECT, "TTY_INJECT" },
++	{ HDN_AUTH_TTY_ACCESS, "TTY_ACCESS" },
 +	{ HDN_AUTH_FUSE_MOUNT, "FUSE_MOUNT" },
 +	{ HDN_AUTH_ROFS_RELAX, "ROFS_RELAX" },
 +	{ HDN_AUTH_USB_ATTACH, "USB_ATTACH" },
@@ -24393,6 +24509,7 @@ diff -ruN --exclude .git linux-7.0.12/tools/hardening/hdn-event-decode.c linux-7
 +	{ HDN_TRANS_PIVOT_ROOT, "PIVOT_ROOT" },
 +	{ HDN_TRANS_SYSVIPC_ACCESS, "SYSVIPC_ACCESS" },
 +	{ HDN_TRANS_TTY_INJECT, "TTY_INJECT" },
++	{ HDN_TRANS_TTY_ACCESS, "TTY_ACCESS" },
 +	{ HDN_TRANS_FUSE_MOUNT, "FUSE_MOUNT" },
 +	{ HDN_TRANS_ROFS_RELAX, "ROFS_RELAX" },
 +	{ HDN_TRANS_USB_ATTACH, "USB_ATTACH" },
@@ -24501,6 +24618,7 @@ diff -ruN --exclude .git linux-7.0.12/tools/hardening/hdn-event-decode.c linux-7
 +	{ HDN_REASON_BRUTE_THROTTLED, "BRUTE_THROTTLED" },
 +	{ HDN_REASON_OVERPERMISSIVE_IPC, "OVERPERMISSIVE_IPC" },
 +	{ HDN_REASON_TTY_INJECTION, "TTY_INJECTION" },
++	{ HDN_REASON_TTY_ACCESS, "TTY_ACCESS" },
 +	{ HDN_REASON_FUSE_RESTRICTED, "FUSE_RESTRICTED" },
 +	{ HDN_REASON_ROFS_RELAX, "ROFS_RELAX" },
 +	{ HDN_REASON_UNPRIVILEGED_PRIVEXEC, "UNPRIVILEGED_PRIVEXEC" },
@@ -26541,8 +26659,8 @@ diff -ruN --exclude .git linux-7.0.12/tools/hardening/hdn-policy-daemon.c linux-
 +}
 diff -ruN --exclude .git linux-7.0.12/tools/hardening/hdn-policy-learn.c linux-7.0.12-hdn/tools/hardening/hdn-policy-learn.c
 --- linux-7.0.12/tools/hardening/hdn-policy-learn.c	1969-12-31 18:00:00.000000000 -0600
-+++ linux-7.0.12-hdn/tools/hardening/hdn-policy-learn.c	2026-06-27 05:28:37.816813463 -0500
-@@ -0,0 +1,885 @@
++++ linux-7.0.12-hdn/tools/hardening/hdn-policy-learn.c	2026-06-27 05:44:44.064719197 -0500
+@@ -0,0 +1,888 @@
 +// SPDX-License-Identifier: GPL-2.0-only
 +
 +#define _GNU_SOURCE
@@ -26630,6 +26748,7 @@ diff -ruN --exclude .git linux-7.0.12/tools/hardening/hdn-policy-learn.c linux-7
 +	{ HDN_AUTH_TRUSTED_EXEC_BYPASS, "TRUSTED_EXEC_BYPASS" },
 +	{ HDN_AUTH_IPC_ADMIN, "IPC_ADMIN" },
 +	{ HDN_AUTH_TTY_INJECT, "TTY_INJECT" },
++	{ HDN_AUTH_TTY_ACCESS, "TTY_ACCESS" },
 +	{ HDN_AUTH_FUSE_MOUNT, "FUSE_MOUNT" },
 +	{ HDN_AUTH_ROFS_RELAX, "ROFS_RELAX" },
 +	{ HDN_AUTH_USB_ATTACH, "USB_ATTACH" },
@@ -26728,6 +26847,7 @@ diff -ruN --exclude .git linux-7.0.12/tools/hardening/hdn-policy-learn.c linux-7
 +	{ HDN_TRANS_PIVOT_ROOT, "PIVOT_ROOT" },
 +	{ HDN_TRANS_SYSVIPC_ACCESS, "SYSVIPC_ACCESS" },
 +	{ HDN_TRANS_TTY_INJECT, "TTY_INJECT" },
++	{ HDN_TRANS_TTY_ACCESS, "TTY_ACCESS" },
 +	{ HDN_TRANS_FUSE_MOUNT, "FUSE_MOUNT" },
 +	{ HDN_TRANS_ROFS_RELAX, "ROFS_RELAX" },
 +	{ HDN_TRANS_USB_ATTACH, "USB_ATTACH" },
@@ -26836,6 +26956,7 @@ diff -ruN --exclude .git linux-7.0.12/tools/hardening/hdn-policy-learn.c linux-7
 +	{ HDN_REASON_BRUTE_THROTTLED, "BRUTE_THROTTLED" },
 +	{ HDN_REASON_OVERPERMISSIVE_IPC, "OVERPERMISSIVE_IPC" },
 +	{ HDN_REASON_TTY_INJECTION, "TTY_INJECTION" },
++	{ HDN_REASON_TTY_ACCESS, "TTY_ACCESS" },
 +	{ HDN_REASON_FUSE_RESTRICTED, "FUSE_RESTRICTED" },
 +	{ HDN_REASON_ROFS_RELAX, "ROFS_RELAX" },
 +	{ HDN_REASON_UNPRIVILEGED_PRIVEXEC, "UNPRIVILEGED_PRIVEXEC" },
@@ -27430,8 +27551,8 @@ diff -ruN --exclude .git linux-7.0.12/tools/hardening/hdn-policy-learn.c linux-7
 +}
 diff -ruN --exclude .git linux-7.0.12/tools/hardening/hdn-policy-merge.c linux-7.0.12-hdn/tools/hardening/hdn-policy-merge.c
 --- linux-7.0.12/tools/hardening/hdn-policy-merge.c	1969-12-31 18:00:00.000000000 -0600
-+++ linux-7.0.12-hdn/tools/hardening/hdn-policy-merge.c	2026-06-26 22:05:18.595221838 -0500
-@@ -0,0 +1,634 @@
++++ linux-7.0.12-hdn/tools/hardening/hdn-policy-merge.c	2026-06-27 05:44:24.336717822 -0500
+@@ -0,0 +1,635 @@
 +// SPDX-License-Identifier: GPL-2.0-only
 +
 +#define _GNU_SOURCE
@@ -27492,6 +27613,7 @@ diff -ruN --exclude .git linux-7.0.12/tools/hardening/hdn-policy-merge.c linux-7
 +	{ "TRUSTED_EXEC_BYPASS", HDN_AUTH_TRUSTED_EXEC_BYPASS },
 +	{ "IPC_ADMIN", HDN_AUTH_IPC_ADMIN },
 +	{ "TTY_INJECT", HDN_AUTH_TTY_INJECT },
++	{ "TTY_ACCESS", HDN_AUTH_TTY_ACCESS },
 +	{ "FUSE_MOUNT", HDN_AUTH_FUSE_MOUNT },
 +	{ "ROFS_RELAX", HDN_AUTH_ROFS_RELAX },
 +	{ "USB_ATTACH", HDN_AUTH_USB_ATTACH },
@@ -28746,8 +28868,8 @@ diff -ruN --exclude .git linux-7.0.12/tools/hardening/hdn-policy-workflow.c linu
 +}
 diff -ruN --exclude .git linux-7.0.12/tools/hardening/hdn-policy.c linux-7.0.12-hdn/tools/hardening/hdn-policy.c
 --- linux-7.0.12/tools/hardening/hdn-policy.c	1969-12-31 18:00:00.000000000 -0600
-+++ linux-7.0.12-hdn/tools/hardening/hdn-policy.c	2026-06-27 05:28:37.812813462 -0500
-@@ -0,0 +1,2298 @@
++++ linux-7.0.12-hdn/tools/hardening/hdn-policy.c	2026-06-27 05:44:24.332717851 -0500
+@@ -0,0 +1,2299 @@
 +// SPDX-License-Identifier: GPL-2.0-only
 +
 +#include <ctype.h>
@@ -28858,6 +28980,7 @@ diff -ruN --exclude .git linux-7.0.12/tools/hardening/hdn-policy.c linux-7.0.12-
 +	{ "TRUSTED_EXEC_BYPASS", HDN_AUTH_TRUSTED_EXEC_BYPASS },
 +	{ "IPC_ADMIN", HDN_AUTH_IPC_ADMIN },
 +	{ "TTY_INJECT", HDN_AUTH_TTY_INJECT },
++	{ "TTY_ACCESS", HDN_AUTH_TTY_ACCESS },
 +	{ "FUSE_MOUNT", HDN_AUTH_FUSE_MOUNT },
 +	{ "ROFS_RELAX", HDN_AUTH_ROFS_RELAX },
 +	{ "USB_ATTACH", HDN_AUTH_USB_ATTACH },
@@ -38659,8 +38782,8 @@ diff -ruN --exclude .git linux-7.0.12/tools/hardening/hdn-settings-ui.c linux-7.
 +}
 diff -ruN --exclude .git linux-7.0.12/tools/hardening/hdn-status.c linux-7.0.12-hdn/tools/hardening/hdn-status.c
 --- linux-7.0.12/tools/hardening/hdn-status.c	1969-12-31 18:00:00.000000000 -0600
-+++ linux-7.0.12-hdn/tools/hardening/hdn-status.c	2026-06-27 05:28:37.816813463 -0500
-@@ -0,0 +1,1181 @@
++++ linux-7.0.12-hdn/tools/hardening/hdn-status.c	2026-06-27 05:44:52.360722429 -0500
+@@ -0,0 +1,1187 @@
 +// SPDX-License-Identifier: GPL-2.0-only
 +
 +#define _GNU_SOURCE
@@ -38740,6 +38863,7 @@ diff -ruN --exclude .git linux-7.0.12/tools/hardening/hdn-status.c linux-7.0.12-
 +	{ HDN_AUTH_TRUSTED_EXEC_BYPASS, "TRUSTED_EXEC_BYPASS" },
 +	{ HDN_AUTH_IPC_ADMIN, "IPC_ADMIN" },
 +	{ HDN_AUTH_TTY_INJECT, "TTY_INJECT" },
++	{ HDN_AUTH_TTY_ACCESS, "TTY_ACCESS" },
 +	{ HDN_AUTH_FUSE_MOUNT, "FUSE_MOUNT" },
 +	{ HDN_AUTH_ROFS_RELAX, "ROFS_RELAX" },
 +	{ HDN_AUTH_USB_ATTACH, "USB_ATTACH" },
@@ -38838,6 +38962,7 @@ diff -ruN --exclude .git linux-7.0.12/tools/hardening/hdn-status.c linux-7.0.12-
 +	{ HDN_TRANS_PIVOT_ROOT, "PIVOT_ROOT" },
 +	{ HDN_TRANS_SYSVIPC_ACCESS, "SYSVIPC_ACCESS" },
 +	{ HDN_TRANS_TTY_INJECT, "TTY_INJECT" },
++	{ HDN_TRANS_TTY_ACCESS, "TTY_ACCESS" },
 +	{ HDN_TRANS_FUSE_MOUNT, "FUSE_MOUNT" },
 +	{ HDN_TRANS_ROFS_RELAX, "ROFS_RELAX" },
 +	{ HDN_TRANS_USB_ATTACH, "USB_ATTACH" },
@@ -38946,6 +39071,7 @@ diff -ruN --exclude .git linux-7.0.12/tools/hardening/hdn-status.c linux-7.0.12-
 +	{ HDN_REASON_BRUTE_THROTTLED, "BRUTE_THROTTLED" },
 +	{ HDN_REASON_OVERPERMISSIVE_IPC, "OVERPERMISSIVE_IPC" },
 +	{ HDN_REASON_TTY_INJECTION, "TTY_INJECTION" },
++	{ HDN_REASON_TTY_ACCESS, "TTY_ACCESS" },
 +	{ HDN_REASON_FUSE_RESTRICTED, "FUSE_RESTRICTED" },
 +	{ HDN_REASON_ROFS_RELAX, "ROFS_RELAX" },
 +	{ HDN_REASON_UNPRIVILEGED_PRIVEXEC, "UNPRIVILEGED_PRIVEXEC" },
@@ -39362,6 +39488,10 @@ diff -ruN --exclude .git linux-7.0.12/tools/hardening/hdn-status.c linux-7.0.12-
 +		"mitigation_sysvipc_harden",
 +		"mitigation_posix_mqueue_harden",
 +	};
++	static const char * const tty[] = {
++		"mitigation_tty_injection_harden",
++		"mitigation_tty_access_harden",
++	};
 +	static const char * const resource[] = {
 +		"mitigation_resource_admin",
 +		"mitigation_resource_audit",
@@ -39476,9 +39606,8 @@ diff -ruN --exclude .git linux-7.0.12/tools/hardening/hdn-status.c linux-7.0.12-
 +				ipc, ARRAY_SIZE(ipc));
 +	if (ret)
 +		return ret;
-+	ret = output_compat_bool(outputs, "compat_tty",
-+				 status_bool(status,
-+					     "mitigation_tty_injection_harden"));
++	ret = output_compat_all(outputs, status, "compat_tty",
++				tty, ARRAY_SIZE(tty));
 +	if (ret)
 +		return ret;
 +	ret = output_compat_all(outputs, status, "compat_resource",
@@ -41417,7 +41546,7 @@ diff -ruN --exclude .git linux-7.0.12/tools/testing/selftests/hardening/Makefile
 +include ../lib.mk
 diff -ruN --exclude .git linux-7.0.12/tools/testing/selftests/hardening/block-admin.policy linux-7.0.12-hdn/tools/testing/selftests/hardening/block-admin.policy
 --- linux-7.0.12/tools/testing/selftests/hardening/block-admin.policy	1969-12-31 18:00:00.000000000 -0600
-+++ linux-7.0.12-hdn/tools/testing/selftests/hardening/block-admin.policy	2026-06-25 13:26:51.536602410 -0500
++++ linux-7.0.12-hdn/tools/testing/selftests/hardening/block-admin.policy	2026-06-27 05:51:04.812677568 -0500
 @@ -0,0 +1,13 @@
 +# SPDX-License-Identifier: GPL-2.0-only
 +# Policy used by the QEMU smoke test to prove that raw block-device
@@ -41431,10 +41560,10 @@ diff -ruN --exclude .git linux-7.0.12/tools/testing/selftests/hardening/block-ad
 +profile 1 default
 +profile 2 block-inspector
 +
-+allow 2 POLICY_ADMIN CRED_CHANGE BLOCK_DEVICE_ACCESS
++allow 2 POLICY_ADMIN CRED_CHANGE TTY_ACCESS BLOCK_DEVICE_ACCESS
 diff -ruN --exclude .git linux-7.0.12/tools/testing/selftests/hardening/chroot-mount.policy linux-7.0.12-hdn/tools/testing/selftests/hardening/chroot-mount.policy
 --- linux-7.0.12/tools/testing/selftests/hardening/chroot-mount.policy	1969-12-31 18:00:00.000000000 -0600
-+++ linux-7.0.12-hdn/tools/testing/selftests/hardening/chroot-mount.policy	2026-06-25 16:27:16.424639988 -0500
++++ linux-7.0.12-hdn/tools/testing/selftests/hardening/chroot-mount.policy	2026-06-27 05:51:04.812677568 -0500
 @@ -0,0 +1,14 @@
 +# SPDX-License-Identifier: GPL-2.0-only
 +# Policy used by the QEMU smoke test to prove contained chroots deny mount
@@ -41448,11 +41577,11 @@ diff -ruN --exclude .git linux-7.0.12/tools/testing/selftests/hardening/chroot-m
 +profile 1 default
 +profile 2 chroot-mount-root
 +
-+allow 2 MOUNT_ADMIN POLICY_ADMIN CRED_CHANGE
++allow 2 MOUNT_ADMIN POLICY_ADMIN CRED_CHANGE TTY_ACCESS
 +feature 2 CHROOT_CONTAINED
 diff -ruN --exclude .git linux-7.0.12/tools/testing/selftests/hardening/cred-deny.policy linux-7.0.12-hdn/tools/testing/selftests/hardening/cred-deny.policy
 --- linux-7.0.12/tools/testing/selftests/hardening/cred-deny.policy	1969-12-31 18:00:00.000000000 -0600
-+++ linux-7.0.12-hdn/tools/testing/selftests/hardening/cred-deny.policy	2026-06-25 03:41:57.214835097 -0500
++++ linux-7.0.12-hdn/tools/testing/selftests/hardening/cred-deny.policy	2026-06-27 05:51:04.812677568 -0500
 @@ -0,0 +1,13 @@
 +# SPDX-License-Identifier: GPL-2.0-only
 +# Root-profile policy used by the QEMU smoke test to prove privileged exec
@@ -41466,10 +41595,10 @@ diff -ruN --exclude .git linux-7.0.12/tools/testing/selftests/hardening/cred-den
 +profile 1 default
 +profile 2 no-cred-change-root
 +
-+allow 2 POLICY_ADMIN
++allow 2 POLICY_ADMIN TTY_ACCESS
 diff -ruN --exclude .git linux-7.0.12/tools/testing/selftests/hardening/execstack.policy linux-7.0.12-hdn/tools/testing/selftests/hardening/execstack.policy
 --- linux-7.0.12/tools/testing/selftests/hardening/execstack.policy	1969-12-31 18:00:00.000000000 -0600
-+++ linux-7.0.12-hdn/tools/testing/selftests/hardening/execstack.policy	2026-06-26 01:33:16.215782164 -0500
++++ linux-7.0.12-hdn/tools/testing/selftests/hardening/execstack.policy	2026-06-27 05:51:04.812677568 -0500
 @@ -0,0 +1,14 @@
 +# SPDX-License-Identifier: GPL-2.0-only
 +# Root-profile policy used by the QEMU smoke test to prove that executable
@@ -41483,11 +41612,11 @@ diff -ruN --exclude .git linux-7.0.12/tools/testing/selftests/hardening/execstac
 +profile 1 default
 +profile 2 execstack-root
 +
-+allow 2 POLICY_ADMIN CRED_CHANGE
++allow 2 POLICY_ADMIN CRED_CHANGE TTY_ACCESS
 +mem 2 ALLOW_EXEC_STACK_ELF
 diff -ruN --exclude .git linux-7.0.12/tools/testing/selftests/hardening/firmware.policy linux-7.0.12-hdn/tools/testing/selftests/hardening/firmware.policy
 --- linux-7.0.12/tools/testing/selftests/hardening/firmware.policy	1969-12-31 18:00:00.000000000 -0600
-+++ linux-7.0.12-hdn/tools/testing/selftests/hardening/firmware.policy	2026-06-25 04:19:26.915894030 -0500
++++ linux-7.0.12-hdn/tools/testing/selftests/hardening/firmware.policy	2026-06-27 05:51:04.816677569 -0500
 @@ -0,0 +1,16 @@
 +# SPDX-License-Identifier: GPL-2.0-only
 +# Policy used by the QEMU smoke test to prove firmware allow-listing by
@@ -41501,7 +41630,7 @@ diff -ruN --exclude .git linux-7.0.12/tools/testing/selftests/hardening/firmware
 +profile 1 default
 +profile 2 privileged
 +
-+allow 2 FIRMWARE_LOAD POLICY_ADMIN SYSFS_MUTATE
++allow 2 FIRMWARE_LOAD POLICY_ADMIN SYSFS_MUTATE TTY_ACCESS
 +audit 2 FIRMWARE_LOAD
 +
 +firmware 2 name hdn-allowed-fw.bin
@@ -41829,8 +41958,8 @@ diff -ruN --exclude .git linux-7.0.12/tools/testing/selftests/hardening/hdn_elfn
 +}
 diff -ruN --exclude .git linux-7.0.12/tools/testing/selftests/hardening/hdn_smoke.c linux-7.0.12-hdn/tools/testing/selftests/hardening/hdn_smoke.c
 --- linux-7.0.12/tools/testing/selftests/hardening/hdn_smoke.c	1969-12-31 18:00:00.000000000 -0600
-+++ linux-7.0.12-hdn/tools/testing/selftests/hardening/hdn_smoke.c	2026-06-27 05:29:54.588802572 -0500
-@@ -0,0 +1,29482 @@
++++ linux-7.0.12-hdn/tools/testing/selftests/hardening/hdn_smoke.c	2026-06-27 05:51:53.536679009 -0500
+@@ -0,0 +1,29623 @@
 +// SPDX-License-Identifier: GPL-2.0-only
 +
 +#define _GNU_SOURCE
@@ -45272,6 +45401,31 @@ diff -ruN --exclude .git linux-7.0.12/tools/testing/selftests/hardening/hdn_smok
 +	return child_exit_result(child);
 +}
 +
++static int event_decoder_finds_tty_access_denial(void)
++{
++	pid_t child;
++
++	if (access(HDN_EVENT_DECODE_EXEC, X_OK))
++		return KSFT_SKIP;
++
++	child = fork();
++	if (child < 0)
++		return 2;
++
++	if (!child) {
++		execl(HDN_EVENT_DECODE_EXEC, "hdn-event-decode", "--quiet",
++		      "--expect", "authority=TTY_ACCESS",
++		      "--expect", "transition=TTY_ACCESS",
++		      "--expect", "reason=TTY_ACCESS",
++		      "--expect", "action=DENY_AUDIT", NULL);
++		fprintf(stderr, "event decoder exec failed: %s\n",
++			strerror(errno));
++		_exit(2);
++	}
++
++	return child_exit_result(child);
++}
++
 +static int event_decoder_read_output(int fd, char *buf, size_t size)
 +{
 +	size_t offset = 0;
@@ -45526,10 +45680,12 @@ diff -ruN --exclude .git linux-7.0.12/tools/testing/selftests/hardening/hdn_smok
 +		"mitigation_page_table_check: 0\n"
 +		"mitigation_net_blackhole: 1\n"
 +		"mitigation_tcp_no_simult_connect: 0\n"
-+		"mitigation_usb_restrict: 1\n"
-+		"mitigation_usb_monitor_restrict: 1\n"
-+		"mitigation_resource_admin: 1\n"
-+		"mitigation_resource_audit: 0\n";
++			"mitigation_usb_restrict: 1\n"
++			"mitigation_usb_monitor_restrict: 1\n"
++			"mitigation_tty_injection_harden: 1\n"
++			"mitigation_tty_access_harden: 1\n"
++			"mitigation_resource_admin: 1\n"
++			"mitigation_resource_audit: 0\n";
 +	pid_t child;
 +	int ret;
 +
@@ -45562,9 +45718,10 @@ diff -ruN --exclude .git linux-7.0.12/tools/testing/selftests/hardening/hdn_smok
 +		      "--expect", "compat_compiler=0",
 +		      "--expect", "compat_stack=1",
 +		      "--expect", "compat_kernel_wx=0",
-+		      "--expect", "compat_net_blackhole=0",
-+		      "--expect", "compat_usb=1",
-+		      "--expect", "compat_resource=0", NULL);
++			      "--expect", "compat_net_blackhole=0",
++			      "--expect", "compat_usb=1",
++			      "--expect", "compat_tty=1",
++			      "--expect", "compat_resource=0", NULL);
 +		fprintf(stderr, "status helper compat fixture exec failed: %s\n",
 +			strerror(errno));
 +		_exit(2);
@@ -45578,7 +45735,7 @@ diff -ruN --exclude .git linux-7.0.12/tools/testing/selftests/hardening/hdn_smok
 +static int status_helper_decodes_audit_flood_fixture(void)
 +{
 +	static const char fixture[] =
-+		"abi_version: 91\n"
++			"abi_version: 92\n"
 +		"phase: runtime\n"
 +		"phase_id: 3\n"
 +		"policy_loaded: 1\n"
@@ -56803,12 +56960,13 @@ diff -ruN --exclude .git linux-7.0.12/tools/testing/selftests/hardening/hdn_smok
 +	const char *base =
 +		"generation 1\n"
 +		"base 0\n"
-+		"default 1\n"
-+		"privileged 2\n"
-+		"profile 1 default\n"
-+		"profile 2 privileged\n"
-+		"allow 2 BPF_LOAD\n"
-+		"mem 2 ALLOW_EXEC_AFTER_WRITE\n";
++			"default 1\n"
++			"privileged 2\n"
++			"profile 1 default\n"
++			"profile 2 privileged\n"
++			"allow 2 TTY_ACCESS\n"
++			"allow 2 BPF_LOAD\n"
++			"mem 2 ALLOW_EXEC_AFTER_WRITE\n";
 +	const char *learn =
 +		"# HDN_LEARN_V1\n"
 +		"allow 2 BPF_LOAD PTRACE KEXEC_LOAD\n"
@@ -56871,7 +57029,8 @@ diff -ruN --exclude .git linux-7.0.12/tools/testing/selftests/hardening/hdn_smok
 +		"default 1\n"
 +		"privileged 2\n"
 +		"profile 1 default\n"
-+		"profile 2 privileged\n";
++		"profile 2 privileged\n"
++		"allow 2 TTY_ACCESS\n";
 +	const char *learn =
 +		"# HDN_LEARN_V1\n"
 +		"allow 99 PTRACE\n";
@@ -60094,6 +60253,104 @@ diff -ruN --exclude .git linux-7.0.12/tools/testing/selftests/hardening/hdn_smok
 +	}
 +
 +	return child_exit_result(child);
++}
++
++enum hdn_tty_access_test_operation {
++	HDN_TTY_ACCESS_TEST_READ = 1,
++	HDN_TTY_ACCESS_TEST_WRITE = 2,
++	HDN_TTY_ACCESS_TEST_IOCTL = 3,
++};
++
++static int tty_noncontrolling_fd(void)
++{
++	int fd;
++
++	fd = open("/dev/ttyS0", O_RDWR | O_NONBLOCK | O_NOCTTY | O_CLOEXEC);
++	if (fd < 0)
++		fd = open("/dev/console",
++			  O_RDWR | O_NONBLOCK | O_NOCTTY | O_CLOEXEC);
++	if (fd < 0)
++		return -1;
++	if (!isatty(fd)) {
++		close(fd);
++		errno = ENOTTY;
++		return -1;
++	}
++
++	return fd;
++}
++
++static void tty_access_child(enum hdn_tty_access_test_operation operation)
++{
++	struct winsize winsz;
++	char ch;
++	int fd;
++	int ret;
++
++	fd = tty_noncontrolling_fd();
++	if (fd < 0)
++		_exit(errno == ENOTTY || errno == ENOENT ? KSFT_SKIP : 2);
++	if (setsid() < 0 && errno != EPERM) {
++		close(fd);
++		_exit(2);
++	}
++	if (setgid(HDN_TEST_NOBODY) || setuid(HDN_TEST_NOBODY)) {
++		close(fd);
++		_exit(2);
++	}
++
++	errno = 0;
++	switch (operation) {
++	case HDN_TTY_ACCESS_TEST_READ:
++		ret = read(fd, &ch, 1);
++		break;
++	case HDN_TTY_ACCESS_TEST_WRITE:
++		ch = 'x';
++		ret = write(fd, &ch, 1);
++		break;
++	case HDN_TTY_ACCESS_TEST_IOCTL:
++		memset(&winsz, 0, sizeof(winsz));
++		ret = ioctl(fd, TIOCGWINSZ, &winsz);
++		break;
++	default:
++		close(fd);
++		_exit(2);
++	}
++
++	close(fd);
++	if (ret >= 0)
++		_exit(1);
++	_exit(errno_is_denial(errno) ? 0 : 2);
++}
++
++static int tty_access_denied(enum hdn_tty_access_test_operation operation)
++{
++	pid_t child;
++
++	child = fork();
++	if (child < 0)
++		return 2;
++	if (!child) {
++		tty_access_child(operation);
++		_exit(2);
++	}
++
++	return child_exit_result(child);
++}
++
++static int tty_access_read_denied(void)
++{
++	return tty_access_denied(HDN_TTY_ACCESS_TEST_READ);
++}
++
++static int tty_access_write_denied(void)
++{
++	return tty_access_denied(HDN_TTY_ACCESS_TEST_WRITE);
++}
++
++static int tty_access_ioctl_denied(void)
++{
++	return tty_access_denied(HDN_TTY_ACCESS_TEST_IOCTL);
 +}
 +
 +static int anonymous_rwx_mapping_child(void)
@@ -70881,11 +71138,11 @@ diff -ruN --exclude .git linux-7.0.12/tools/testing/selftests/hardening/hdn_smok
 +	if (access(HDN_STATUS, R_OK))
 +		ksft_exit_skip("hardening securityfs status not present\n");
 +
-+	ksft_set_plan(997);
++	ksft_set_plan(1003);
 +	test_securityfs_status();
 +	test_symbol_test_module_load();
-+	test_securityfs_status_contains("abi_version: 91",
-+					"hardening status reports policy ABI 91");
++	test_securityfs_status_contains("abi_version: 92",
++					"hardening status reports policy ABI 92");
 +	test_securityfs_status_contains("phase:",
 +					"hardening status reports sealing phase");
 +	test_securityfs_status_contains("policy_staged:",
@@ -71018,6 +71275,8 @@ diff -ruN --exclude .git linux-7.0.12/tools/testing/selftests/hardening/hdn_smok
 +					"hardening status reports POSIX mqueue hardening");
 +	test_securityfs_status_contains("mitigation_tty_injection_harden: 1",
 +					"hardening status reports TTY injection hardening");
++	test_securityfs_status_contains("mitigation_tty_access_harden: 1",
++					"hardening status reports TTY access hardening");
 +	test_int_file_equals(HDN_LEGACY_TIOCSTI, 0,
 +			     "legacy TIOCSTI sysctl is locked disabled");
 +	report_child_result(legacy_tiocsti_sysctl_locked(),
@@ -71280,6 +71539,12 @@ diff -ruN --exclude .git linux-7.0.12/tools/testing/selftests/hardening/hdn_smok
 +			    "TTY TIOCSTI injection requires authority");
 +	report_child_result(tty_tioclinux_denied(),
 +			    "TTY TIOCLINUX injection requires authority");
++	report_child_result(tty_access_read_denied(),
++			    "TTY non-controlling inherited read requires authority");
++	report_child_result(tty_access_write_denied(),
++			    "TTY non-controlling inherited write requires authority");
++	report_child_result(tty_access_ioctl_denied(),
++			    "TTY non-controlling inherited ioctl requires authority");
 +	test_unprivileged_io_uring_restricted_denied();
 +	report_child_result(io_uring_disabled_sysctl_monotonic(),
 +			    "io_uring disabled sysctl cannot be lowered after restriction");
@@ -71300,6 +71565,11 @@ diff -ruN --exclude .git linux-7.0.12/tools/testing/selftests/hardening/hdn_smok
 +			    "event decoder names protected shared memory denial");
 +	test_securityfs_events_contains("authority=24",
 +					"hardening events report TTY injection denial");
++	test_securityfs_events_line_contains("authority=90 transition=102",
++					     "reason=58",
++					     "hardening events report TTY access denial");
++	report_child_result(event_decoder_finds_tty_access_denial(),
++			    "event decoder names TTY access denial");
 +	test_securityfs_events_contains("reason=1",
 +					"hardening events report W+X denial reason");
 +	report_child_result(event_decoder_finds_wx_denial(),
@@ -71315,7 +71585,7 @@ diff -ruN --exclude .git linux-7.0.12/tools/testing/selftests/hardening/hdn_smok
 +}
 diff -ruN --exclude .git linux-7.0.12/tools/testing/selftests/hardening/identity.policy linux-7.0.12-hdn/tools/testing/selftests/hardening/identity.policy
 --- linux-7.0.12/tools/testing/selftests/hardening/identity.policy	1969-12-31 18:00:00.000000000 -0600
-+++ linux-7.0.12-hdn/tools/testing/selftests/hardening/identity.policy	2026-06-26 23:22:22.634803290 -0500
++++ linux-7.0.12-hdn/tools/testing/selftests/hardening/identity.policy	2026-06-27 05:44:24.340717794 -0500
 @@ -0,0 +1,27 @@
 +# SPDX-License-Identifier: GPL-2.0-only
 +# Policy used by the QEMU smoke test to prove runtime path resolution for
@@ -71336,7 +71606,7 @@ diff -ruN --exclude .git linux-7.0.12/tools/testing/selftests/hardening/identity
 +allow 2 KEXEC_LOAD FIRMWARE_LOAD IO_URING_RESTRICTED_OP
 +allow 2 KERNEL_LOG_READ KERNEL_LOG_WRITE RAW_IO MOUNT_ADMIN POLICY_ADMIN
 +allow 2 NAMESPACE_ADMIN CRED_CHANGE CHROOT_ADMIN TRUSTED_EXEC_BYPASS
-+allow 2 IPC_ADMIN TTY_INJECT FUSE_MOUNT ROFS_RELAX USB_ATTACH USB_MONITOR
++allow 2 IPC_ADMIN TTY_INJECT TTY_ACCESS FUSE_MOUNT ROFS_RELAX USB_ATTACH USB_MONITOR
 +allow 2 SOCKET_CREATE SOCKET_CONNECT SOCKET_SERVER TIME_ADMIN RESOURCE_ADMIN
 +allow 2 BLOCK_DEVICE_ACCESS BLOCK_DEVICE_ADMIN SIGNAL PROCESS_MEMORY MEMORY_MIGRATE PROCESS_FD
 +
@@ -71346,7 +71616,7 @@ diff -ruN --exclude .git linux-7.0.12/tools/testing/selftests/hardening/identity
 +exec inherit path /hdn-identity-parent-inherit parent 3
 diff -ruN --exclude .git linux-7.0.12/tools/testing/selftests/hardening/jit.policy linux-7.0.12-hdn/tools/testing/selftests/hardening/jit.policy
 --- linux-7.0.12/tools/testing/selftests/hardening/jit.policy	1969-12-31 18:00:00.000000000 -0600
-+++ linux-7.0.12-hdn/tools/testing/selftests/hardening/jit.policy	2026-06-25 03:29:42.910876294 -0500
++++ linux-7.0.12-hdn/tools/testing/selftests/hardening/jit.policy	2026-06-27 05:51:04.816677569 -0500
 @@ -0,0 +1,14 @@
 +# SPDX-License-Identifier: GPL-2.0-only
 +# Root-profile policy used by the QEMU smoke test to prove that narrow JIT
@@ -71360,11 +71630,11 @@ diff -ruN --exclude .git linux-7.0.12/tools/testing/selftests/hardening/jit.poli
 +profile 1 default
 +profile 2 jit-root
 +
-+allow 2 POLICY_ADMIN CRED_CHANGE
++allow 2 POLICY_ADMIN CRED_CHANGE TTY_ACCESS
 +mem 2 ALLOW_JIT_EXEC_AFTER_WRITE
 diff -ruN --exclude .git linux-7.0.12/tools/testing/selftests/hardening/kill.policy linux-7.0.12-hdn/tools/testing/selftests/hardening/kill.policy
 --- linux-7.0.12/tools/testing/selftests/hardening/kill.policy	1969-12-31 18:00:00.000000000 -0600
-+++ linux-7.0.12-hdn/tools/testing/selftests/hardening/kill.policy	2026-06-25 03:35:59.591001895 -0500
++++ linux-7.0.12-hdn/tools/testing/selftests/hardening/kill.policy	2026-06-27 05:51:04.816677569 -0500
 @@ -0,0 +1,14 @@
 +# SPDX-License-Identifier: GPL-2.0-only
 +# Root-profile policy used by the QEMU smoke test to prove exploit response
@@ -71378,11 +71648,11 @@ diff -ruN --exclude .git linux-7.0.12/tools/testing/selftests/hardening/kill.pol
 +profile 1 default
 +profile 2 kill-memory-root
 +
-+allow 2 POLICY_ADMIN CRED_CHANGE
++allow 2 POLICY_ADMIN CRED_CHANGE TTY_ACCESS
 +response 2 KILL_MEMORY
 diff -ruN --exclude .git linux-7.0.12/tools/testing/selftests/hardening/module-path.policy linux-7.0.12-hdn/tools/testing/selftests/hardening/module-path.policy
 --- linux-7.0.12/tools/testing/selftests/hardening/module-path.policy	1969-12-31 18:00:00.000000000 -0600
-+++ linux-7.0.12-hdn/tools/testing/selftests/hardening/module-path.policy	2026-06-26 21:50:26.263304069 -0500
++++ linux-7.0.12-hdn/tools/testing/selftests/hardening/module-path.policy	2026-06-27 05:44:24.340717794 -0500
 @@ -0,0 +1,23 @@
 +# SPDX-License-Identifier: GPL-2.0-only
 +# Policy used by the QEMU smoke test to prove runtime path resolution for
@@ -71401,7 +71671,7 @@ diff -ruN --exclude .git linux-7.0.12/tools/testing/selftests/hardening/module-p
 +allow 2 KEXEC_LOAD FIRMWARE_LOAD IO_URING_RESTRICTED_OP
 +allow 2 KERNEL_LOG_READ KERNEL_LOG_WRITE RAW_IO MOUNT_ADMIN POLICY_ADMIN
 +allow 2 NAMESPACE_ADMIN CRED_CHANGE CHROOT_ADMIN TRUSTED_EXEC_BYPASS
-+allow 2 IPC_ADMIN TTY_INJECT FUSE_MOUNT ROFS_RELAX USB_ATTACH USB_MONITOR
++allow 2 IPC_ADMIN TTY_INJECT TTY_ACCESS FUSE_MOUNT ROFS_RELAX USB_ATTACH USB_MONITOR
 +allow 2 SOCKET_CREATE SOCKET_CONNECT SOCKET_SERVER TIME_ADMIN RESOURCE_ADMIN
 +allow 2 BLOCK_DEVICE_ACCESS BLOCK_DEVICE_ADMIN SIGNAL PROCESS_MEMORY MEMORY_MIGRATE PROCESS_FD
 +audit 2 MODULE_LOAD
@@ -71409,7 +71679,7 @@ diff -ruN --exclude .git linux-7.0.12/tools/testing/selftests/hardening/module-p
 +module 2 path /hdn-known-module
 diff -ruN --exclude .git linux-7.0.12/tools/testing/selftests/hardening/mount-policy.policy linux-7.0.12-hdn/tools/testing/selftests/hardening/mount-policy.policy
 --- linux-7.0.12/tools/testing/selftests/hardening/mount-policy.policy	1969-12-31 18:00:00.000000000 -0600
-+++ linux-7.0.12-hdn/tools/testing/selftests/hardening/mount-policy.policy	2026-06-25 05:16:38.567790001 -0500
++++ linux-7.0.12-hdn/tools/testing/selftests/hardening/mount-policy.policy	2026-06-27 05:51:04.816677569 -0500
 @@ -0,0 +1,13 @@
 +# SPDX-License-Identifier: GPL-2.0-only
 +# Root-profile policy used by the QEMU smoke test to prove narrow mount
@@ -71423,10 +71693,10 @@ diff -ruN --exclude .git linux-7.0.12/tools/testing/selftests/hardening/mount-po
 +profile 1 default
 +profile 2 mount-root
 +
-+allow 2 MOUNT_ADMIN POLICY_ADMIN CRED_CHANGE
++allow 2 MOUNT_ADMIN POLICY_ADMIN CRED_CHANGE TTY_ACCESS
 diff -ruN --exclude .git linux-7.0.12/tools/testing/selftests/hardening/mount-ro-policy.policy linux-7.0.12-hdn/tools/testing/selftests/hardening/mount-ro-policy.policy
 --- linux-7.0.12/tools/testing/selftests/hardening/mount-ro-policy.policy	1969-12-31 18:00:00.000000000 -0600
-+++ linux-7.0.12-hdn/tools/testing/selftests/hardening/mount-ro-policy.policy	2026-06-25 13:36:07.549563694 -0500
++++ linux-7.0.12-hdn/tools/testing/selftests/hardening/mount-ro-policy.policy	2026-06-27 05:51:04.816677569 -0500
 @@ -0,0 +1,33 @@
 +# SPDX-License-Identifier: GPL-2.0-only
 +# Root-profile policy used by the QEMU smoke test to prove product profiles can
@@ -71449,7 +71719,7 @@ diff -ruN --exclude .git linux-7.0.12/tools/testing/selftests/hardening/mount-ro
 +feature 4 ENFORCE_READONLY_MOUNTS
 +feature 5 ENFORCE_READONLY_MOUNTS
 +feature 6 ENFORCE_READONLY_MOUNTS
-+allow 2 MOUNT_ADMIN POLICY_ADMIN CRED_CHANGE
++allow 2 MOUNT_ADMIN POLICY_ADMIN CRED_CHANGE TTY_ACCESS
 +allow 3 MOUNT_ADMIN ROFS_RELAX
 +allow 4 MOUNT_ADMIN
 +allow 5 MOUNT_ADMIN ROFS_RELAX
@@ -71463,7 +71733,7 @@ diff -ruN --exclude .git linux-7.0.12/tools/testing/selftests/hardening/mount-ro
 +exec 5 path /hdn-rofs-transaction parent 6
 diff -ruN --exclude .git linux-7.0.12/tools/testing/selftests/hardening/namespace-only.policy linux-7.0.12-hdn/tools/testing/selftests/hardening/namespace-only.policy
 --- linux-7.0.12/tools/testing/selftests/hardening/namespace-only.policy	1969-12-31 18:00:00.000000000 -0600
-+++ linux-7.0.12-hdn/tools/testing/selftests/hardening/namespace-only.policy	2026-06-26 04:12:46.694901695 -0500
++++ linux-7.0.12-hdn/tools/testing/selftests/hardening/namespace-only.policy	2026-06-27 05:51:04.816677569 -0500
 @@ -0,0 +1,13 @@
 +# SPDX-License-Identifier: GPL-2.0-only
 +# Policy used by the QEMU smoke test to prove pidfd-backed namespace joins
@@ -71477,10 +71747,10 @@ diff -ruN --exclude .git linux-7.0.12/tools/testing/selftests/hardening/namespac
 +profile 1 default
 +profile 2 namespace-root
 +
-+allow 2 POLICY_ADMIN CRED_CHANGE PTRACE NAMESPACE_ADMIN
++allow 2 POLICY_ADMIN CRED_CHANGE TTY_ACCESS PTRACE NAMESPACE_ADMIN
 diff -ruN --exclude .git linux-7.0.12/tools/testing/selftests/hardening/namespace-proc-task.policy linux-7.0.12-hdn/tools/testing/selftests/hardening/namespace-proc-task.policy
 --- linux-7.0.12/tools/testing/selftests/hardening/namespace-proc-task.policy	1969-12-31 18:00:00.000000000 -0600
-+++ linux-7.0.12-hdn/tools/testing/selftests/hardening/namespace-proc-task.policy	2026-06-26 04:12:46.698901694 -0500
++++ linux-7.0.12-hdn/tools/testing/selftests/hardening/namespace-proc-task.policy	2026-06-27 05:51:04.816677569 -0500
 @@ -0,0 +1,13 @@
 +# SPDX-License-Identifier: GPL-2.0-only
 +# Policy used by the QEMU smoke test to prove pidfd-backed namespace joins work
@@ -71494,10 +71764,10 @@ diff -ruN --exclude .git linux-7.0.12/tools/testing/selftests/hardening/namespac
 +profile 1 default
 +profile 2 namespace-proc-task-root
 +
-+allow 2 POLICY_ADMIN CRED_CHANGE PTRACE NAMESPACE_ADMIN PROC_TASK_VIEW
++allow 2 POLICY_ADMIN CRED_CHANGE TTY_ACCESS PTRACE NAMESPACE_ADMIN PROC_TASK_VIEW
 diff -ruN --exclude .git linux-7.0.12/tools/testing/selftests/hardening/object-write.policy linux-7.0.12-hdn/tools/testing/selftests/hardening/object-write.policy
 --- linux-7.0.12/tools/testing/selftests/hardening/object-write.policy	1969-12-31 18:00:00.000000000 -0600
-+++ linux-7.0.12-hdn/tools/testing/selftests/hardening/object-write.policy	2026-06-27 05:15:00.012867360 -0500
++++ linux-7.0.12-hdn/tools/testing/selftests/hardening/object-write.policy	2026-06-27 05:51:04.820677570 -0500
 @@ -0,0 +1,117 @@
 +# Root-profile policy used by the QEMU smoke test to prove object
 +# read/write/delete/create/creat/mkdir/mknod/symlink/unlink/rmdir/exec/link/link-target/attr/chmod/chown/utime/setid/ptrace/xattr/setxattr/removexattr/access/stat/list/find/ioctl/lock/watch/receive/fcntl/chdir/mount/umount/truncate/rename/rename-target/unix-connect/unix-bind/unix-listen/unix-accept/unix-send/unix-recv denial,
@@ -71513,7 +71783,7 @@ diff -ruN --exclude .git linux-7.0.12/tools/testing/selftests/hardening/object-w
 +profile 1 default
 +profile 2 object-write-root
 +
-+allow 2 POLICY_ADMIN CRED_CHANGE BLOCK_DEVICE_ACCESS MOUNT_ADMIN
++allow 2 POLICY_ADMIN CRED_CHANGE TTY_ACCESS BLOCK_DEVICE_ACCESS MOUNT_ADMIN
 +
 +object 2 deny-write path /hdn-object-write-protected
 +object 2 deny-write path /hdn-object-write-fifo-protected
@@ -71618,7 +71888,7 @@ diff -ruN --exclude .git linux-7.0.12/tools/testing/selftests/hardening/object-w
 +object 2 append-only tree /hdn-object-tree-append
 diff -ruN --exclude .git linux-7.0.12/tools/testing/selftests/hardening/privexec-deny.policy linux-7.0.12-hdn/tools/testing/selftests/hardening/privexec-deny.policy
 --- linux-7.0.12/tools/testing/selftests/hardening/privexec-deny.policy	1969-12-31 18:00:00.000000000 -0600
-+++ linux-7.0.12-hdn/tools/testing/selftests/hardening/privexec-deny.policy	2026-06-25 07:01:22.208724766 -0500
++++ linux-7.0.12-hdn/tools/testing/selftests/hardening/privexec-deny.policy	2026-06-27 05:51:04.820677570 -0500
 @@ -0,0 +1,15 @@
 +# SPDX-License-Identifier: GPL-2.0-only
 +# Root-profile policy used by the QEMU smoke test to prove unprivileged users
@@ -71633,11 +71903,11 @@ diff -ruN --exclude .git linux-7.0.12/tools/testing/selftests/hardening/privexec
 +profile 1 default
 +profile 2 no-unprivileged-privexec-root
 +
-+allow 2 POLICY_ADMIN CRED_CHANGE
++allow 2 POLICY_ADMIN CRED_CHANGE TTY_ACCESS
 +feature 2 DENY_UNPRIVILEGED_PRIVEXEC
 diff -ruN --exclude .git linux-7.0.12/tools/testing/selftests/hardening/proc-task.policy linux-7.0.12-hdn/tools/testing/selftests/hardening/proc-task.policy
 --- linux-7.0.12/tools/testing/selftests/hardening/proc-task.policy	1969-12-31 18:00:00.000000000 -0600
-+++ linux-7.0.12-hdn/tools/testing/selftests/hardening/proc-task.policy	2026-06-25 06:53:11.763274032 -0500
++++ linux-7.0.12-hdn/tools/testing/selftests/hardening/proc-task.policy	2026-06-27 05:51:04.820677570 -0500
 @@ -0,0 +1,13 @@
 +# SPDX-License-Identifier: GPL-2.0-only
 +# Policy used by the QEMU smoke test to prove process-list visibility can be
@@ -71651,10 +71921,10 @@ diff -ruN --exclude .git linux-7.0.12/tools/testing/selftests/hardening/proc-tas
 +profile 1 default
 +profile 2 proc-task-root
 +
-+allow 2 POLICY_ADMIN CRED_CHANGE PROC_TASK_VIEW
++allow 2 POLICY_ADMIN CRED_CHANGE TTY_ACCESS PROC_TASK_VIEW
 diff -ruN --exclude .git linux-7.0.12/tools/testing/selftests/hardening/process-account.policy linux-7.0.12-hdn/tools/testing/selftests/hardening/process-account.policy
 --- linux-7.0.12/tools/testing/selftests/hardening/process-account.policy	1969-12-31 18:00:00.000000000 -0600
-+++ linux-7.0.12-hdn/tools/testing/selftests/hardening/process-account.policy	2026-06-26 09:08:18.587625430 -0500
++++ linux-7.0.12-hdn/tools/testing/selftests/hardening/process-account.policy	2026-06-27 05:51:04.820677570 -0500
 @@ -0,0 +1,11 @@
 +# Process-accounting audit profile used by the QEMU smoke test.
 +generation 1
@@ -71665,11 +71935,11 @@ diff -ruN --exclude .git linux-7.0.12/tools/testing/selftests/hardening/process-
 +profile 1 default
 +profile 2 process-account-root
 +
-+allow 2 POLICY_ADMIN
++allow 2 POLICY_ADMIN TTY_ACCESS
 +feature 2 AUDIT_PROCESS_ACCOUNT
 diff -ruN --exclude .git linux-7.0.12/tools/testing/selftests/hardening/restricted.policy linux-7.0.12-hdn/tools/testing/selftests/hardening/restricted.policy
 --- linux-7.0.12/tools/testing/selftests/hardening/restricted.policy	1969-12-31 18:00:00.000000000 -0600
-+++ linux-7.0.12-hdn/tools/testing/selftests/hardening/restricted.policy	2026-06-27 05:29:54.564802570 -0500
++++ linux-7.0.12-hdn/tools/testing/selftests/hardening/restricted.policy	2026-06-27 05:51:04.820677570 -0500
 @@ -0,0 +1,17 @@
 +# SPDX-License-Identifier: GPL-2.0-only
 +# Root-profile policy used by the QEMU smoke test to prove profile-denied
@@ -71684,7 +71954,7 @@ diff -ruN --exclude .git linux-7.0.12/tools/testing/selftests/hardening/restrict
 +profile 2 restricted-root
 +
 +allow 1 IPC_ADMIN
-+allow 2 POLICY_ADMIN CRED_CHANGE
++allow 2 POLICY_ADMIN CRED_CHANGE TTY_ACCESS
 +feature 1 DENY_UNTRUSTED_USER_EXEC
 +feature 2 ENFORCE_TRUSTED_EXEC CHROOT_CONTAINED PROTECT_SHM
 +resource 2 NOFILE 64 128
@@ -71708,7 +71978,7 @@ diff -ruN --exclude .git linux-7.0.12/tools/testing/selftests/hardening/role.pol
 +use-role 2 desktop-admin
 diff -ruN --exclude .git linux-7.0.12/tools/testing/selftests/hardening/run-qemu-smoke.sh linux-7.0.12-hdn/tools/testing/selftests/hardening/run-qemu-smoke.sh
 --- linux-7.0.12/tools/testing/selftests/hardening/run-qemu-smoke.sh	1969-12-31 18:00:00.000000000 -0600
-+++ linux-7.0.12-hdn/tools/testing/selftests/hardening/run-qemu-smoke.sh	2026-06-27 05:29:54.564802570 -0500
++++ linux-7.0.12-hdn/tools/testing/selftests/hardening/run-qemu-smoke.sh	2026-06-27 05:46:16.520698165 -0500
 @@ -0,0 +1,1370 @@
 +#!/bin/sh
 +# SPDX-License-Identifier: GPL-2.0
@@ -71743,7 +72013,7 @@ diff -ruN --exclude .git linux-7.0.12/tools/testing/selftests/hardening/run-qemu
 +QEMU_MEMORY=${QEMU_MEMORY:-1024M}
 +QEMU_SMP=${QEMU_SMP:-2}
 +QEMU_MACHINE=${QEMU_MACHINE:-q35,accel=tcg}
-+HDN_SMOKE_EXPECTED_PASS=${HDN_SMOKE_EXPECTED_PASS:-997}
++HDN_SMOKE_EXPECTED_PASS=${HDN_SMOKE_EXPECTED_PASS:-1003}
 +WORK=${HDN_QEMU_WORK:-"${TMPDIR:-/tmp}/hdn-qemu-smoke.$$"}
 +LOG=${HDN_QEMU_LOG:-"$WORK/qemu.log"}
 +QMP=${HDN_QEMU_QMP:-"$WORK/qmp.sock"}
@@ -73082,7 +73352,7 @@ diff -ruN --exclude .git linux-7.0.12/tools/testing/selftests/hardening/run-qemu
 +echo "HDN_QEMU_SMOKE_PASS log=$LOG"
 diff -ruN --exclude .git linux-7.0.12/tools/testing/selftests/hardening/socket-policy.policy linux-7.0.12-hdn/tools/testing/selftests/hardening/socket-policy.policy
 --- linux-7.0.12/tools/testing/selftests/hardening/socket-policy.policy	1969-12-31 18:00:00.000000000 -0600
-+++ linux-7.0.12-hdn/tools/testing/selftests/hardening/socket-policy.policy	2026-06-25 06:25:46.631499536 -0500
++++ linux-7.0.12-hdn/tools/testing/selftests/hardening/socket-policy.policy	2026-06-27 05:51:04.820677570 -0500
 @@ -0,0 +1,13 @@
 +# SPDX-License-Identifier: GPL-2.0-only
 +# Policy used by the QEMU smoke test to prove socket create, client, and
@@ -73096,10 +73366,10 @@ diff -ruN --exclude .git linux-7.0.12/tools/testing/selftests/hardening/socket-p
 +profile 1 default
 +profile 2 socket-root
 +
-+allow 2 POLICY_ADMIN CRED_CHANGE SOCKET_CREATE
++allow 2 POLICY_ADMIN CRED_CHANGE TTY_ACCESS SOCKET_CREATE
 diff -ruN --exclude .git linux-7.0.12/tools/testing/selftests/hardening/subject.policy linux-7.0.12-hdn/tools/testing/selftests/hardening/subject.policy
 --- linux-7.0.12/tools/testing/selftests/hardening/subject.policy	1969-12-31 18:00:00.000000000 -0600
-+++ linux-7.0.12-hdn/tools/testing/selftests/hardening/subject.policy	2026-06-26 23:34:25.082732969 -0500
++++ linux-7.0.12-hdn/tools/testing/selftests/hardening/subject.policy	2026-06-27 05:51:04.820677570 -0500
 @@ -0,0 +1,18 @@
 +# SPDX-License-Identifier: GPL-2.0-only
 +# Policy used by the QEMU smoke test to prove UID/GID subject rules can select
@@ -73115,13 +73385,13 @@ diff -ruN --exclude .git linux-7.0.12/tools/testing/selftests/hardening/subject.
 +profile 7 nobody-uid
 +profile 8 nobody-gid
 +
-+allow 2 POLICY_ADMIN CRED_CHANGE
++allow 2 POLICY_ADMIN CRED_CHANGE TTY_ACCESS
 +umask 7 077
 +subject uid 65534 7
 +subject gid 65534 8
 diff -ruN --exclude .git linux-7.0.12/tools/testing/selftests/hardening/textrel.policy linux-7.0.12-hdn/tools/testing/selftests/hardening/textrel.policy
 --- linux-7.0.12/tools/testing/selftests/hardening/textrel.policy	1969-12-31 18:00:00.000000000 -0600
-+++ linux-7.0.12-hdn/tools/testing/selftests/hardening/textrel.policy	2026-06-26 01:45:52.671708044 -0500
++++ linux-7.0.12-hdn/tools/testing/selftests/hardening/textrel.policy	2026-06-27 05:51:04.820677570 -0500
 @@ -0,0 +1,14 @@
 +# SPDX-License-Identifier: GPL-2.0-only
 +# Root-profile policy used by the QEMU smoke test to prove that text
@@ -73135,11 +73405,11 @@ diff -ruN --exclude .git linux-7.0.12/tools/testing/selftests/hardening/textrel.
 +profile 1 default
 +profile 2 textrel-root
 +
-+allow 2 POLICY_ADMIN CRED_CHANGE
++allow 2 POLICY_ADMIN CRED_CHANGE TTY_ACCESS
 +mem 2 ALLOW_TEXTREL_MPROTECT
 diff -ruN --exclude .git linux-7.0.12/tools/testing/selftests/hardening/trace-symbol.policy linux-7.0.12-hdn/tools/testing/selftests/hardening/trace-symbol.policy
 --- linux-7.0.12/tools/testing/selftests/hardening/trace-symbol.policy	1969-12-31 18:00:00.000000000 -0600
-+++ linux-7.0.12-hdn/tools/testing/selftests/hardening/trace-symbol.policy	2026-06-26 12:07:58.418651266 -0500
++++ linux-7.0.12-hdn/tools/testing/selftests/hardening/trace-symbol.policy	2026-06-27 05:51:04.820677570 -0500
 @@ -0,0 +1,13 @@
 +# SPDX-License-Identifier: GPL-2.0-only
 +# Policy used by the QEMU smoke test to prove tracefs and BPF access can be
@@ -73153,7 +73423,7 @@ diff -ruN --exclude .git linux-7.0.12/tools/testing/selftests/hardening/trace-sy
 +profile 1 default
 +profile 2 trace-symbol-root
 +
-+allow 2 POLICY_ADMIN CRED_CHANGE DEBUGFS BPF_LOAD
++allow 2 POLICY_ADMIN CRED_CHANGE TTY_ACCESS DEBUGFS BPF_LOAD
 diff -ruN --exclude .git linux-7.0.12/tools/testing/selftests/hardening/vm_init.c linux-7.0.12-hdn/tools/testing/selftests/hardening/vm_init.c
 --- linux-7.0.12/tools/testing/selftests/hardening/vm_init.c	1969-12-31 18:00:00.000000000 -0600
 +++ linux-7.0.12-hdn/tools/testing/selftests/hardening/vm_init.c	2026-06-25 08:39:35.578566901 -0500

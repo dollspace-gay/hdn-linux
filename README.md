@@ -21,9 +21,9 @@ The current patch is carried as a generated diff against upstream Linux
 
 This is not a finished distro kernel yet. Current rough parity estimates:
 
-- Strict grsecurity/PaX-style patch feature parity: about 23-25%.
-- HDN intended hardening surface: about 53%.
-- Practical daily-driver hardening equivalence: about 71-72%.
+- Strict grsecurity/PaX-style patch feature parity: about 24-26%.
+- HDN intended hardening surface: about 54%.
+- Practical daily-driver hardening equivalence: about 72-73%.
 
 Recent coverage includes signed/sealed HDN policy, authority-gated BPF/perf/proc
 disclosure, module admission hardening, read-only mount controls, object policy
@@ -36,7 +36,8 @@ fd receive, and mount topology, including split `move_mount` source controls,
 exec-profile inheritance,
 profile-scoped umask floors and resource ceilings, chroot restrictions,
 TPE-style execution controls,
-IPC/socket/device hardening,
+IPC/socket/device hardening, non-controlling terminal descriptor access
+hardening,
 privileged-exec restrictions, RWX/textrel/exec-stack controls, thread-stack
 placement randomization, proc-visible kernel symbol redaction, expanded BPF
 metadata/query gating, and broad audit/event decoding.
@@ -60,8 +61,11 @@ The dmesg restriction sysctl is also locked at the restricted value, so kernel
 log disclosure cannot be re-enabled by a later sysctl write. Profile policy
 also gates `/dev/kmsg` writes separately from log reads, so services can be
 allowed to inject log records without receiving kernel-log disclosure. Legacy
-TIOCSTI is forced off, line-discipline autoload is disabled, and neither TTY sysctl can be
-turned back on while TTY injection hardening is active. Yama is now part of the
+TIOCSTI is forced off, line-discipline autoload is disabled, neither TTY sysctl
+can be turned back on while TTY injection hardening is active, and inherited or
+preopened non-controlling tty read/write/ioctl access is gated behind
+`TTY_ACCESS` while PTY masters and controlling terminals stay usable. Yama is
+now part of the
 baseline and `kernel.yama.ptrace_scope` cannot be lowered below relational
 mode. Setuid coredumps are locked off through `fs.suid_dumpable=0`, so
 privileged-helper core modes cannot be globally enabled after boot.
@@ -196,16 +200,16 @@ The hardening smoke suite in the development tree is run under QEMU. Latest
 local result before this publication checkpoint:
 
 ```text
-QEMU hardening smoke: 997/997 pass
+QEMU hardening smoke: 1003/1003 pass
 ```
 
 Patch artifact at this checkpoint:
 
 ```text
 patch: patches/hdn-linux-7.0.12.patch
-lines: 73,259
-bytes: 2,168,981
-sha256: a4a5c794ae9dcf1e3c7eecf269ea7a22620f87e0e5fc213fba6592a2d5ad701f
+lines: 73,529
+bytes: 2,176,981
+sha256: 2bbcdc713e56bf693a0badf09b3ec82fd5e19eb6fd3a6c0962624aa647983dbe
 ```
 
 ## Development Rule

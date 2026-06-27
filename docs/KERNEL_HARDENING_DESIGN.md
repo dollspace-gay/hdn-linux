@@ -343,6 +343,7 @@ enum hardening_transition {
     HDN_TRANS_PROCFS_READ,
     HDN_TRANS_SYSFS_WRITE,
     HDN_TRANS_POSIX_MQUEUE_ACCESS,
+    HDN_TRANS_TTY_ACCESS,
     HDN_TRANS_TIME_CHANGE,
     HDN_TRANS_RESOURCE_LIMIT,
     HDN_TRANS_BLOCK_DEVICE_ACCESS,
@@ -1503,7 +1504,8 @@ ipc/:
   creator-profile object stamps
 
 drivers/tty/:
-  gate terminal input-injection ioctls
+  gate terminal input-injection ioctls and non-controlling tty read, write, and
+  ioctl access
 
 fs/namespace.c, fs/fsopen.c, fs/super.c:
   gate FUSE mount creation, read-only mount/superblock relaxation, and
@@ -2155,7 +2157,9 @@ Core oracle groups:
 ### Phase 1: Upstream-Hardening Baseline
 
 - Configure existing kernel hardening options.
-- Lock down BPF, perf, ptrace, user namespaces, debugfs, tracefs, procfs, module loading, kexec, and kernel log reads/writes through available upstream controls and HDN authorities.
+- Lock down BPF, perf, ptrace, user namespaces, debugfs, tracefs, procfs,
+  module loading, kexec, TTY injection/access, and kernel log reads/writes
+  through available upstream controls and HDN authorities.
 - Integrate Secure Boot, module signing, fs-verity, IMA/IPE/AppArmor/SELinux/Landlock where appropriate.
 - Build the graphical prompt daemon and settings UI on top of the settings-ui,
   settings-panel, control-center, and desktop-daemon contracts for normal
