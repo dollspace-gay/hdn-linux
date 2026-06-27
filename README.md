@@ -134,9 +134,9 @@ Patch artifact at this checkpoint:
 
 ```text
 patch: patches/hdn-linux-7.0.12.patch
-lines: 65,269
-bytes: 1,960,017
-sha256: 9abb027515a7bc8e56488ab0c0622196a4fea83ef5573b82e63ce1979d1dbd13
+lines: 65,278
+bytes: 1,943,148
+sha256: a688f5de1eab0e8948bbe027658fccc4d79f9fb3a40618a93946a7fe3b24971b
 ```
 
 ## Development Rule

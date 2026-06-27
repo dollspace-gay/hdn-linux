@@ -1347,6 +1347,7 @@ fs/tracefs/:
   gate kernel symbol list and symbol-resolution frontends through disclosure
   authority
   redact central trace/probe symbol formatting without disclosure authority
+  suppress BTF-backed function-argument decoding without disclosure authority
   require disclosure authority before BPF kprobe-multi resolves
   user-provided kernel symbol names
 
@@ -1645,6 +1646,8 @@ Core oracle groups:
 - debugfs and tracefs hidden or constrained
 - trace/probe symbol listing, symbol lookup, and symbolic pointer formatting
   denied or redacted without `PROC_DISCLOSE`
+- BTF-backed function-argument decoding in ftrace output suppressed without
+  `PROC_DISCLOSE`
 - `/proc/vmallocinfo`, slab constructor sysfs, and SLUB debugfs trace symbols
   redacted without `PROC_DISCLOSE`
 - `/proc/net/ptype` packet-handler function symbols redacted without
