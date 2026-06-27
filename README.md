@@ -89,6 +89,11 @@ feature-state checks without depending on raw kernel labels. That view now
 groups memory initialization, allocator, compiler, stack, and kernel
 W^X/page-table families alongside the higher-level policy and disclosure
 families.
+`hdn-support-bundle` now gives product support UI one read-only collection
+facade above `hdn-status` and `hdn-event-decode`: it refuses unsafe root-owned
+configs, validates absolute helper/event paths, and emits bounded status,
+compatibility, and optional decoded-event sections without exposing raw
+securityfs details.
 `hdn-control-center` now gives settings panels and desktop shells one
 product-facing status/action/policy entry point above `hdn-status`,
 `hdn-desktop-daemon`, and `hdn-policy-daemon`. `hdn-policy-workflow` now gives
@@ -190,16 +195,16 @@ The hardening smoke suite in the development tree is run under QEMU. Latest
 local result before this publication checkpoint:
 
 ```text
-QEMU hardening smoke: 987/987 pass
+QEMU hardening smoke: 990/990 pass
 ```
 
 Patch artifact at this checkpoint:
 
 ```text
 patch: patches/hdn-linux-7.0.12.patch
-lines: 72,081
-bytes: 2,138,483
-sha256: 1ad997a8a161b8c70dc943db502561b21b2461b79c3052d8660d01c18d8fa862
+lines: 72,987
+bytes: 2,160,729
+sha256: 3a0765b652f6fb36d9082abbf30d6604d02ae915c363a246be8522a50622d282
 ```
 
 ## Development Rule

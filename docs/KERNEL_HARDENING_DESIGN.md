@@ -492,6 +492,11 @@ cloning lower-level control names.
 `hdn-control-center status` is the stable settings-shell entry point above that
 facade, so product UI can ask for status through one branded helper without
 parsing securityfs or depending on the raw status helper path.
+`tools/hardening/hdn-support-bundle` is the read-only support collection facade:
+it runs the status facade, optional compatibility status, and optional event
+decoder through root-owned config, rejects writable configs and unsafe paths,
+and emits bounded sections for support tools without requiring UI to know raw
+securityfs paths.
 
 Event shape:
 
@@ -1630,6 +1635,16 @@ tools/hardening/hdn-event-decode:
   object payload details for exec arguments, signals, resources, time changes,
   USB, coredumps, and sockets
 
+tools/hardening/hdn-status:
+  translate raw hardening status into product-facing key/value state and
+  optional compatibility-family status, so desktop, recovery, and support tools
+  do not parse securityfs directly
+
+tools/hardening/hdn-support-bundle:
+  collect bounded status, compatibility, and optional decoded-event sections
+  through root-owned config for product support UI, while rejecting unsafe
+  helper paths and writable configs
+
 tools/hardening/hdn-policy-learn:
   translate denied hardening events into a reviewable HDN-native policy
   fragment for developer-mode, settings UI, or support workflows, while leaving
@@ -1909,6 +1924,9 @@ Core oracle groups:
   changing the sealed mount, runs an approved UI action through stdio, rejects
   non-commit policy dry-runs through stdio, and runs an approved policy
   workflow plus signed-commit preflight through hdn-policy-daemon
+- the support-bundle helper rejects unsafe configs, validates configured status
+  and event-decoder helpers in dry-run mode, and emits bounded status, compat,
+  and decoded-event sections through the product support facade
 - the settings-panel helper rejects unknown settings actions, rejects unsafe
   settings-panel configs, maps approved settings verbs to control-center
   actions, dry-runs the mapped route without prompting or changing the sealed

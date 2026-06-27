@@ -19069,8 +19069,8 @@ diff -ruN --exclude .git linux-7.0.12/security/yama/yama_lsm.c linux-7.0.12-hdn/
  };
 diff -ruN --exclude .git linux-7.0.12/tools/hardening/Makefile linux-7.0.12-hdn/tools/hardening/Makefile
 --- linux-7.0.12/tools/hardening/Makefile	1969-12-31 18:00:00.000000000 -0600
-+++ linux-7.0.12-hdn/tools/hardening/Makefile	2026-06-27 04:38:58.337071425 -0500
-@@ -0,0 +1,185 @@
++++ linux-7.0.12-hdn/tools/hardening/Makefile	2026-06-27 04:55:25.028982829 -0500
+@@ -0,0 +1,190 @@
 +CC ?= cc
 +CFLAGS ?= -O2 -Wall -Wextra
 +CPPFLAGS += -D__EXPORTED_HEADERS__ -I../../include/uapi
@@ -19111,6 +19111,7 @@ diff -ruN --exclude .git linux-7.0.12/tools/hardening/Makefile linux-7.0.12-hdn/
 +	hdn-auth-prompt \
 +	hdn-image-seal \
 +	hdn-package-hook \
++	hdn-support-bundle \
 +	hdn-event-decode \
 +	hdn-status \
 +	hdn-policy-learn \
@@ -19138,6 +19139,7 @@ diff -ruN --exclude .git linux-7.0.12/tools/hardening/Makefile linux-7.0.12-hdn/
 +	desktop-daemon.conf \
 +	settings-panel.conf \
 +	settings-ui.conf \
++	support-bundle.conf \
 +	policy-workflows.conf \
 +	policy-daemon.conf
 +
@@ -19218,6 +19220,9 @@ diff -ruN --exclude .git linux-7.0.12/tools/hardening/Makefile linux-7.0.12-hdn/
 +hdn-package-hook: hdn-package-hook.c
 +	$(CC) $(CPPFLAGS) $(CFLAGS) -o $@ $<
 +
++hdn-support-bundle: hdn-support-bundle.c
++	$(CC) $(CPPFLAGS) $(CFLAGS) -o $@ $<
++
 +hdn-event-decode: hdn-event-decode.c
 +	$(CC) $(CPPFLAGS) $(CFLAGS) -o $@ $<
 +
@@ -19258,8 +19263,8 @@ diff -ruN --exclude .git linux-7.0.12/tools/hardening/Makefile linux-7.0.12-hdn/
 +.PHONY: all clean install
 diff -ruN --exclude .git linux-7.0.12/tools/hardening/README.rst linux-7.0.12-hdn/tools/hardening/README.rst
 --- linux-7.0.12/tools/hardening/README.rst	1969-12-31 18:00:00.000000000 -0600
-+++ linux-7.0.12-hdn/tools/hardening/README.rst	2026-06-27 04:49:04.533032011 -0500
-@@ -0,0 +1,1631 @@
++++ linux-7.0.12-hdn/tools/hardening/README.rst	2026-06-27 05:01:44.464941297 -0500
+@@ -0,0 +1,1642 @@
 +.. SPDX-License-Identifier: GPL-2.0-only
 +
 +Linux Hardening Policy Tools
@@ -19536,6 +19541,13 @@ diff -ruN --exclude .git linux-7.0.12/tools/hardening/README.rst linux-7.0.12-hd
 +compiler, stack, and kernel W^X/page-table hardening checks in addition to the
 +policy-controlled proc, symbol, BPF, module, audit, and device surfaces.
 +
++``hdn-support-bundle`` is the read-only product support facade above
++``hdn-status`` and ``hdn-event-decode``. It reads a root-owned
++``support-bundle.conf``, refuses writable configs, validates absolute helper and
++event paths, and prints bounded ``status``, ``compat``, and optional decoded
++event sections without invoking a shell or exposing raw securityfs paths to
++normal support UI.
++
 +``hdn-policy-learn`` consumes the same event records and emits a reviewable
 +policy fragment for settings UI, support tools, and developer-mode workflows.
 +Denied profile-authority events become de-duplicated ``allow PROFILE
@@ -19648,6 +19660,8 @@ diff -ruN --exclude .git linux-7.0.12/tools/hardening/README.rst linux-7.0.12-hd
 +  sudo tools/hardening/hdn-admin-broker --approval-token "$TOKEN" rofs-transaction /usr -- /usr/libexec/hdn-package-worker
 +  sudo tools/hardening/hdn-event-decode --quiet --expect reason=USER_WX_MAPPING --expect action=DENY_AUDIT
 +  sudo tools/hardening/hdn-status --expect available=1 --expect mitigations_sealed=1
++  sudo tools/hardening/hdn-support-bundle --dry-run
++  sudo tools/hardening/hdn-support-bundle --no-events
 +  sudo tools/hardening/hdn-control-center status --expect available=1
 +  sudo tools/hardening/hdn-policy-learn --input /sys/kernel/security/hardening/events
 +  sudo tools/hardening/hdn-policy-merge base.policy reviewed-learn.frag candidate.policy
@@ -19737,7 +19751,9 @@ diff -ruN --exclude .git linux-7.0.12/tools/hardening/README.rst linux-7.0.12-hd
 +reports all hardening smoke tests passing. Use ``KBUILD_OUTPUT`` or ``BZIMAGE``
 +to point it at a non-default kernel build directory. The QEMU firmware policy
 +proof uses the upstream ``test_firmware`` driver, so the smoke kernel must be
-+built with ``CONFIG_TEST_FIRMWARE=y``.
++built with ``CONFIG_TEST_FIRMWARE=y``. The current development harness expects
++990 passing hardening checks, including support-bundle fail-closed and
++collection proofs.
 +
 +The kernel loader requires the compiled payload to carry an appended PKCS#7
 +signature using the standard kernel module-signature trailer. Unsigned policy
@@ -39719,6 +39735,673 @@ diff -ruN --exclude .git linux-7.0.12/tools/hardening/hdn-status.c linux-7.0.12-
 +	free_expectations(expectations, expectation_count);
 +	return 2;
 +}
+diff -ruN --exclude .git linux-7.0.12/tools/hardening/hdn-support-bundle.c linux-7.0.12-hdn/tools/hardening/hdn-support-bundle.c
+--- linux-7.0.12/tools/hardening/hdn-support-bundle.c	1969-12-31 18:00:00.000000000 -0600
++++ linux-7.0.12-hdn/tools/hardening/hdn-support-bundle.c	2026-06-27 04:55:09.824990357 -0500
+@@ -0,0 +1,663 @@
++// SPDX-License-Identifier: GPL-2.0-only
++
++#define _GNU_SOURCE
++
++#include <errno.h>
++#include <fcntl.h>
++#include <signal.h>
++#include <stdbool.h>
++#include <stdio.h>
++#include <stdlib.h>
++#include <string.h>
++#include <sys/stat.h>
++#include <sys/wait.h>
++#include <unistd.h>
++
++#ifndef HDN_SUPPORT_BUNDLE_CONFIG
++#define HDN_SUPPORT_BUNDLE_CONFIG "/etc/hdn/support-bundle.conf"
++#endif
++
++#ifndef HDN_STATUS_HELPER_PATH
++#define HDN_STATUS_HELPER_PATH "/usr/libexec/hdn-status"
++#endif
++
++#ifndef HDN_EVENT_DECODE_PATH
++#define HDN_EVENT_DECODE_PATH "/usr/libexec/hdn-event-decode"
++#endif
++
++#ifndef HDN_EVENTS_PATH
++#define HDN_EVENTS_PATH "/sys/kernel/security/hardening/events"
++#endif
++
++#define HDN_SUPPORT_MIN_SECTION_BYTES 512UL
++#define HDN_SUPPORT_MAX_SECTION_BYTES 262144UL
++#define HDN_SUPPORT_DEFAULT_SECTION_BYTES 65536UL
++
++struct hdn_support_config {
++	char *status_helper;
++	char *event_decode_helper;
++	char *event_input;
++	bool include_compat;
++	bool include_events;
++	size_t max_section_bytes;
++};
++
++struct hdn_capture {
++	char *data;
++	size_t len;
++};
++
++static void usage(const char *prog)
++{
++	fprintf(stderr,
++		"Usage: %s [--config FILE] [--dry-run] [--no-events]\n"
++		"\n"
++		"Prints a bounded product-facing support bundle from HDN helpers.\n"
++		"Config lines: status-helper PATH, event-decode-helper PATH,\n"
++		"              event-input PATH, include-compat 0|1,\n"
++		"              include-events 0|1, max-section-bytes BYTES\n",
++		prog);
++}
++
++static char *trim(char *line)
++{
++	char *end;
++
++	while (*line == ' ' || *line == '\t' || *line == '\r' ||
++	       *line == '\n')
++		line++;
++
++	end = line + strlen(line);
++	while (end > line &&
++	       (end[-1] == ' ' || end[-1] == '\t' || end[-1] == '\r' ||
++		end[-1] == '\n'))
++		*--end = '\0';
++
++	return line;
++}
++
++static bool path_has_dot_component(const char *path)
++{
++	const char *part = path;
++
++	while (*part) {
++		const char *slash;
++		size_t len;
++
++		while (*part == '/')
++			part++;
++		if (!*part)
++			break;
++
++		slash = strchr(part, '/');
++		len = slash ? (size_t)(slash - part) : strlen(part);
++		if ((len == 1 && part[0] == '.') ||
++		    (len == 2 && part[0] == '.' && part[1] == '.'))
++			return true;
++		part += len;
++	}
++
++	return false;
++}
++
++static int require_safe_absolute(const char *what, const char *path)
++{
++	if (!path || path[0] != '/') {
++		fprintf(stderr,
++			"hdn-support-bundle: %s must be absolute: %s\n",
++			what, path ? path : "(null)");
++		return -EINVAL;
++	}
++	if (!strcmp(path, "/")) {
++		fprintf(stderr,
++			"hdn-support-bundle: %s / is too broad\n", what);
++		return -EINVAL;
++	}
++	if (path_has_dot_component(path)) {
++		fprintf(stderr,
++			"hdn-support-bundle: %s must not contain . or .. path components: %s\n",
++			what, path);
++		return -EINVAL;
++	}
++
++	return 0;
++}
++
++static int replace_string(char **slot, const char *value)
++{
++	char *copy = strdup(value);
++
++	if (!copy)
++		return -ENOMEM;
++	free(*slot);
++	*slot = copy;
++	return 0;
++}
++
++static int parse_bool(const char *text, bool *value)
++{
++	if (!strcmp(text, "1") || !strcmp(text, "yes") ||
++	    !strcmp(text, "true") || !strcmp(text, "on")) {
++		*value = true;
++		return 0;
++	}
++	if (!strcmp(text, "0") || !strcmp(text, "no") ||
++	    !strcmp(text, "false") || !strcmp(text, "off")) {
++		*value = false;
++		return 0;
++	}
++
++	return -EINVAL;
++}
++
++static int parse_size(const char *text, size_t *value)
++{
++	unsigned long parsed;
++	char *end;
++
++	errno = 0;
++	parsed = strtoul(text, &end, 10);
++	if (errno || !text[0] || *end)
++		return -EINVAL;
++	if (parsed < HDN_SUPPORT_MIN_SECTION_BYTES ||
++	    parsed > HDN_SUPPORT_MAX_SECTION_BYTES)
++		return -ERANGE;
++
++	*value = parsed;
++	return 0;
++}
++
++static int parse_single_path(char *rest, const char *what, char **slot,
++			     unsigned int lineno)
++{
++	char *path = trim(rest);
++	int ret;
++
++	if (!path[0] || strchr(path, ' ') || strchr(path, '\t')) {
++		fprintf(stderr,
++			"hdn-support-bundle: %s line %u needs exactly one path\n",
++			what, lineno);
++		return -EINVAL;
++	}
++
++	ret = require_safe_absolute(what, path);
++	if (ret)
++		return ret;
++	return replace_string(slot, path);
++}
++
++static int parse_bool_line(char *rest, const char *what, bool *slot,
++			   unsigned int lineno)
++{
++	char *text = trim(rest);
++
++	if (!text[0] || strchr(text, ' ') || strchr(text, '\t') ||
++	    parse_bool(text, slot)) {
++		fprintf(stderr,
++			"hdn-support-bundle: %s line %u needs 0 or 1\n",
++			what, lineno);
++		return -EINVAL;
++	}
++
++	return 0;
++}
++
++static int parse_size_line(char *rest, const char *what, size_t *slot,
++			   unsigned int lineno)
++{
++	char *text = trim(rest);
++
++	if (!text[0] || strchr(text, ' ') || strchr(text, '\t') ||
++	    parse_size(text, slot)) {
++		fprintf(stderr,
++			"hdn-support-bundle: %s line %u needs %lu-%lu bytes\n",
++			what, lineno, HDN_SUPPORT_MIN_SECTION_BYTES,
++			HDN_SUPPORT_MAX_SECTION_BYTES);
++		return -EINVAL;
++	}
++
++	return 0;
++}
++
++static int parse_config_line(struct hdn_support_config *config, char *line,
++			     unsigned int lineno)
++{
++	line = trim(line);
++	if (!line[0] || line[0] == '#')
++		return 0;
++
++	if (!strncmp(line, "status-helper", 13) &&
++	    (line[13] == ' ' || line[13] == '\t'))
++		return parse_single_path(line + 13, "status-helper",
++					 &config->status_helper, lineno);
++	if (!strncmp(line, "event-decode-helper", 19) &&
++	    (line[19] == ' ' || line[19] == '\t'))
++		return parse_single_path(line + 19, "event-decode-helper",
++					 &config->event_decode_helper, lineno);
++	if (!strncmp(line, "event-input", 11) &&
++	    (line[11] == ' ' || line[11] == '\t'))
++		return parse_single_path(line + 11, "event-input",
++					 &config->event_input, lineno);
++	if (!strncmp(line, "include-compat", 14) &&
++	    (line[14] == ' ' || line[14] == '\t'))
++		return parse_bool_line(line + 14, "include-compat",
++				       &config->include_compat, lineno);
++	if (!strncmp(line, "include-events", 14) &&
++	    (line[14] == ' ' || line[14] == '\t'))
++		return parse_bool_line(line + 14, "include-events",
++				       &config->include_events, lineno);
++	if (!strncmp(line, "max-section-bytes", 17) &&
++	    (line[17] == ' ' || line[17] == '\t'))
++		return parse_size_line(line + 17, "max-section-bytes",
++				       &config->max_section_bytes, lineno);
++
++	fprintf(stderr,
++		"hdn-support-bundle: unknown config key at line %u\n",
++		lineno);
++	return -EINVAL;
++}
++
++static int open_config(const char *path)
++{
++	struct stat st;
++	int flags = O_RDONLY | O_CLOEXEC;
++	int fd;
++
++#ifdef O_NOFOLLOW
++	flags |= O_NOFOLLOW;
++#endif
++
++	fd = open(path, flags);
++	if (fd < 0) {
++		fprintf(stderr, "hdn-support-bundle: cannot open %s: %s\n",
++			path, strerror(errno));
++		return -errno;
++	}
++
++	if (fstat(fd, &st)) {
++		int ret = -errno;
++
++		fprintf(stderr, "hdn-support-bundle: cannot stat %s: %s\n",
++			path, strerror(errno));
++		close(fd);
++		return ret;
++	}
++
++	if (!S_ISREG(st.st_mode) || st.st_uid != 0 || (st.st_mode & 022)) {
++		fprintf(stderr,
++			"hdn-support-bundle: refusing unsafe config %s\n",
++			path);
++		close(fd);
++		return -EACCES;
++	}
++
++	return fd;
++}
++
++static void free_config(struct hdn_support_config *config)
++{
++	free(config->status_helper);
++	free(config->event_decode_helper);
++	free(config->event_input);
++}
++
++static int load_config(const char *path, struct hdn_support_config *config)
++{
++	char *line = NULL;
++	size_t size = 0;
++	unsigned int lineno = 0;
++	ssize_t len;
++	FILE *file;
++	int ret;
++	int fd;
++
++	memset(config, 0, sizeof(*config));
++	config->include_compat = true;
++	config->include_events = false;
++	config->max_section_bytes = HDN_SUPPORT_DEFAULT_SECTION_BYTES;
++
++	ret = replace_string(&config->status_helper, HDN_STATUS_HELPER_PATH);
++	if (ret)
++		return ret;
++	ret = replace_string(&config->event_decode_helper,
++			     HDN_EVENT_DECODE_PATH);
++	if (ret)
++		return ret;
++	ret = replace_string(&config->event_input, HDN_EVENTS_PATH);
++	if (ret)
++		return ret;
++
++	fd = open_config(path);
++	if (fd < 0)
++		return fd;
++
++	file = fdopen(fd, "r");
++	if (!file) {
++		ret = -errno;
++		close(fd);
++		return ret;
++	}
++
++	while ((len = getline(&line, &size, file)) >= 0) {
++		(void)len;
++		lineno++;
++		ret = parse_config_line(config, line, lineno);
++		if (ret)
++			break;
++	}
++
++	free(line);
++	if (!ret && ferror(file))
++		ret = -EIO;
++	fclose(file);
++	if (ret)
++		return ret;
++
++	if (require_safe_absolute("status-helper", config->status_helper) ||
++	    require_safe_absolute("event-decode-helper",
++				  config->event_decode_helper) ||
++	    require_safe_absolute("event-input", config->event_input))
++		return -EINVAL;
++
++	return 0;
++}
++
++static int child_status_result(pid_t child)
++{
++	int status;
++
++	if (waitpid(child, &status, 0) < 0)
++		return 1;
++	if (!WIFEXITED(status))
++		return 1;
++	return WEXITSTATUS(status);
++}
++
++static int run_child(char *const argv[])
++{
++	pid_t child;
++
++	child = fork();
++	if (child < 0) {
++		fprintf(stderr, "hdn-support-bundle: fork failed: %s\n",
++			strerror(errno));
++		return 1;
++	}
++
++	if (!child) {
++		execv(argv[0], argv);
++		fprintf(stderr, "hdn-support-bundle: exec %s failed: %s\n",
++			argv[0], strerror(errno));
++		_exit(errno == ENOENT ? 127 : 126);
++	}
++
++	return child_status_result(child);
++}
++
++static int capture_read(int fd, struct hdn_capture *capture, size_t max)
++{
++	size_t done = 0;
++	ssize_t len;
++
++	capture->data = calloc(max + 1, 1);
++	if (!capture->data)
++		return 1;
++
++	for (;;) {
++		if (done == max)
++			return 1;
++
++		len = read(fd, capture->data + done, max - done);
++		if (len < 0) {
++			if (errno == EINTR)
++				continue;
++			return 1;
++		}
++		if (!len)
++			break;
++		done += len;
++	}
++
++	capture->data[done] = '\0';
++	capture->len = done;
++	return 0;
++}
++
++static int run_capture(char *const argv[], size_t max,
++		       struct hdn_capture *capture)
++{
++	int pipefd[2];
++	pid_t child;
++	int ret;
++
++	memset(capture, 0, sizeof(*capture));
++
++	if (pipe(pipefd)) {
++		fprintf(stderr, "hdn-support-bundle: pipe failed: %s\n",
++			strerror(errno));
++		return 1;
++	}
++
++	child = fork();
++	if (child < 0) {
++		fprintf(stderr, "hdn-support-bundle: fork failed: %s\n",
++			strerror(errno));
++		close(pipefd[0]);
++		close(pipefd[1]);
++		return 1;
++	}
++
++	if (!child) {
++		close(pipefd[0]);
++		if (dup2(pipefd[1], STDOUT_FILENO) < 0)
++			_exit(2);
++		close(pipefd[1]);
++		execv(argv[0], argv);
++		fprintf(stderr, "hdn-support-bundle: exec %s failed: %s\n",
++			argv[0], strerror(errno));
++		_exit(errno == ENOENT ? 127 : 126);
++	}
++
++	close(pipefd[1]);
++	ret = capture_read(pipefd[0], capture, max);
++	close(pipefd[0]);
++	if (ret)
++		kill(child, SIGKILL);
++
++	ret = child_status_result(child) || ret;
++	if (ret) {
++		free(capture->data);
++		memset(capture, 0, sizeof(*capture));
++	}
++
++	return ret ? 1 : 0;
++}
++
++static void free_capture(struct hdn_capture *capture)
++{
++	free(capture->data);
++	memset(capture, 0, sizeof(*capture));
++}
++
++static int run_status_dry_run(const struct hdn_support_config *config)
++{
++	char *const argv[] = {
++		config->status_helper, "--quiet",
++		"--expect", "available=1", NULL
++	};
++
++	return run_child(argv);
++}
++
++static int run_compat_dry_run(const struct hdn_support_config *config)
++{
++	char *const argv[] = {
++		config->status_helper, "--compat", "--quiet",
++		"--expect", "compat_status_v1=1", NULL
++	};
++
++	return run_child(argv);
++}
++
++static int run_events_dry_run(const struct hdn_support_config *config)
++{
++	char *const argv[] = {
++		config->event_decode_helper, "--input",
++		config->event_input, "--quiet", NULL
++	};
++
++	return run_child(argv);
++}
++
++static int collect_status(const struct hdn_support_config *config,
++			  struct hdn_capture *capture)
++{
++	char *const argv[] = {
++		config->status_helper, NULL
++	};
++
++	return run_capture(argv, config->max_section_bytes, capture);
++}
++
++static int collect_compat(const struct hdn_support_config *config,
++			  struct hdn_capture *capture)
++{
++	char *const argv[] = {
++		config->status_helper, "--compat", NULL
++	};
++
++	return run_capture(argv, config->max_section_bytes, capture);
++}
++
++static int collect_events(const struct hdn_support_config *config,
++			  struct hdn_capture *capture)
++{
++	char *const argv[] = {
++		config->event_decode_helper, "--input",
++		config->event_input, NULL
++	};
++
++	return run_capture(argv, config->max_section_bytes, capture);
++}
++
++static void print_section(const char *name, const struct hdn_capture *capture)
++{
++	printf("section=%s\n", name);
++	printf("begin\n");
++	if (capture->len)
++		fwrite(capture->data, 1, capture->len, stdout);
++	if (!capture->len || capture->data[capture->len - 1] != '\n')
++		printf("\n");
++	printf("end\n");
++}
++
++static int dry_run_bundle(const struct hdn_support_config *config)
++{
++	int ret;
++
++	ret = run_status_dry_run(config);
++	if (ret)
++		return ret;
++	if (config->include_compat) {
++		ret = run_compat_dry_run(config);
++		if (ret)
++			return ret;
++	}
++	if (config->include_events) {
++		ret = run_events_dry_run(config);
++		if (ret)
++			return ret;
++	}
++
++	printf("HDN_SUPPORT_BUNDLE_DRY_RUN=1\n");
++	return 0;
++}
++
++static int print_bundle(const struct hdn_support_config *config)
++{
++	struct hdn_capture status;
++	struct hdn_capture compat;
++	struct hdn_capture events;
++	int ret;
++
++	ret = collect_status(config, &status);
++	if (ret)
++		return ret;
++
++	memset(&compat, 0, sizeof(compat));
++	if (config->include_compat) {
++		ret = collect_compat(config, &compat);
++		if (ret) {
++			free_capture(&status);
++			return ret;
++		}
++	}
++
++	memset(&events, 0, sizeof(events));
++	if (config->include_events) {
++		ret = collect_events(config, &events);
++		if (ret) {
++			free_capture(&compat);
++			free_capture(&status);
++			return ret;
++		}
++	}
++
++	printf("HDN_SUPPORT_BUNDLE_V1\n");
++	print_section("status", &status);
++	if (config->include_compat)
++		print_section("compat", &compat);
++	if (config->include_events)
++		print_section("events", &events);
++
++	free_capture(&events);
++	free_capture(&compat);
++	free_capture(&status);
++	return ferror(stdout) ? 1 : 0;
++}
++
++int main(int argc, char **argv)
++{
++	struct hdn_support_config config;
++	const char *config_path = HDN_SUPPORT_BUNDLE_CONFIG;
++	bool no_events = false;
++	bool dry_run = false;
++	int ret;
++	int i;
++
++	for (i = 1; i < argc; i++) {
++		if (!strcmp(argv[i], "--config")) {
++			if (++i >= argc) {
++				usage(argv[0]);
++				return 2;
++			}
++			config_path = argv[i];
++			continue;
++		}
++		if (!strcmp(argv[i], "--dry-run")) {
++			dry_run = true;
++			continue;
++		}
++		if (!strcmp(argv[i], "--no-events")) {
++			no_events = true;
++			continue;
++		}
++		if (!strcmp(argv[i], "--help") || !strcmp(argv[i], "-h")) {
++			usage(argv[0]);
++			return 0;
++		}
++		usage(argv[0]);
++		return 2;
++	}
++
++	ret = load_config(config_path, &config);
++	if (ret)
++		return 1;
++
++	if (no_events)
++		config.include_events = false;
++
++	ret = dry_run ? dry_run_bundle(&config) : print_bundle(&config);
++	free_config(&config);
++	return ret ? 1 : 0;
++}
 diff -ruN --exclude .git linux-7.0.12/tools/hardening/hdn-system-transaction.c linux-7.0.12-hdn/tools/hardening/hdn-system-transaction.c
 --- linux-7.0.12/tools/hardening/hdn-system-transaction.c	1969-12-31 18:00:00.000000000 -0600
 +++ linux-7.0.12-hdn/tools/hardening/hdn-system-transaction.c	2026-06-27 03:12:42.493552440 -0500
@@ -40560,6 +41243,31 @@ diff -ruN --exclude .git linux-7.0.12/tools/hardening/settings-ui.conf linux-7.0
 +title System Settings
 +message Choose an approved system action.
 +action updates.install Install system updates
+diff -ruN --exclude .git linux-7.0.12/tools/hardening/support-bundle.conf linux-7.0.12-hdn/tools/hardening/support-bundle.conf
+--- linux-7.0.12/tools/hardening/support-bundle.conf	1969-12-31 18:00:00.000000000 -0600
++++ linux-7.0.12-hdn/tools/hardening/support-bundle.conf	2026-06-27 04:55:18.360983708 -0500
+@@ -0,0 +1,21 @@
++# Product support-bundle policy consumed by hdn-support-bundle.
++# Keep this file root-owned and not writable by group or other.
++#
++# Grammar:
++#   status-helper PATH
++#   event-decode-helper PATH
++#   event-input PATH
++#   include-compat 0|1
++#   include-events 0|1
++#   max-section-bytes BYTES
++#
++# The default shipped config collects stable product status and compatibility
++# family state only. Products may enable event inclusion when their support
++# policy allows decoded hardening event export.
++
++status-helper /usr/libexec/hdn-status
++event-decode-helper /usr/libexec/hdn-event-decode
++event-input /sys/kernel/security/hardening/events
++include-compat 1
++include-events 0
++max-section-bytes 65536
 diff -ruN --exclude .git linux-7.0.12/tools/hardening/system-transactions.conf linux-7.0.12-hdn/tools/hardening/system-transactions.conf
 --- linux-7.0.12/tools/hardening/system-transactions.conf	1969-12-31 18:00:00.000000000 -0600
 +++ linux-7.0.12-hdn/tools/hardening/system-transactions.conf	2026-06-25 14:41:52.922953728 -0500
@@ -41014,8 +41722,8 @@ diff -ruN --exclude .git linux-7.0.12/tools/testing/selftests/hardening/hdn_elfn
 +}
 diff -ruN --exclude .git linux-7.0.12/tools/testing/selftests/hardening/hdn_smoke.c linux-7.0.12-hdn/tools/testing/selftests/hardening/hdn_smoke.c
 --- linux-7.0.12/tools/testing/selftests/hardening/hdn_smoke.c	1969-12-31 18:00:00.000000000 -0600
-+++ linux-7.0.12-hdn/tools/testing/selftests/hardening/hdn_smoke.c	2026-06-27 04:44:13.825063872 -0500
-@@ -0,0 +1,29152 @@
++++ linux-7.0.12-hdn/tools/testing/selftests/hardening/hdn_smoke.c	2026-06-27 04:58:15.184973165 -0500
+@@ -0,0 +1,29321 @@
 +// SPDX-License-Identifier: GPL-2.0-only
 +
 +#define _GNU_SOURCE
@@ -41724,6 +42432,9 @@ diff -ruN --exclude .git linux-7.0.12/tools/testing/selftests/hardening/hdn_smok
 +#define HDN_EVENT_DECODE_DETAILS_INPUT "/hdn-event-decode-details.events"
 +#define HDN_STATUS_HELPER_EXEC "/hdn-status"
 +#define HDN_STATUS_HELPER_FIXTURE "/hdn-status-fixture.status"
++#define HDN_SUPPORT_BUNDLE_EXEC "/hdn-support-bundle"
++#define HDN_SUPPORT_BUNDLE_UNSAFE_CONFIG "/hdn-support-bundle-unsafe.conf"
++#define HDN_SUPPORT_BUNDLE_EVENTS "/hdn-support-bundle.events"
 +#define HDN_POLICY_LEARN_EXEC "/hdn-policy-learn"
 +#define HDN_POLICY_LEARN_EVENTS "/hdn-policy-learn-events"
 +#define HDN_POLICY_LEARN_OUTPUT "/hdn-policy-learn.out"
@@ -44776,6 +45487,166 @@ diff -ruN --exclude .git linux-7.0.12/tools/testing/selftests/hardening/hdn_smok
 +	ret = child_exit_result(child);
 +	unlink(HDN_STATUS_HELPER_FIXTURE);
 +	return ret;
++}
++
++static int support_bundle_write_event_fixture(void)
++{
++	char fixture[512];
++	int ret;
++
++	ret = snprintf(fixture, sizeof(fixture),
++		       "sequence=1 timestamp_ns=1 event_id=3 pid=1 uid=0 profile=1 authority=2 transition=3 action=4 reason=1 error=-1 subject=1 object=0 flags=0x0\n");
++	if (ret < 0 || (size_t)ret >= sizeof(fixture))
++		return 2;
++
++	return write_created_text_file(HDN_SUPPORT_BUNDLE_EVENTS, fixture);
++}
++
++static int support_bundle_run(bool dry_run, const char *config_path)
++{
++	pid_t child;
++
++	if (access(HDN_SUPPORT_BUNDLE_EXEC, X_OK))
++		return KSFT_SKIP;
++
++	child = fork();
++	if (child < 0)
++		return 2;
++
++	if (!child) {
++		if (config_path && dry_run)
++			execl(HDN_SUPPORT_BUNDLE_EXEC, "hdn-support-bundle",
++			      "--config", config_path, "--dry-run", NULL);
++		else if (config_path)
++			execl(HDN_SUPPORT_BUNDLE_EXEC, "hdn-support-bundle",
++			      "--config", config_path, NULL);
++		else if (dry_run)
++			execl(HDN_SUPPORT_BUNDLE_EXEC, "hdn-support-bundle",
++			      "--dry-run", NULL);
++		else
++			execl(HDN_SUPPORT_BUNDLE_EXEC, "hdn-support-bundle",
++			      NULL);
++		fprintf(stderr, "support bundle exec failed: %s\n",
++			strerror(errno));
++		_exit(2);
++	}
++
++	return child_exit_result(child);
++}
++
++static int support_bundle_unsafe_config_denied(void)
++{
++	int ret;
++
++	ret = support_bundle_run(true, HDN_SUPPORT_BUNDLE_UNSAFE_CONFIG);
++	if (ret == KSFT_SKIP)
++		return ret;
++	if (!ret) {
++		fprintf(stderr, "support bundle accepted unsafe config\n");
++		return 1;
++	}
++
++	return ret == 1 ? 0 : ret;
++}
++
++static int support_bundle_dry_run_passes(void)
++{
++	int ret;
++
++	if (access(HDN_SUPPORT_BUNDLE_EXEC, X_OK))
++		return KSFT_SKIP;
++
++	ret = support_bundle_write_event_fixture();
++	if (ret)
++		return ret;
++
++	ret = support_bundle_run(true, NULL);
++	unlink(HDN_SUPPORT_BUNDLE_EVENTS);
++	return ret;
++}
++
++static int support_bundle_run_capture(char *buf, size_t size)
++{
++	int pipefd[2];
++	pid_t child;
++	int status;
++	int ret;
++
++	if (access(HDN_SUPPORT_BUNDLE_EXEC, X_OK))
++		return KSFT_SKIP;
++
++	if (pipe(pipefd))
++		return 2;
++
++	child = fork();
++	if (child < 0) {
++		close(pipefd[0]);
++		close(pipefd[1]);
++		return 2;
++	}
++
++	if (!child) {
++		close(pipefd[0]);
++		if (dup2(pipefd[1], STDOUT_FILENO) < 0)
++			_exit(2);
++		close(pipefd[1]);
++		execl(HDN_SUPPORT_BUNDLE_EXEC, "hdn-support-bundle", NULL);
++		fprintf(stderr, "support bundle exec failed: %s\n",
++			strerror(errno));
++		_exit(2);
++	}
++
++	close(pipefd[1]);
++	ret = event_decoder_read_output(pipefd[0], buf, size);
++	close(pipefd[0]);
++
++	if (waitpid(child, &status, 0) < 0)
++		return 2;
++	if (ret)
++		return 2;
++	if (!WIFEXITED(status))
++		return 2;
++	return WEXITSTATUS(status);
++}
++
++static int support_bundle_reports_status_and_events(void)
++{
++	static const char * const needles[] = {
++		"HDN_SUPPORT_BUNDLE_V1",
++		"section=status",
++		"available=1",
++		"section=compat",
++		"compat_status_v1=1",
++		"section=events",
++		"reason=USER_WX_MAPPING",
++		"action=DENY_AUDIT",
++	};
++	char output[131072];
++	size_t i;
++	int ret;
++
++	if (access(HDN_SUPPORT_BUNDLE_EXEC, X_OK))
++		return KSFT_SKIP;
++
++	ret = support_bundle_write_event_fixture();
++	if (ret)
++		return ret;
++
++	ret = support_bundle_run_capture(output, sizeof(output));
++	unlink(HDN_SUPPORT_BUNDLE_EVENTS);
++	if (ret)
++		return ret;
++
++	for (i = 0; i < ARRAY_SIZE(needles); i++) {
++		if (!strstr(output, needles[i])) {
++			fprintf(stderr, "support bundle output missing %s\n",
++				needles[i]);
++			fprintf(stderr, "%s\n", output);
++			return 1;
++		}
++	}
++
++	return 0;
 +}
 +
 +static int control_center_status_fixture_passes(void)
@@ -69747,7 +70618,7 @@ diff -ruN --exclude .git linux-7.0.12/tools/testing/selftests/hardening/hdn_smok
 +	if (access(HDN_STATUS, R_OK))
 +		ksft_exit_skip("hardening securityfs status not present\n");
 +
-+	ksft_set_plan(987);
++	ksft_set_plan(990);
 +	test_securityfs_status();
 +	test_symbol_test_module_load();
 +	test_securityfs_status_contains("abi_version: 89",
@@ -70018,6 +70889,12 @@ diff -ruN --exclude .git linux-7.0.12/tools/testing/selftests/hardening/hdn_smok
 +			    "status helper composes compatibility status families");
 +	report_child_result(status_helper_decodes_audit_flood_fixture(),
 +			    "status helper decodes audit flood status names");
++	report_child_result(support_bundle_unsafe_config_denied(),
++			    "support bundle denies unsafe config");
++	report_child_result(support_bundle_dry_run_passes(),
++			    "support bundle dry-run validates configured helpers");
++	report_child_result(support_bundle_reports_status_and_events(),
++			    "support bundle reports status compat and decoded events");
 +	report_child_result(control_center_status_fixture_passes(),
 +			    "control center reports product status");
 +	report_child_result(control_center_stdio_status_passes(),
@@ -70561,8 +71438,8 @@ diff -ruN --exclude .git linux-7.0.12/tools/testing/selftests/hardening/role.pol
 +use-role 2 desktop-admin
 diff -ruN --exclude .git linux-7.0.12/tools/testing/selftests/hardening/run-qemu-smoke.sh linux-7.0.12-hdn/tools/testing/selftests/hardening/run-qemu-smoke.sh
 --- linux-7.0.12/tools/testing/selftests/hardening/run-qemu-smoke.sh	1969-12-31 18:00:00.000000000 -0600
-+++ linux-7.0.12-hdn/tools/testing/selftests/hardening/run-qemu-smoke.sh	2026-06-27 04:39:29.657065684 -0500
-@@ -0,0 +1,1339 @@
++++ linux-7.0.12-hdn/tools/testing/selftests/hardening/run-qemu-smoke.sh	2026-06-27 04:57:05.964981860 -0500
+@@ -0,0 +1,1368 @@
 +#!/bin/sh
 +# SPDX-License-Identifier: GPL-2.0
 +
@@ -70596,7 +71473,7 @@ diff -ruN --exclude .git linux-7.0.12/tools/testing/selftests/hardening/run-qemu
 +QEMU_MEMORY=${QEMU_MEMORY:-1024M}
 +QEMU_SMP=${QEMU_SMP:-2}
 +QEMU_MACHINE=${QEMU_MACHINE:-q35,accel=tcg}
-+HDN_SMOKE_EXPECTED_PASS=${HDN_SMOKE_EXPECTED_PASS:-987}
++HDN_SMOKE_EXPECTED_PASS=${HDN_SMOKE_EXPECTED_PASS:-990}
 +WORK=${HDN_QEMU_WORK:-"${TMPDIR:-/tmp}/hdn-qemu-smoke.$$"}
 +LOG=${HDN_QEMU_LOG:-"$WORK/qemu.log"}
 +QMP=${HDN_QEMU_QMP:-"$WORK/qmp.sock"}
@@ -70968,6 +71845,14 @@ diff -ruN --exclude .git linux-7.0.12/tools/testing/selftests/hardening/run-qemu
 +	-o "$WORK/hdn-status" \
 +	"$ROOT/tools/hardening/hdn-status.c"
 +
++"$CC" -static -O2 -Wall -Wextra \
++	-DHDN_SUPPORT_BUNDLE_CONFIG='"/hdn-support-bundle.conf"' \
++	-DHDN_STATUS_HELPER_PATH='"/hdn-status"' \
++	-DHDN_EVENT_DECODE_PATH='"/hdn-event-decode"' \
++	-DHDN_EVENTS_PATH='"/hdn-support-bundle.events"' \
++	-o "$WORK/hdn-support-bundle" \
++	"$ROOT/tools/hardening/hdn-support-bundle.c"
++
 +"$CC" -static -O2 -Wall -Wextra -D__EXPORTED_HEADERS__ \
 +	-I"$ROOT/include/uapi" \
 +	-isystem "$ROOT/usr/include" \
@@ -71040,6 +71925,7 @@ diff -ruN --exclude .git linux-7.0.12/tools/testing/selftests/hardening/run-qemu
 +cp "$WORK/hdn-package-hook" "$WORK/initramfs/hdn-package-hook"
 +cp "$WORK/hdn-event-decode" "$WORK/initramfs/hdn-event-decode"
 +cp "$WORK/hdn-status" "$WORK/initramfs/hdn-status"
++cp "$WORK/hdn-support-bundle" "$WORK/initramfs/hdn-support-bundle"
 +cp "$WORK/hdn-policy" "$WORK/initramfs/hdn-policy"
 +cp "$WORK/hdn-policy-learn" "$WORK/initramfs/hdn-policy-learn"
 +cp "$WORK/hdn-policy-merge" "$WORK/initramfs/hdn-policy-merge"
@@ -71341,6 +72227,26 @@ diff -ruN --exclude .git linux-7.0.12/tools/testing/selftests/hardening/run-qemu
 +action updates.install Install system updates
 +EOF
 +chmod 0666 "$WORK/initramfs/hdn-settings-ui-unsafe.conf"
++cat > "$WORK/initramfs/hdn-support-bundle.conf" <<'EOF'
++# Product-approved support bundle config for the QEMU hardening smoke test.
++status-helper /hdn-status
++event-decode-helper /hdn-event-decode
++event-input /hdn-support-bundle.events
++include-compat 1
++include-events 1
++max-section-bytes 65536
++EOF
++chmod 0644 "$WORK/initramfs/hdn-support-bundle.conf"
++cat > "$WORK/initramfs/hdn-support-bundle-unsafe.conf" <<'EOF'
++# Deliberately unsafe support bundle config used to prove fail-closed behavior.
++status-helper /hdn-status
++event-decode-helper /hdn-event-decode
++event-input /hdn-support-bundle.events
++include-compat 1
++include-events 1
++max-section-bytes 65536
++EOF
++chmod 0666 "$WORK/initramfs/hdn-support-bundle-unsafe.conf"
 +cat > "$WORK/initramfs/hdn-image-seals.conf" <<'EOF'
 +# Product-approved image sealing sequence for the QEMU hardening smoke test.
 +seal default rofs-apply /hdn-image-seal-list.conf
