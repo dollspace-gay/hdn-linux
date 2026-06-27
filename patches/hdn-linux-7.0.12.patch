@@ -19233,8 +19233,8 @@ diff -ruN --exclude .git linux-7.0.12/tools/hardening/Makefile linux-7.0.12-hdn/
 +.PHONY: all clean install
 diff -ruN --exclude .git linux-7.0.12/tools/hardening/README.rst linux-7.0.12-hdn/tools/hardening/README.rst
 --- linux-7.0.12/tools/hardening/README.rst	1969-12-31 18:00:00.000000000 -0600
-+++ linux-7.0.12-hdn/tools/hardening/README.rst	2026-06-27 01:27:00.614122872 -0500
-@@ -0,0 +1,1461 @@
++++ linux-7.0.12-hdn/tools/hardening/README.rst	2026-06-27 01:48:51.106007026 -0500
+@@ -0,0 +1,1467 @@
 +.. SPDX-License-Identifier: GPL-2.0-only
 +
 +Linux Hardening Policy Tools
@@ -19427,7 +19427,9 @@ diff -ruN --exclude .git linux-7.0.12/tools/hardening/README.rst linux-7.0.12-hd
 +view adds ``compat_*`` feature-family keys derived from sealed HDN status bits
 +so installers, support tools, and settings panels can test familiar hardening
 +families without depending on raw kernel status labels or lower-level policy
-+internals.
++internals. Those families include coarse memory-initialization, allocator,
++compiler, stack, and kernel W^X/page-table hardening checks in addition to the
++policy-controlled proc, symbol, BPF, module, audit, and device surfaces.
 +
 +``hdn-policy-learn`` consumes the same event records and emits a reviewable
 +policy fragment for settings UI, support tools, and developer-mode workflows.
@@ -20033,11 +20035,15 @@ diff -ruN --exclude .git linux-7.0.12/tools/hardening/README.rst linux-7.0.12-hd
 +the locked sysctl plus unprivileged fixed ``mmap(2)`` denial below the floor.
 +
 +The same baseline selects upstream vmapped kernel stacks, default kernel stack
-+offset randomization, and strong stack protector where supported. The sealed
-+mitigation status reports ``mitigation_vmap_stack: 1``,
-+``mitigation_thread_info_in_task: 1``, and
-+``mitigation_stackprotector_strong: 1`` when those upstream protections are
-+present; the QEMU smoke suite asserts all three.
++offset randomization, stack zeroing, kernel stack erasure, zeroing of used
++call-clobbered registers on return, randstruct, and strong stack protector
++where supported. The sealed mitigation status reports
++``mitigation_vmap_stack: 1``, ``mitigation_thread_info_in_task: 1``,
++``mitigation_randomize_kstack: 1``, ``mitigation_init_stack_zero: 1``,
++``mitigation_kstack_erase: 1``, ``mitigation_zero_call_used_regs: 1``,
++``mitigation_randstruct: 1``, and ``mitigation_stackprotector_strong: 1`` when
++those upstream protections are present; the QEMU smoke suite asserts those
++status bits.
 +
 +``CONFIG_SECURITY_HARDENING_RAND_THREADSTACK`` adds randomized unmapped gaps
 +to private anonymous no-hint ``MAP_STACK`` and stack-like ``MAP_GROWSDOWN``
@@ -34658,8 +34664,8 @@ diff -ruN --exclude .git linux-7.0.12/tools/hardening/hdn-rofs-transaction.c lin
 +}
 diff -ruN --exclude .git linux-7.0.12/tools/hardening/hdn-status.c linux-7.0.12-hdn/tools/hardening/hdn-status.c
 --- linux-7.0.12/tools/hardening/hdn-status.c	1969-12-31 18:00:00.000000000 -0600
-+++ linux-7.0.12-hdn/tools/hardening/hdn-status.c	2026-06-27 01:26:09.962129595 -0500
-@@ -0,0 +1,1126 @@
++++ linux-7.0.12-hdn/tools/hardening/hdn-status.c	2026-06-27 01:47:34.114012999 -0500
+@@ -0,0 +1,1178 @@
 +// SPDX-License-Identifier: GPL-2.0-only
 +
 +#define _GNU_SOURCE
@@ -35307,6 +35313,38 @@ diff -ruN --exclude .git linux-7.0.12/tools/hardening/hdn-status.c linux-7.0.12-
 +		"mitigation_unpriv_bpf_lockdown",
 +		"mitigation_bpf_jit_harden",
 +	};
++	static const char * const memory_init[] = {
++		"mitigation_init_on_alloc",
++		"mitigation_init_on_free",
++		"mitigation_init_stack_zero",
++		"mitigation_kstack_erase",
++		"mitigation_zero_call_used_regs",
++	};
++	static const char * const allocator[] = {
++		"mitigation_slab_freelist_random",
++		"mitigation_slab_freelist_hardened",
++		"mitigation_random_kmalloc_caches",
++		"mitigation_slab_buckets",
++		"mitigation_slab_merge_disabled",
++	};
++	static const char * const compiler[] = {
++		"mitigation_hardened_usercopy",
++		"mitigation_fortify_source",
++		"mitigation_randstruct",
++		"mitigation_list_hardened",
++		"mitigation_stackprotector_strong",
++	};
++	static const char * const stack[] = {
++		"mitigation_vmap_stack",
++		"mitigation_thread_info_in_task",
++		"mitigation_randomize_kstack",
++		"mitigation_rand_threadstack",
++	};
++	static const char * const kernel_wx[] = {
++		"mitigation_strict_kernel_rwx",
++		"mitigation_strict_module_rwx",
++		"mitigation_page_table_check",
++	};
 +	static const char * const module[] = {
 +		"mitigation_module_load_disable",
 +		"mitigation_module_autoload",
@@ -35373,6 +35411,26 @@ diff -ruN --exclude .git linux-7.0.12/tools/hardening/hdn-status.c linux-7.0.12-
 +		return ret;
 +	ret = output_compat_all(outputs, status, "compat_bpf",
 +				bpf, ARRAY_SIZE(bpf));
++	if (ret)
++		return ret;
++	ret = output_compat_all(outputs, status, "compat_memory_init",
++				memory_init, ARRAY_SIZE(memory_init));
++	if (ret)
++		return ret;
++	ret = output_compat_all(outputs, status, "compat_allocator",
++				allocator, ARRAY_SIZE(allocator));
++	if (ret)
++		return ret;
++	ret = output_compat_all(outputs, status, "compat_compiler",
++				compiler, ARRAY_SIZE(compiler));
++	if (ret)
++		return ret;
++	ret = output_compat_all(outputs, status, "compat_stack",
++				stack, ARRAY_SIZE(stack));
++	if (ret)
++		return ret;
++	ret = output_compat_all(outputs, status, "compat_kernel_wx",
++				kernel_wx, ARRAY_SIZE(kernel_wx));
 +	if (ret)
 +		return ret;
 +	ret = output_compat_bool(outputs, "compat_perf",
@@ -36976,8 +37034,8 @@ diff -ruN --exclude .git linux-7.0.12/tools/testing/selftests/hardening/hdn_elfn
 +}
 diff -ruN --exclude .git linux-7.0.12/tools/testing/selftests/hardening/hdn_smoke.c linux-7.0.12-hdn/tools/testing/selftests/hardening/hdn_smoke.c
 --- linux-7.0.12/tools/testing/selftests/hardening/hdn_smoke.c	1969-12-31 18:00:00.000000000 -0600
-+++ linux-7.0.12-hdn/tools/testing/selftests/hardening/hdn_smoke.c	2026-06-27 01:39:02.746058973 -0500
-@@ -0,0 +1,26989 @@
++++ linux-7.0.12-hdn/tools/testing/selftests/hardening/hdn_smoke.c	2026-06-27 01:48:24.890009454 -0500
+@@ -0,0 +1,27031 @@
 +// SPDX-License-Identifier: GPL-2.0-only
 +
 +#define _GNU_SOURCE
@@ -40540,6 +40598,11 @@ diff -ruN --exclude .git linux-7.0.12/tools/testing/selftests/hardening/hdn_smok
 +		      "--expect", "compat_proc_memmap=1",
 +		      "--expect", "compat_sysfs=1",
 +		      "--expect", "compat_bpf=1",
++		      "--expect", "compat_memory_init=1",
++		      "--expect", "compat_allocator=1",
++		      "--expect", "compat_compiler=1",
++		      "--expect", "compat_stack=1",
++		      "--expect", "compat_kernel_wx=1",
 +		      "--expect", "compat_perf=1",
 +		      "--expect", "compat_module=1",
 +		      "--expect", "compat_rofs=1",
@@ -40575,6 +40638,28 @@ diff -ruN --exclude .git linux-7.0.12/tools/testing/selftests/hardening/hdn_smok
 +		"mitigation_sysfs_restrict: 1\n"
 +		"mitigation_unpriv_bpf_lockdown: 1\n"
 +		"mitigation_bpf_jit_harden: 1\n"
++		"mitigation_init_on_alloc: 1\n"
++		"mitigation_init_on_free: 1\n"
++		"mitigation_init_stack_zero: 0\n"
++		"mitigation_kstack_erase: 1\n"
++		"mitigation_zero_call_used_regs: 1\n"
++		"mitigation_slab_freelist_random: 1\n"
++		"mitigation_slab_freelist_hardened: 1\n"
++		"mitigation_random_kmalloc_caches: 1\n"
++		"mitigation_slab_buckets: 1\n"
++		"mitigation_slab_merge_disabled: 1\n"
++		"mitigation_hardened_usercopy: 1\n"
++		"mitigation_fortify_source: 1\n"
++		"mitigation_randstruct: 0\n"
++		"mitigation_list_hardened: 1\n"
++		"mitigation_stackprotector_strong: 1\n"
++		"mitigation_vmap_stack: 1\n"
++		"mitigation_thread_info_in_task: 1\n"
++		"mitigation_randomize_kstack: 1\n"
++		"mitigation_rand_threadstack: 1\n"
++		"mitigation_strict_kernel_rwx: 1\n"
++		"mitigation_strict_module_rwx: 1\n"
++		"mitigation_page_table_check: 0\n"
 +		"mitigation_net_blackhole: 1\n"
 +		"mitigation_tcp_no_simult_connect: 0\n"
 +		"mitigation_usb_restrict: 1\n"
@@ -40608,6 +40693,11 @@ diff -ruN --exclude .git linux-7.0.12/tools/testing/selftests/hardening/hdn_smok
 +		      "--expect", "compat_proc_memmap=0",
 +		      "--expect", "compat_sysfs=1",
 +		      "--expect", "compat_bpf=1",
++		      "--expect", "compat_memory_init=0",
++		      "--expect", "compat_allocator=1",
++		      "--expect", "compat_compiler=0",
++		      "--expect", "compat_stack=1",
++		      "--expect", "compat_kernel_wx=0",
 +		      "--expect", "compat_net_blackhole=0",
 +		      "--expect", "compat_usb=1",
 +		      "--expect", "compat_resource=0", NULL);
@@ -63572,7 +63662,7 @@ diff -ruN --exclude .git linux-7.0.12/tools/testing/selftests/hardening/hdn_smok
 +	if (access(HDN_STATUS, R_OK))
 +		ksft_exit_skip("hardening securityfs status not present\n");
 +
-+	ksft_set_plan(955);
++	ksft_set_plan(960);
 +	test_securityfs_status();
 +	test_symbol_test_module_load();
 +	test_securityfs_status_contains("abi_version: 89",
@@ -63605,8 +63695,16 @@ diff -ruN --exclude .git linux-7.0.12/tools/testing/selftests/hardening/hdn_smok
 +					"hardening status reports init-on-alloc");
 +	test_securityfs_status_contains("mitigation_init_on_free: 1",
 +					"hardening status reports init-on-free");
++	test_securityfs_status_contains("mitigation_init_stack_zero: 1",
++					"hardening status reports stack zero initialization");
++	test_securityfs_status_contains("mitigation_kstack_erase: 1",
++					"hardening status reports kernel stack erasure");
++	test_securityfs_status_contains("mitigation_zero_call_used_regs: 1",
++					"hardening status reports zeroed call-used registers");
 +	test_securityfs_status_contains("mitigation_fortify_source: 1",
 +					"hardening status reports fortify source");
++	test_securityfs_status_contains("mitigation_randstruct: 1",
++					"hardening status reports randomized kernel structures");
 +	test_securityfs_status_contains("mitigation_slab_freelist_random: 1",
 +					"hardening status reports slab freelist randomization");
 +	test_securityfs_status_contains("mitigation_slab_freelist_hardened: 1",
@@ -63617,6 +63715,8 @@ diff -ruN --exclude .git linux-7.0.12/tools/testing/selftests/hardening/hdn_smok
 +					"hardening status reports isolated slab buckets");
 +	test_securityfs_status_contains("mitigation_slab_merge_disabled: 1",
 +					"hardening status reports disabled slab merging");
++	test_securityfs_status_contains("mitigation_randomize_kstack: 1",
++					"hardening status reports syscall kernel-stack offset randomization");
 +	test_securityfs_status_contains("mitigation_dmesg_restrict: 1",
 +					"hardening status reports dmesg restriction");
 +	test_int_file_equals(HDN_DMESG_RESTRICT, 1,
@@ -64360,7 +64460,7 @@ diff -ruN --exclude .git linux-7.0.12/tools/testing/selftests/hardening/role.pol
 +use-role 2 desktop-admin
 diff -ruN --exclude .git linux-7.0.12/tools/testing/selftests/hardening/run-qemu-smoke.sh linux-7.0.12-hdn/tools/testing/selftests/hardening/run-qemu-smoke.sh
 --- linux-7.0.12/tools/testing/selftests/hardening/run-qemu-smoke.sh	1969-12-31 18:00:00.000000000 -0600
-+++ linux-7.0.12-hdn/tools/testing/selftests/hardening/run-qemu-smoke.sh	2026-06-27 01:39:07.814058531 -0500
++++ linux-7.0.12-hdn/tools/testing/selftests/hardening/run-qemu-smoke.sh	2026-06-27 01:48:29.886008980 -0500
 @@ -0,0 +1,1221 @@
 +#!/bin/sh
 +# SPDX-License-Identifier: GPL-2.0
@@ -64395,7 +64495,7 @@ diff -ruN --exclude .git linux-7.0.12/tools/testing/selftests/hardening/run-qemu
 +QEMU_MEMORY=${QEMU_MEMORY:-1024M}
 +QEMU_SMP=${QEMU_SMP:-2}
 +QEMU_MACHINE=${QEMU_MACHINE:-q35,accel=tcg}
-+HDN_SMOKE_EXPECTED_PASS=${HDN_SMOKE_EXPECTED_PASS:-955}
++HDN_SMOKE_EXPECTED_PASS=${HDN_SMOKE_EXPECTED_PASS:-960}
 +WORK=${HDN_QEMU_WORK:-"${TMPDIR:-/tmp}/hdn-qemu-smoke.$$"}
 +LOG=${HDN_QEMU_LOG:-"$WORK/qemu.log"}
 +QMP=${HDN_QEMU_QMP:-"$WORK/qmp.sock"}

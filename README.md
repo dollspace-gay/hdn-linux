@@ -85,7 +85,10 @@ recovery UI stable product-facing `key=value` status with policy readiness,
 mitigation counts, audit-flood state, and decoded audit-flood names.
 Its optional compatibility view reports stable `compat_*` hardening-family keys
 derived from sealed HDN status bits for distro tooling that wants coarse
-feature-state checks without depending on raw kernel labels.
+feature-state checks without depending on raw kernel labels. That view now
+groups memory initialization, allocator, compiler, stack, and kernel
+W^X/page-table families alongside the higher-level policy and disclosure
+families.
 `hdn-control-center` now gives settings panels and desktop shells one
 product-facing status/action entry point above `hdn-status` and
 `hdn-desktop-daemon`. `hdn-policy-workflow` now gives settings panels, support
@@ -107,8 +110,8 @@ checking on supported architectures, with sealed status and QEMU coverage.
 
 The largest remaining gaps are richer RBAC/userspace integration, full desktop
 and recovery UI around the admin broker, final image-specific update wiring,
-deeper internal symbol hiding, and large PaX-style compiler/architecture
-mitigation families.
+deeper internal symbol hiding, and PaX-style compiler/architecture mechanisms
+beyond the upstream-equivalent families already grouped in status.
 
 ## Apply The Patch
 
@@ -133,16 +136,16 @@ The hardening smoke suite in the development tree is run under QEMU. Latest
 local result before this publication checkpoint:
 
 ```text
-QEMU hardening smoke: 955/955 pass
+QEMU hardening smoke: 960/960 pass
 ```
 
 Patch artifact at this checkpoint:
 
 ```text
 patch: patches/hdn-linux-7.0.12.patch
-lines: 65,762
-bytes: 1,956,227
-sha256: c0667511305868f5fd1e834566e2086f9d0065c565493be059d1ee24e46432b3
+lines: 65,862
+bytes: 1,960,266
+sha256: a53db46b250dbc0ddcb6b904aef084d4c6302d303d4327de739e6c74b7c0a8d0
 ```
 
 ## Development Rule
