@@ -41,6 +41,13 @@ unsigned policy through the named workflow, dry-runs brokered commit of an
 approved signed policy path, and runs the same compiled policy flow through
 `hdn-control-center policy`.
 
+Object-ptrace parity note: HDN now has `object PROFILE deny-ptrace ...` rules
+that match the target task's executable file identity before profile-level
+ptrace policy. QEMU proves protected executable ptrace denial, raw
+`OBJECT_PTRACE` event emission, and decoded event names. This covers the
+non-debuggable-object security effect of grsecurity-style object ptrace policy
+without cloning its RBAC file format.
+
 ## Module, Firmware, And Kernel-Interface Admission
 
 | grsecurity/PaX area | HDN status | Notes |
@@ -196,6 +203,7 @@ recovery-panel metadata and rollback routing above the named recovery facades,
 recovery-ui cancel/no-display denial and rollback routing above recovery-panel,
 support-bundle status, compat, and decoded-event collection through a safe
 read-only facade,
+object-scoped ptrace denial for protected target executables,
 sealed-HDN-data write-fault reporting, and
 kernel/module W^X baseline.
 

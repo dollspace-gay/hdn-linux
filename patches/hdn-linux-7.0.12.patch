@@ -4982,15 +4982,15 @@ diff -ruN --exclude .git linux-7.0.12/include/trace/events/mmap.h linux-7.0.12-h
  TRACE_EVENT(exit_mmap,
 diff -ruN --exclude .git linux-7.0.12/include/uapi/linux/hardening.h linux-7.0.12-hdn/include/uapi/linux/hardening.h
 --- linux-7.0.12/include/uapi/linux/hardening.h	1969-12-31 18:00:00.000000000 -0600
-+++ linux-7.0.12-hdn/include/uapi/linux/hardening.h	2026-06-26 23:45:29.386677962 -0500
-@@ -0,0 +1,644 @@
++++ linux-7.0.12-hdn/include/uapi/linux/hardening.h	2026-06-27 05:12:08.352869050 -0500
+@@ -0,0 +1,648 @@
 +/* SPDX-License-Identifier: GPL-2.0 WITH Linux-syscall-note */
 +#ifndef _UAPI_LINUX_HARDENING_H
 +#define _UAPI_LINUX_HARDENING_H
 +
 +#include <linux/types.h>
 +
-+#define HDN_POLICY_ABI_VERSION 89
++#define HDN_POLICY_ABI_VERSION 90
 +#define HDN_POLICY_MAGIC 0x48444e50 /* "HDNP" */
 +#define HDN_PROFILE_NAME_LEN 32
 +#define HDN_POLICY_PATH_LEN 256
@@ -5111,6 +5111,7 @@ diff -ruN --exclude .git linux-7.0.12/include/uapi/linux/hardening.h linux-7.0.1
 +	HDN_AUTH_OBJECT_LINK_TARGET = 86,
 +	HDN_AUTH_OBJECT_MOUNT_SOURCE = 87,
 +	HDN_AUTH_OBJECT_SETID = 88,
++	HDN_AUTH_OBJECT_PTRACE = 89,
 +	HDN_AUTH__MAX,
 +};
 +
@@ -5216,6 +5217,7 @@ diff -ruN --exclude .git linux-7.0.12/include/uapi/linux/hardening.h linux-7.0.1
 +	HDN_TRANS_OBJECT_LINK_TARGET = 98,
 +	HDN_TRANS_OBJECT_MOUNT_SOURCE = 99,
 +	HDN_TRANS_OBJECT_SETID = 100,
++	HDN_TRANS_OBJECT_PTRACE = 101,
 +	HDN_TRANS__MAX,
 +};
 +
@@ -5321,6 +5323,7 @@ diff -ruN --exclude .git linux-7.0.12/include/uapi/linux/hardening.h linux-7.0.1
 +	HDN_EVENT_ID_OBJECT_LINK_TARGET = HDN_TRANS_OBJECT_LINK_TARGET,
 +	HDN_EVENT_ID_OBJECT_MOUNT_SOURCE = HDN_TRANS_OBJECT_MOUNT_SOURCE,
 +	HDN_EVENT_ID_OBJECT_SETID = HDN_TRANS_OBJECT_SETID,
++	HDN_EVENT_ID_OBJECT_PTRACE = HDN_TRANS_OBJECT_PTRACE,
 +};
 +
 +enum hdn_decision_action {
@@ -5508,6 +5511,7 @@ diff -ruN --exclude .git linux-7.0.12/include/uapi/linux/hardening.h linux-7.0.1
 +	HDN_OBJECT_DENY_LINK_TARGET = 1ULL << 45,
 +	HDN_OBJECT_DENY_MOUNT_SOURCE = 1ULL << 46,
 +	HDN_OBJECT_DENY_SETID = 1ULL << 47,
++	HDN_OBJECT_DENY_PTRACE = 1ULL << 48,
 +};
 +
 +struct hdn_event {
@@ -7735,7 +7739,7 @@ diff -ruN --exclude .git linux-7.0.12/kernel/printk/sysctl.c linux-7.0.12-hdn/ke
  };
 diff -ruN --exclude .git linux-7.0.12/kernel/ptrace.c linux-7.0.12-hdn/kernel/ptrace.c
 --- linux-7.0.12/kernel/ptrace.c	2026-06-09 05:32:51.000000000 -0500
-+++ linux-7.0.12-hdn/kernel/ptrace.c	2026-06-26 03:36:47.071105551 -0500
++++ linux-7.0.12-hdn/kernel/ptrace.c	2026-06-27 05:13:14.156863156 -0500
 @@ -16,6 +16,7 @@
  #include <linux/sched/task.h>
  #include <linux/errno.h>
@@ -7744,7 +7748,7 @@ diff -ruN --exclude .git linux-7.0.12/kernel/ptrace.c linux-7.0.12-hdn/kernel/pt
  #include <linux/highmem.h>
  #include <linux/pagemap.h>
  #include <linux/ptrace.h>
-@@ -358,11 +359,27 @@
+@@ -358,11 +359,23 @@
  
  bool ptrace_may_access(struct task_struct *task, unsigned int mode)
  {
@@ -7752,16 +7756,12 @@ diff -ruN --exclude .git linux-7.0.12/kernel/ptrace.c linux-7.0.12-hdn/kernel/pt
 +	bool hdn_memory_migrate = mode & PTRACE_MODE_HDN_MEMORY_MIGRATE;
 +	bool hdn_process_fd = mode & PTRACE_MODE_HDN_PROCESS_FD;
  	int err;
-+	pid_t target_pid;
-+	u64 target_profile;
 +
 +	mode &= ~(PTRACE_MODE_HDN_PROCESS_MEMORY |
 +		  PTRACE_MODE_HDN_MEMORY_MIGRATE |
 +		  PTRACE_MODE_HDN_PROCESS_FD);
  	task_lock(task);
  	err = __ptrace_may_access(task, mode);
-+	target_profile = hdn_mm_profile_id(task->mm);
-+	target_pid = task_pid_nr(task);
  	task_unlock(task);
 -	return !err;
 +	if (err)
@@ -7769,11 +7769,11 @@ diff -ruN --exclude .git linux-7.0.12/kernel/ptrace.c linux-7.0.12-hdn/kernel/pt
 +	if (hdn_process_memory || hdn_memory_migrate || hdn_process_fd)
 +		return true;
 +
-+	return !hdn_authorize_ptrace_profile(target_profile, target_pid);
++	return !hdn_authorize_ptrace(task, 0, 0, 0);
  }
  
  static int check_ptrace_options(unsigned long data)
-@@ -1401,7 +1418,9 @@
+@@ -1401,7 +1414,9 @@
  	long ret;
  
  	if (request == PTRACE_TRACEME) {
@@ -7784,7 +7784,7 @@ diff -ruN --exclude .git linux-7.0.12/kernel/ptrace.c linux-7.0.12-hdn/kernel/pt
  		goto out;
  	}
  
-@@ -1411,8 +1430,13 @@
+@@ -1411,8 +1426,13 @@
  		goto out;
  	}
  
@@ -7798,7 +7798,7 @@ diff -ruN --exclude .git linux-7.0.12/kernel/ptrace.c linux-7.0.12-hdn/kernel/pt
  		goto out_put_task_struct;
  	}
  
-@@ -1540,7 +1564,9 @@
+@@ -1540,7 +1560,9 @@
  	long ret;
  
  	if (request == PTRACE_TRACEME) {
@@ -7809,7 +7809,7 @@ diff -ruN --exclude .git linux-7.0.12/kernel/ptrace.c linux-7.0.12-hdn/kernel/pt
  		goto out;
  	}
  
-@@ -1550,8 +1576,13 @@
+@@ -1550,8 +1572,13 @@
  		goto out;
  	}
  
@@ -11065,8 +11065,8 @@ diff -ruN --exclude .git linux-7.0.12/security/hardening/Makefile linux-7.0.12-h
 +obj-$(CONFIG_SECURITY_HARDENING) += core.o
 diff -ruN --exclude .git linux-7.0.12/security/hardening/core.c linux-7.0.12-hdn/security/hardening/core.c
 --- linux-7.0.12/security/hardening/core.c	1969-12-31 18:00:00.000000000 -0600
-+++ linux-7.0.12-hdn/security/hardening/core.c	2026-06-27 01:37:59.222063932 -0500
-@@ -0,0 +1,7791 @@
++++ linux-7.0.12-hdn/security/hardening/core.c	2026-06-27 05:13:04.180864094 -0500
+@@ -0,0 +1,7822 @@
 +// SPDX-License-Identifier: GPL-2.0-only
 +
 +#include <linux/binfmts.h>
@@ -15346,11 +15346,40 @@ diff -ruN --exclude .git linux-7.0.12/security/hardening/core.c linux-7.0.12-hdn
 +			       task_pid_nr(target));
 +}
 +
++static int hdn_authorize_object_ptrace_target(struct task_struct *target)
++{
++	struct file *exe_file;
++	int ret = 0;
++
++	if (!target || target == current)
++		return 0;
++
++	exe_file = get_task_exe_file(target);
++	if (!exe_file)
++		return 0;
++
++	if (hdn_object_access_denied(&exe_file->f_path, hdn_current_profile_id(),
++				     HDN_OBJECT_DENY_PTRACE))
++		ret = hdn_deny_object(HDN_AUTH_OBJECT_PTRACE,
++				      HDN_TRANS_OBJECT_PTRACE,
++				      HDN_REASON_OBJECT_POLICY, -EPERM,
++				      hdn_file_object_id(exe_file));
++
++	fput(exe_file);
++	return ret;
++}
++
 +int hdn_authorize_ptrace(struct task_struct *target, long request,
 +			 unsigned long addr, unsigned long data)
 +{
++	int ret;
++
 +	if (target == current)
 +		return 0;
++
++	ret = hdn_authorize_object_ptrace_target(target);
++	if (ret)
++		return ret;
 +
 +	return hdn_authorize_ptrace_profile(hdn_task_profile_id(target),
 +					    task_pid_nr(target));
@@ -17146,9 +17175,10 @@ diff -ruN --exclude .git linux-7.0.12/security/hardening/core.c linux-7.0.12-hdn
 +					 HDN_OBJECT_DENY_UNIX_SEND |
 +					 HDN_OBJECT_DENY_UNIX_RECV |
 +					 HDN_OBJECT_DENY_RENAME_TARGET |
-+					 HDN_OBJECT_DENY_LINK_TARGET |
-+					 HDN_OBJECT_DENY_MOUNT_SOURCE |
-+					 HDN_OBJECT_DENY_SETID;
++				     HDN_OBJECT_DENY_LINK_TARGET |
++				     HDN_OBJECT_DENY_MOUNT_SOURCE |
++				     HDN_OBJECT_DENY_SETID |
++				     HDN_OBJECT_DENY_PTRACE;
 +	u64 valid_module_flags = HDN_MODULE_MATCH_FILE_ID |
 +				 HDN_MODULE_MATCH_VERITY_DIGEST |
 +				 HDN_MODULE_RESOLVE_FILE_PATH;
@@ -17262,7 +17292,8 @@ diff -ruN --exclude .git linux-7.0.12/security/hardening/core.c linux-7.0.12-hdn
 +					     HDN_OBJECT_DENY_RENAME_TARGET |
 +					     HDN_OBJECT_DENY_LINK_TARGET |
 +					     HDN_OBJECT_DENY_MOUNT_SOURCE |
-+					     HDN_OBJECT_DENY_SETID)))
++					     HDN_OBJECT_DENY_SETID |
++					     HDN_OBJECT_DENY_PTRACE)))
 +					return -EINVAL;
 +		if ((rule->flags & HDN_OBJECT_MATCH_FILE_ID) &&
 +		    (rule->flags & HDN_OBJECT_RESOLVE_FILE_PATH))
@@ -19263,8 +19294,8 @@ diff -ruN --exclude .git linux-7.0.12/tools/hardening/Makefile linux-7.0.12-hdn/
 +.PHONY: all clean install
 diff -ruN --exclude .git linux-7.0.12/tools/hardening/README.rst linux-7.0.12-hdn/tools/hardening/README.rst
 --- linux-7.0.12/tools/hardening/README.rst	1969-12-31 18:00:00.000000000 -0600
-+++ linux-7.0.12-hdn/tools/hardening/README.rst	2026-06-27 05:01:44.464941297 -0500
-@@ -0,0 +1,1642 @@
++++ linux-7.0.12-hdn/tools/hardening/README.rst	2026-06-27 05:20:00.516856385 -0500
+@@ -0,0 +1,1648 @@
 +.. SPDX-License-Identifier: GPL-2.0-only
 +
 +Linux Hardening Policy Tools
@@ -19752,8 +19783,8 @@ diff -ruN --exclude .git linux-7.0.12/tools/hardening/README.rst linux-7.0.12-hd
 +to point it at a non-default kernel build directory. The QEMU firmware policy
 +proof uses the upstream ``test_firmware`` driver, so the smoke kernel must be
 +built with ``CONFIG_TEST_FIRMWARE=y``. The current development harness expects
-+990 passing hardening checks, including support-bundle fail-closed and
-+collection proofs.
++993 passing hardening checks, including support-bundle fail-closed, collection
++proofs, and object-scoped ptrace denial.
 +
 +The kernel loader requires the compiled payload to carry an appended PKCS#7
 +signature using the standard kernel module-signature trailer. Unsigned policy
@@ -19839,6 +19870,7 @@ diff -ruN --exclude .git linux-7.0.12/tools/hardening/README.rst linux-7.0.12-hd
 +  object 2 deny-chown path /etc/hdn/owner-locked.conf
 +  object 2 deny-utime path /etc/hdn/timestamps-locked.conf
 +  object 2 deny-setid path /etc/hdn/no-setid
++  object 2 deny-ptrace path /usr/bin/nondebuggable
 +  object 2 deny-xattr path /etc/hdn/hidden-xattrs.conf
 +  object 2 deny-setxattr path /etc/hdn/xattr-write-locked.conf
 +  object 2 deny-removexattr path /etc/hdn/xattr-remove-locked.conf
@@ -19989,6 +20021,7 @@ diff -ruN --exclude .git linux-7.0.12/tools/hardening/README.rst linux-7.0.12-hd
 +``object <profile> deny-chown path <absolute-path>``,
 +``object <profile> deny-utime path <absolute-path>``,
 +``object <profile> deny-setid path <absolute-path>``,
++``object <profile> deny-ptrace path <absolute-path>``,
 +``object <profile> deny-xattr path <absolute-path>``,
 +``object <profile> deny-setxattr path <absolute-path>``,
 +``object <profile> deny-removexattr path <absolute-path>``,
@@ -20022,6 +20055,8 @@ diff -ruN --exclude .git linux-7.0.12/tools/hardening/README.rst linux-7.0.12-hd
 +``deny-unix-bind`` match the parent directory identity. ``deny-setid`` matches
 +the target object for mode changes and the parent directory for creation,
 +tmpfile, and mknod requests that ask for setuid or executable-setgid mode bits.
++``deny-ptrace`` matches the target task's executable object before the broader
++profile-level ptrace gate.
 +``deny-unix-listen`` and ``deny-unix-accept`` match the bound filesystem
 +socket identity. ``deny-unix-send`` matches the destination filesystem socket
 +identity for pathname and connected datagram sends. ``deny-unix-recv`` matches
@@ -20088,6 +20123,8 @@ diff -ruN --exclude .git linux-7.0.12/tools/hardening/README.rst linux-7.0.12-hd
 +``chmod(2)``/``fchmodat(2)`` changes that would result in setuid or
 +executable-setgid bits, plus ``O_CREAT``/tmpfile/``mknod(2)`` requests that ask
 +for those bits, without blocking ordinary mode changes or ordinary creates. It
++enforces deny-ptrace for ptrace-style access to a target task whose executable
++matches the protected object, before profile-level ptrace policy. It
 +enforces deny-xattr for extended attribute
 +name/value discovery through ``getxattr(2)`` and ``listxattr(2)``, POSIX ACL
 +xattr reads through the common ACL helper, and aggregate xattr mutation control
@@ -24117,8 +24154,8 @@ diff -ruN --exclude .git linux-7.0.12/tools/hardening/hdn-desktop-daemon.c linux
 +}
 diff -ruN --exclude .git linux-7.0.12/tools/hardening/hdn-event-decode.c linux-7.0.12-hdn/tools/hardening/hdn-event-decode.c
 --- linux-7.0.12/tools/hardening/hdn-event-decode.c	1969-12-31 18:00:00.000000000 -0600
-+++ linux-7.0.12-hdn/tools/hardening/hdn-event-decode.c	2026-06-26 23:49:56.602654226 -0500
-@@ -0,0 +1,928 @@
++++ linux-7.0.12-hdn/tools/hardening/hdn-event-decode.c	2026-06-27 05:12:25.620870409 -0500
+@@ -0,0 +1,930 @@
 +// SPDX-License-Identifier: GPL-2.0-only
 +
 +#define _GNU_SOURCE
@@ -24254,6 +24291,7 @@ diff -ruN --exclude .git linux-7.0.12/tools/hardening/hdn-event-decode.c linux-7
 +	{ HDN_AUTH_OBJECT_CHOWN, "OBJECT_CHOWN" },
 +	{ HDN_AUTH_OBJECT_UTIME, "OBJECT_UTIME" },
 +	{ HDN_AUTH_OBJECT_SETID, "OBJECT_SETID" },
++	{ HDN_AUTH_OBJECT_PTRACE, "OBJECT_PTRACE" },
 +	{ HDN_AUTH_OBJECT_SETXATTR, "OBJECT_SETXATTR" },
 +	{ HDN_AUTH_OBJECT_REMOVEXATTR, "OBJECT_REMOVEXATTR" },
 +	{ HDN_AUTH_OBJECT_CREAT, "OBJECT_CREAT" },
@@ -24354,6 +24392,7 @@ diff -ruN --exclude .git linux-7.0.12/tools/hardening/hdn-event-decode.c linux-7
 +	{ HDN_TRANS_OBJECT_CHOWN, "OBJECT_CHOWN" },
 +	{ HDN_TRANS_OBJECT_UTIME, "OBJECT_UTIME" },
 +	{ HDN_TRANS_OBJECT_SETID, "OBJECT_SETID" },
++	{ HDN_TRANS_OBJECT_PTRACE, "OBJECT_PTRACE" },
 +	{ HDN_TRANS_OBJECT_SETXATTR, "OBJECT_SETXATTR" },
 +	{ HDN_TRANS_OBJECT_REMOVEXATTR, "OBJECT_REMOVEXATTR" },
 +	{ HDN_TRANS_OBJECT_CREAT, "OBJECT_CREAT" },
@@ -26447,8 +26486,8 @@ diff -ruN --exclude .git linux-7.0.12/tools/hardening/hdn-policy-daemon.c linux-
 +}
 diff -ruN --exclude .git linux-7.0.12/tools/hardening/hdn-policy-learn.c linux-7.0.12-hdn/tools/hardening/hdn-policy-learn.c
 --- linux-7.0.12/tools/hardening/hdn-policy-learn.c	1969-12-31 18:00:00.000000000 -0600
-+++ linux-7.0.12-hdn/tools/hardening/hdn-policy-learn.c	2026-06-26 23:50:13.438652688 -0500
-@@ -0,0 +1,879 @@
++++ linux-7.0.12-hdn/tools/hardening/hdn-policy-learn.c	2026-06-27 05:12:25.624870410 -0500
+@@ -0,0 +1,882 @@
 +// SPDX-License-Identifier: GPL-2.0-only
 +
 +#define _GNU_SOURCE
@@ -26586,6 +26625,7 @@ diff -ruN --exclude .git linux-7.0.12/tools/hardening/hdn-policy-learn.c linux-7
 +	{ HDN_AUTH_OBJECT_CHOWN, "OBJECT_CHOWN" },
 +	{ HDN_AUTH_OBJECT_UTIME, "OBJECT_UTIME" },
 +	{ HDN_AUTH_OBJECT_SETID, "OBJECT_SETID" },
++	{ HDN_AUTH_OBJECT_PTRACE, "OBJECT_PTRACE" },
 +	{ HDN_AUTH_OBJECT_SETXATTR, "OBJECT_SETXATTR" },
 +	{ HDN_AUTH_OBJECT_REMOVEXATTR, "OBJECT_REMOVEXATTR" },
 +	{ HDN_AUTH_OBJECT_CREAT, "OBJECT_CREAT" },
@@ -26686,6 +26726,7 @@ diff -ruN --exclude .git linux-7.0.12/tools/hardening/hdn-policy-learn.c linux-7
 +	{ HDN_TRANS_OBJECT_CHOWN, "OBJECT_CHOWN" },
 +	{ HDN_TRANS_OBJECT_UTIME, "OBJECT_UTIME" },
 +	{ HDN_TRANS_OBJECT_SETID, "OBJECT_SETID" },
++	{ HDN_TRANS_OBJECT_PTRACE, "OBJECT_PTRACE" },
 +	{ HDN_TRANS_OBJECT_SETXATTR, "OBJECT_SETXATTR" },
 +	{ HDN_TRANS_OBJECT_REMOVEXATTR, "OBJECT_REMOVEXATTR" },
 +	{ HDN_TRANS_OBJECT_CREAT, "OBJECT_CREAT" },
@@ -27059,6 +27100,7 @@ diff -ruN --exclude .git linux-7.0.12/tools/hardening/hdn-policy-learn.c linux-7
 +	case HDN_AUTH_OBJECT_CHOWN:
 +	case HDN_AUTH_OBJECT_UTIME:
 +	case HDN_AUTH_OBJECT_SETID:
++	case HDN_AUTH_OBJECT_PTRACE:
 +	case HDN_AUTH_OBJECT_SETXATTR:
 +	case HDN_AUTH_OBJECT_REMOVEXATTR:
 +	case HDN_AUTH_OBJECT_CREAT:
@@ -28646,8 +28688,8 @@ diff -ruN --exclude .git linux-7.0.12/tools/hardening/hdn-policy-workflow.c linu
 +}
 diff -ruN --exclude .git linux-7.0.12/tools/hardening/hdn-policy.c linux-7.0.12-hdn/tools/hardening/hdn-policy.c
 --- linux-7.0.12/tools/hardening/hdn-policy.c	1969-12-31 18:00:00.000000000 -0600
-+++ linux-7.0.12-hdn/tools/hardening/hdn-policy.c	2026-06-26 23:49:35.562656159 -0500
-@@ -0,0 +1,2294 @@
++++ linux-7.0.12-hdn/tools/hardening/hdn-policy.c	2026-06-27 05:12:39.632868698 -0500
+@@ -0,0 +1,2297 @@
 +// SPDX-License-Identifier: GPL-2.0-only
 +
 +#include <ctype.h>
@@ -29619,7 +29661,7 @@ diff -ruN --exclude .git linux-7.0.12/tools/hardening/hdn-policy.c linux-7.0.12-
 +	mode = strtok_r(NULL, " \t\r\n", &save);
 +	if (!profile_text || !action || !mode) {
 +		fprintf(stderr,
-+			"%u: object needs PROFILE deny-read|deny-write|deny-delete|deny-create|deny-creat|deny-mkdir|deny-mknod|deny-symlink|deny-unlink|deny-rmdir|deny-exec|append-only|deny-link|deny-link-target|deny-attr|deny-chmod|deny-chown|deny-utime|deny-setid|deny-xattr|deny-setxattr|deny-removexattr|deny-access|deny-stat|deny-list|deny-find|deny-ioctl|deny-lock|deny-watch|deny-receive|deny-fcntl|deny-chdir|deny-mount|deny-mount-source|deny-umount|deny-truncate|deny-rename|deny-rename-target|deny-unix-connect|deny-unix-bind|deny-unix-listen|deny-unix-accept|deny-unix-send|deny-unix-recv path|nofollow-path|tree|inode\n",
++			"%u: object needs PROFILE deny-read|deny-write|deny-delete|deny-create|deny-creat|deny-mkdir|deny-mknod|deny-symlink|deny-unlink|deny-rmdir|deny-exec|append-only|deny-link|deny-link-target|deny-attr|deny-chmod|deny-chown|deny-utime|deny-setid|deny-ptrace|deny-xattr|deny-setxattr|deny-removexattr|deny-access|deny-stat|deny-list|deny-find|deny-ioctl|deny-lock|deny-watch|deny-receive|deny-fcntl|deny-chdir|deny-mount|deny-mount-source|deny-umount|deny-truncate|deny-rename|deny-rename-target|deny-unix-connect|deny-unix-bind|deny-unix-listen|deny-unix-accept|deny-unix-send|deny-unix-recv path|nofollow-path|tree|inode\n",
 +			line);
 +		return -EINVAL;
 +	}
@@ -29653,6 +29695,7 @@ diff -ruN --exclude .git linux-7.0.12/tools/hardening/hdn-policy.c linux-7.0.12-
 +	    strcmp(action_name, "DENY_CHOWN") &&
 +	    strcmp(action_name, "DENY_UTIME") &&
 +	    strcmp(action_name, "DENY_SETID") &&
++	    strcmp(action_name, "DENY_PTRACE") &&
 +	    strcmp(action_name, "DENY_ACCESS") &&
 +	    strcmp(action_name, "DENY_STAT") &&
 +	    strcmp(action_name, "DENY_LIST") &&
@@ -29724,6 +29767,8 @@ diff -ruN --exclude .git linux-7.0.12/tools/hardening/hdn-policy.c linux-7.0.12-
 +		rule->flags = HDN_OBJECT_DENY_UTIME;
 +	else if (!strcmp(action_name, "DENY_SETID"))
 +		rule->flags = HDN_OBJECT_DENY_SETID;
++	else if (!strcmp(action_name, "DENY_PTRACE"))
++		rule->flags = HDN_OBJECT_DENY_PTRACE;
 +	else if (!strcmp(action_name, "DENY_ACCESS"))
 +		rule->flags = HDN_OBJECT_DENY_ACCESS;
 +	else if (!strcmp(action_name, "DENY_STAT"))
@@ -38555,8 +38600,8 @@ diff -ruN --exclude .git linux-7.0.12/tools/hardening/hdn-settings-ui.c linux-7.
 +}
 diff -ruN --exclude .git linux-7.0.12/tools/hardening/hdn-status.c linux-7.0.12-hdn/tools/hardening/hdn-status.c
 --- linux-7.0.12/tools/hardening/hdn-status.c	1969-12-31 18:00:00.000000000 -0600
-+++ linux-7.0.12-hdn/tools/hardening/hdn-status.c	2026-06-27 01:47:34.114012999 -0500
-@@ -0,0 +1,1178 @@
++++ linux-7.0.12-hdn/tools/hardening/hdn-status.c	2026-06-27 05:12:25.624870410 -0500
+@@ -0,0 +1,1180 @@
 +// SPDX-License-Identifier: GPL-2.0-only
 +
 +#define _GNU_SOURCE
@@ -38685,6 +38730,7 @@ diff -ruN --exclude .git linux-7.0.12/tools/hardening/hdn-status.c linux-7.0.12-
 +	{ HDN_AUTH_OBJECT_CHOWN, "OBJECT_CHOWN" },
 +	{ HDN_AUTH_OBJECT_UTIME, "OBJECT_UTIME" },
 +	{ HDN_AUTH_OBJECT_SETID, "OBJECT_SETID" },
++	{ HDN_AUTH_OBJECT_PTRACE, "OBJECT_PTRACE" },
 +	{ HDN_AUTH_OBJECT_SETXATTR, "OBJECT_SETXATTR" },
 +	{ HDN_AUTH_OBJECT_REMOVEXATTR, "OBJECT_REMOVEXATTR" },
 +	{ HDN_AUTH_OBJECT_CREAT, "OBJECT_CREAT" },
@@ -38785,6 +38831,7 @@ diff -ruN --exclude .git linux-7.0.12/tools/hardening/hdn-status.c linux-7.0.12-
 +	{ HDN_TRANS_OBJECT_CHOWN, "OBJECT_CHOWN" },
 +	{ HDN_TRANS_OBJECT_UTIME, "OBJECT_UTIME" },
 +	{ HDN_TRANS_OBJECT_SETID, "OBJECT_SETID" },
++	{ HDN_TRANS_OBJECT_PTRACE, "OBJECT_PTRACE" },
 +	{ HDN_TRANS_OBJECT_SETXATTR, "OBJECT_SETXATTR" },
 +	{ HDN_TRANS_OBJECT_REMOVEXATTR, "OBJECT_REMOVEXATTR" },
 +	{ HDN_TRANS_OBJECT_CREAT, "OBJECT_CREAT" },
@@ -41722,8 +41769,8 @@ diff -ruN --exclude .git linux-7.0.12/tools/testing/selftests/hardening/hdn_elfn
 +}
 diff -ruN --exclude .git linux-7.0.12/tools/testing/selftests/hardening/hdn_smoke.c linux-7.0.12-hdn/tools/testing/selftests/hardening/hdn_smoke.c
 --- linux-7.0.12/tools/testing/selftests/hardening/hdn_smoke.c	1969-12-31 18:00:00.000000000 -0600
-+++ linux-7.0.12-hdn/tools/testing/selftests/hardening/hdn_smoke.c	2026-06-27 04:58:15.184973165 -0500
-@@ -0,0 +1,29321 @@
++++ linux-7.0.12-hdn/tools/testing/selftests/hardening/hdn_smoke.c	2026-06-27 05:17:52.380858772 -0500
+@@ -0,0 +1,29389 @@
 +// SPDX-License-Identifier: GPL-2.0-only
 +
 +#define _GNU_SOURCE
@@ -42151,6 +42198,7 @@ diff -ruN --exclude .git linux-7.0.12/tools/testing/selftests/hardening/hdn_smok
 +	"/hdn-object-setid-create-unprotected"
 +#define HDN_OBJECT_SETID_CREATE_UNPROTECTED_PATH \
 +	HDN_OBJECT_SETID_CREATE_UNPROTECTED_DIR "/setuid-file"
++#define HDN_OBJECT_PTRACE_TARGET_EXEC "/hdn-ptrace-object-target"
 +#define HDN_OBJECT_CHOWN_PROTECTED "/hdn-object-chown-protected"
 +#define HDN_OBJECT_UTIME_PROTECTED "/hdn-object-utime-protected"
 +#define HDN_OBJECT_SETXATTR_PROTECTED "/hdn-object-setxattr-protected"
@@ -45115,6 +45163,30 @@ diff -ruN --exclude .git linux-7.0.12/tools/testing/selftests/hardening/hdn_smok
 +	return child_exit_result(child);
 +}
 +
++static int event_decoder_finds_object_ptrace_denial(void)
++{
++	pid_t child;
++
++	if (access(HDN_EVENT_DECODE_EXEC, X_OK))
++		return KSFT_SKIP;
++
++	child = fork();
++	if (child < 0)
++		return 2;
++
++	if (!child) {
++		execl(HDN_EVENT_DECODE_EXEC, "hdn-event-decode", "--quiet",
++		      "--expect", "authority=OBJECT_PTRACE",
++		      "--expect", "transition=OBJECT_PTRACE",
++		      "--expect", "action=DENY_AUDIT", NULL);
++		fprintf(stderr, "event decoder exec failed: %s\n",
++			strerror(errno));
++		_exit(2);
++	}
++
++	return child_exit_result(child);
++}
++
 +static int event_decoder_read_output(int fd, char *buf, size_t size)
 +{
 +	size_t offset = 0;
@@ -45421,7 +45493,7 @@ diff -ruN --exclude .git linux-7.0.12/tools/testing/selftests/hardening/hdn_smok
 +static int status_helper_decodes_audit_flood_fixture(void)
 +{
 +	static const char fixture[] =
-+		"abi_version: 89\n"
++		"abi_version: 90\n"
 +		"phase: runtime\n"
 +		"phase_id: 3\n"
 +		"policy_loaded: 1\n"
@@ -52680,7 +52752,7 @@ diff -ruN --exclude .git linux-7.0.12/tools/testing/selftests/hardening/hdn_smok
 +			 "%s\n", description);
 +}
 +
-+static pid_t spawn_nobody_ptrace_target(void)
++static pid_t spawn_nobody_ptrace_target_exec(const char *path)
 +{
 +	int sync_pipe[2];
 +	char ready;
@@ -52704,7 +52776,7 @@ diff -ruN --exclude .git linux-7.0.12/tools/testing/selftests/hardening/hdn_smok
 +			_exit(2);
 +		if (sync_pipe[1] != 3)
 +			close(sync_pipe[1]);
-+		execl("/hdn_smoke", "hdn_smoke", "--ptrace-target", NULL);
++		execl(path, "hdn_smoke", "--ptrace-target", NULL);
 +		_exit(2);
 +	}
 +
@@ -52720,6 +52792,11 @@ diff -ruN --exclude .git linux-7.0.12/tools/testing/selftests/hardening/hdn_smok
 +	return child;
 +}
 +
++static pid_t spawn_nobody_ptrace_target(void)
++{
++	return spawn_nobody_ptrace_target_exec("/hdn_smoke");
++}
++
 +static int ptrace_attach_denied(void)
 +{
 +	int saved_errno = 0;
@@ -52728,6 +52805,35 @@ diff -ruN --exclude .git linux-7.0.12/tools/testing/selftests/hardening/hdn_smok
 +	long ret;
 +
 +	child = spawn_nobody_ptrace_target();
++	if (child < 0)
++		return 2;
++
++	errno = 0;
++	ret = ptrace(PTRACE_ATTACH, child, NULL, NULL);
++	if (ret)
++		saved_errno = errno;
++
++	if (!ret) {
++		waitpid(child, &status, WUNTRACED);
++		ptrace(PTRACE_DETACH, child, NULL, NULL);
++		kill(child, SIGKILL);
++		waitpid(child, NULL, 0);
++		return 1;
++	}
++
++	kill(child, SIGKILL);
++	waitpid(child, NULL, 0);
++	return errno_is_denial(saved_errno) ? 0 : 2;
++}
++
++static int object_ptrace_denied(void)
++{
++	int saved_errno = 0;
++	int status;
++	pid_t child;
++	long ret;
++
++	child = spawn_nobody_ptrace_target_exec(HDN_OBJECT_PTRACE_TARGET_EXEC);
 +	if (child < 0)
 +		return 2;
 +
@@ -63965,6 +64071,7 @@ diff -ruN --exclude .git linux-7.0.12/tools/testing/selftests/hardening/hdn_smok
 +			ksft_test_result_skip("object setid policy allows unmatched setuid create\n");
 +			ksft_test_result_skip("object setid policy denies protected setgid mknod\n");
 +			ksft_test_result_skip("object setid policy allows ordinary mknod\n");
++			ksft_test_result_skip("object ptrace policy denies protected executable target\n");
 +				ksft_test_result_skip("object xattr policy denies protected listxattr\n");
 +				ksft_test_result_skip("object xattr policy denies protected POSIX ACL getxattr\n");
 +				ksft_test_result_skip("object xattr policy allows unmatched getxattr\n");
@@ -67471,8 +67578,8 @@ diff -ruN --exclude .git linux-7.0.12/tools/testing/selftests/hardening/hdn_smok
 +		object_policy_committed = !ret;
 +		ksft_test_result(object_policy_committed,
 +				 "object-write hardening policy commits\n");
-+		ksft_test_result(object_policy_committed &&
-+							 securityfs_status_has_line("object_rule_count: 100"),
++	ksft_test_result(object_policy_committed &&
++							 securityfs_status_has_line("object_rule_count: 101"),
 +						 "object-write policy reports object rule count\n");
 +	report_child_result(object_policy_committed ?
 +			    object_protected_write_denied() : 2,
@@ -67958,6 +68065,9 @@ diff -ruN --exclude .git linux-7.0.12/tools/testing/selftests/hardening/hdn_smok
 +	report_child_result(object_policy_committed ?
 +			    object_setid_mknod_ordinary_allowed() : 2,
 +			    "object setid policy allows ordinary mknod");
++	report_child_result(object_policy_committed ?
++			    object_ptrace_denied() : 2,
++			    "object ptrace policy denies protected executable target");
 +	report_child_result(object_policy_committed ?
 +			    object_chown_denied() : 2,
 +			    "object chown policy denies protected chown");
@@ -68470,6 +68580,11 @@ diff -ruN --exclude .git linux-7.0.12/tools/testing/selftests/hardening/hdn_smok
 +						     "hardening events report object setid denial");
 +		report_child_result(event_decoder_finds_object_setid_denial(),
 +				    "event decoder names object setid denial");
++		test_securityfs_events_line_contains("authority=89 transition=101",
++						     "reason=52",
++						     "hardening events report object ptrace denial");
++		report_child_result(event_decoder_finds_object_ptrace_denial(),
++				    "event decoder names object ptrace denial");
 +		test_securityfs_events_contains("authority=70",
 +						"hardening events report object setxattr denial");
 +		test_securityfs_events_contains("authority=71",
@@ -70618,11 +70733,11 @@ diff -ruN --exclude .git linux-7.0.12/tools/testing/selftests/hardening/hdn_smok
 +	if (access(HDN_STATUS, R_OK))
 +		ksft_exit_skip("hardening securityfs status not present\n");
 +
-+	ksft_set_plan(990);
++	ksft_set_plan(993);
 +	test_securityfs_status();
 +	test_symbol_test_module_load();
-+	test_securityfs_status_contains("abi_version: 89",
-+					"hardening status reports policy ABI 89");
++	test_securityfs_status_contains("abi_version: 90",
++					"hardening status reports policy ABI 90");
 +	test_securityfs_status_contains("phase:",
 +					"hardening status reports sealing phase");
 +	test_securityfs_status_contains("policy_staged:",
@@ -71229,10 +71344,10 @@ diff -ruN --exclude .git linux-7.0.12/tools/testing/selftests/hardening/namespac
 +allow 2 POLICY_ADMIN CRED_CHANGE PTRACE NAMESPACE_ADMIN PROC_TASK_VIEW
 diff -ruN --exclude .git linux-7.0.12/tools/testing/selftests/hardening/object-write.policy linux-7.0.12-hdn/tools/testing/selftests/hardening/object-write.policy
 --- linux-7.0.12/tools/testing/selftests/hardening/object-write.policy	1969-12-31 18:00:00.000000000 -0600
-+++ linux-7.0.12-hdn/tools/testing/selftests/hardening/object-write.policy	2026-06-27 00:08:18.906556678 -0500
-@@ -0,0 +1,116 @@
++++ linux-7.0.12-hdn/tools/testing/selftests/hardening/object-write.policy	2026-06-27 05:15:00.012867360 -0500
+@@ -0,0 +1,117 @@
 +# Root-profile policy used by the QEMU smoke test to prove object
-+# read/write/delete/create/creat/mkdir/mknod/symlink/unlink/rmdir/exec/link/link-target/attr/chmod/chown/utime/setid/xattr/setxattr/removexattr/access/stat/list/find/ioctl/lock/watch/receive/fcntl/chdir/mount/umount/truncate/rename/rename-target/unix-connect/unix-bind/unix-listen/unix-accept/unix-send/unix-recv denial,
++# read/write/delete/create/creat/mkdir/mknod/symlink/unlink/rmdir/exec/link/link-target/attr/chmod/chown/utime/setid/ptrace/xattr/setxattr/removexattr/access/stat/list/find/ioctl/lock/watch/receive/fcntl/chdir/mount/umount/truncate/rename/rename-target/unix-connect/unix-bind/unix-listen/unix-accept/unix-send/unix-recv denial,
 +# recursive tree denial, recursive tree denial for descriptor and IPC
 +# operations, recursive split-operation and split metadata tree denial, and
 +# append-only enforcement, including deny-find ordinary-open hiding
@@ -71276,6 +71391,7 @@ diff -ruN --exclude .git linux-7.0.12/tools/testing/selftests/hardening/object-w
 +object 2 deny-utime path /hdn-object-utime-protected
 +object 2 deny-setid path /hdn-object-setid-protected
 +object 2 deny-setid path /hdn-object-setid-create-protected
++object 2 deny-ptrace path /hdn-ptrace-object-target
 +object 2 deny-access path /hdn-object-access-protected
 +object 2 deny-stat path /hdn-object-stat-protected
 +object 2 deny-stat path /hdn-object-fileattr-tmpfs/stat-protected
@@ -71438,8 +71554,8 @@ diff -ruN --exclude .git linux-7.0.12/tools/testing/selftests/hardening/role.pol
 +use-role 2 desktop-admin
 diff -ruN --exclude .git linux-7.0.12/tools/testing/selftests/hardening/run-qemu-smoke.sh linux-7.0.12-hdn/tools/testing/selftests/hardening/run-qemu-smoke.sh
 --- linux-7.0.12/tools/testing/selftests/hardening/run-qemu-smoke.sh	1969-12-31 18:00:00.000000000 -0600
-+++ linux-7.0.12-hdn/tools/testing/selftests/hardening/run-qemu-smoke.sh	2026-06-27 04:57:05.964981860 -0500
-@@ -0,0 +1,1368 @@
++++ linux-7.0.12-hdn/tools/testing/selftests/hardening/run-qemu-smoke.sh	2026-06-27 05:15:09.232868082 -0500
+@@ -0,0 +1,1370 @@
 +#!/bin/sh
 +# SPDX-License-Identifier: GPL-2.0
 +
@@ -71473,7 +71589,7 @@ diff -ruN --exclude .git linux-7.0.12/tools/testing/selftests/hardening/run-qemu
 +QEMU_MEMORY=${QEMU_MEMORY:-1024M}
 +QEMU_SMP=${QEMU_SMP:-2}
 +QEMU_MACHINE=${QEMU_MACHINE:-q35,accel=tcg}
-+HDN_SMOKE_EXPECTED_PASS=${HDN_SMOKE_EXPECTED_PASS:-990}
++HDN_SMOKE_EXPECTED_PASS=${HDN_SMOKE_EXPECTED_PASS:-993}
 +WORK=${HDN_QEMU_WORK:-"${TMPDIR:-/tmp}/hdn-qemu-smoke.$$"}
 +LOG=${HDN_QEMU_LOG:-"$WORK/qemu.log"}
 +QMP=${HDN_QEMU_QMP:-"$WORK/qmp.sock"}
@@ -71892,8 +72008,10 @@ diff -ruN --exclude .git linux-7.0.12/tools/testing/selftests/hardening/run-qemu
 +cp "$WORK/hdn_smoke" "$WORK/initramfs/hdn-identity-parent-inherit"
 +cp "$WORK/hdn_smoke" "$WORK/initramfs/hdn-object-exec-protected"
 +cp "$WORK/hdn_smoke" "$WORK/initramfs/hdn-object-exec-unprotected"
++cp "$WORK/hdn_smoke" "$WORK/initramfs/hdn-ptrace-object-target"
 +chmod 0755 "$WORK/initramfs/hdn-object-exec-protected"
 +chmod 0755 "$WORK/initramfs/hdn-object-exec-unprotected"
++chmod 0755 "$WORK/initramfs/hdn-ptrace-object-target"
 +cp "$WORK/hdn_smoke" "$WORK/initramfs/hdn-rofs-updater"
 +cp "$WORK/hdn-elfnote-jit" "$WORK/initramfs/hdn-elfnote-jit"
 +cp "$WORK/hdn-rofs-apply" "$WORK/initramfs/hdn-rofs-apply"
