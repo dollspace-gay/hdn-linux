@@ -40,7 +40,7 @@ IPC/socket/device hardening, non-controlling terminal descriptor access
 hardening,
 privileged-exec restrictions, RWX/textrel/exec-stack controls, thread-stack
 placement randomization, proc-visible kernel symbol redaction, cross-process
-proc argv/env/auxv/syscall gating, expanded BPF metadata/query gating, and
+proc argv/env/auxv/syscall/io gating, expanded BPF metadata/query gating, and
 broad audit/event decoding.
 Authorized `kernel.modprobe` writes now also validate the helper path as an
 absolute, symlink-free, root-owned executable through non-writable ancestry.
@@ -165,9 +165,10 @@ Proc memory-map hardening now also denies cross-process `/proc/<pid>/pagemap`
 reads and global `/proc/kpage*` page-monitor metadata without disclosure
 authority while preserving `/proc/self/pagemap` compatibility.
 Cross-process `/proc/<pid>/cmdline`, `/proc/<pid>/environ`,
-`/proc/<pid>/auxv`, and `/proc/<pid>/syscall` reads now also require
-disclosure authority, preserving self inspection while keeping argv,
-environment, auxv, and live syscall metadata out of restricted profiles.
+`/proc/<pid>/auxv`, `/proc/<pid>/syscall`, and `/proc/<pid>/io` reads now
+also require disclosure authority, preserving self inspection while keeping
+argv, environment, auxv, live syscall metadata, and I/O accounting out of
+restricted profiles.
 Sensitive sysfs kernel metadata such as `/sys/kernel/vmcoreinfo`,
 `/sys/kernel/notes`, and `/sys/kernel/boot_params/data` now requires the
 sysfs-read authority and is hidden from restricted directory enumeration, while
@@ -205,16 +206,16 @@ The hardening smoke suite in the development tree is run under QEMU. Latest
 local result before this publication checkpoint:
 
 ```text
-QEMU hardening smoke: 1025/1025 pass
+QEMU hardening smoke: 1027/1027 pass
 ```
 
 Patch artifact at this checkpoint:
 
 ```text
 patch: patches/hdn-linux-7.0.12.patch
-lines: 74,651
-bytes: 2,237,530
-sha256: ef5f51f73da7d9dd2e5893b576d70c48343792c7b10b209c2280b31c3a8d6493
+lines: 74,690
+bytes: 2,238,830
+sha256: 8404198cf4ea25fadddc12bd3a84257270dd7fe96cf4f6eadd9178fbe1919860
 ```
 
 ## Development Rule
