@@ -93,9 +93,10 @@ families.
 product-facing status/action/policy entry point above `hdn-status`,
 `hdn-desktop-daemon`, and `hdn-policy-daemon`. `hdn-policy-workflow` now gives
 support tools and developer-mode UI a root-owned named workflow for policy
-learning and candidate policy generation above `hdn-policy-learn` and
-`hdn-policy-merge`, while `hdn-policy-daemon` gives product UI an allowlisted
-root-side facade above those workflows.
+learning, candidate policy generation, and binary policy compilation above
+`hdn-policy-learn`, `hdn-policy-merge`, and the policy compiler, while
+`hdn-policy-daemon` gives product UI an allowlisted root-side facade above
+those workflows.
 Other-user proc task visibility now has grouped proc mount compatibility plus
 an HDN-native global task-view group for proc, pidfd, and proc task-directory
 mode visibility.
@@ -110,10 +111,10 @@ The exploit-mitigation baseline also enables and enforces upstream page-table
 checking on supported architectures, with sealed status and QEMU coverage.
 
 The largest remaining gaps are richer RBAC/userspace integration beyond the
-current policy-daemon facade, full desktop and recovery UI around the admin
-broker, final image-specific update wiring, deeper internal symbol hiding, and
-PaX-style compiler/architecture mechanisms beyond the upstream-equivalent
-families already grouped in status.
+current policy workflow/daemon facade, full desktop and recovery UI around the
+admin broker, final image-specific update wiring, deeper internal symbol
+hiding, and PaX-style compiler/architecture mechanisms beyond the
+upstream-equivalent families already grouped in status.
 
 ## Apply The Patch
 
@@ -145,9 +146,9 @@ Patch artifact at this checkpoint:
 
 ```text
 patch: patches/hdn-linux-7.0.12.patch
-lines: 66,605
-bytes: 1,978,946
-sha256: 33d4f5ff51ce2e8d4a4c12dcc7fa2065d6b54eb934c5739c4aecc19d2e4e56d8
+lines: 66,689
+bytes: 1,981,991
+sha256: 75080dff50bbe6664cc1d3f190b95b767fb4e5b07b462bb91124ae584ccbd7bf
 ```
 
 ## Development Rule
