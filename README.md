@@ -102,7 +102,9 @@ commit WORKFLOW` and `hdn-policy-daemon --dry-run commit WORKFLOW` path so UI
 code can validate the approved broker route without installing a policy; the
 control-center stdio protocol accepts `status`, `action DESKTOP_ACTION`,
 `policy COMMAND WORKFLOW`, and `dry-run policy commit WORKFLOW`, while the
-daemon stdio protocol also accepts `dry-run commit WORKFLOW` below it.
+daemon stdio protocol also accepts `dry-run commit WORKFLOW` below it. The
+QEMU smoke path now proves `action updates.install` through both one-shot and
+stdio control-center routes.
 Other-user proc task visibility now has grouped proc mount compatibility plus
 an HDN-native global task-view group for proc, pidfd, and proc task-directory
 mode visibility.
@@ -145,16 +147,16 @@ The hardening smoke suite in the development tree is run under QEMU. Latest
 local result before this publication checkpoint:
 
 ```text
-QEMU hardening smoke: 968/968 pass
+QEMU hardening smoke: 969/969 pass
 ```
 
 Patch artifact at this checkpoint:
 
 ```text
 patch: patches/hdn-linux-7.0.12.patch
-lines: 67,223
-bytes: 1,998,356
-sha256: 3b5b4c7fc50ecffd979457d8dc7c51aadfd80455b358f80b77d9df335028809d
+lines: 67,342
+bytes: 2,003,417
+sha256: 1944b08dc1e57b0c0a4677e8b142249e1ff8fae26ce0512b3cd6a797b1a4ca35
 ```
 
 ## Development Rule
