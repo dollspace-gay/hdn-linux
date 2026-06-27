@@ -859,6 +859,16 @@ approved settings action dry-run leaves the sealed mount unchanged, and proves
 the real approved `updates.install` action reaches control-center,
 authenticates through the desktop chain, updates the sealed product mount, and
 reseals it read-only.
+`hdn-settings-ui` is the starter graphical settings frontend above
+`hdn-settings-panel`. Product config owns the allowed settings action list,
+title, message, and panel helper path. The UI selects via `zenity` or `kdialog`
+when a desktop session exists, sends only the selected approved action back
+through the panel, and fails closed without a graphical session. Deterministic
+test modes let product harnesses select or cancel without a desktop session.
+QEMU proves unknown UI choices and unsafe UI configs fail closed, proves
+canceled selections and no-display sessions fail closed before mutation, and
+proves approved `updates.install` dry-run plus real dispatch reaches
+settings-panel while preserving the sealed-mount invariant.
 `hdn-image-seal` is the installer/first-boot/image-updater facade for sealing
 the base image. Product config maps stable seal names to ordered brokered
 steps such as signed policy commit and read-only mount-list application, so
@@ -1588,6 +1598,27 @@ tools/hardening/hdn-prompt-portal:
   prompt-session backend, giving shells and settings panels one stable command
   while keeping session helper paths, tokens, and broker arguments hidden
 
+tools/hardening/hdn-desktop-action:
+  map stable product UI verbs from a root-owned manifest to prompt-portal
+  actions, so desktop components do not depend on lower prompt action names
+
+tools/hardening/hdn-desktop-daemon:
+  provide a one-shot or stdio root-side desktop action service above
+  hdn-desktop-action with dry-run preflight for approved verbs
+
+tools/hardening/hdn-control-center:
+  provide the product-facing status, desktop-action, and policy-workflow
+  command surface for settings panels, shells, and supervised desktop backends
+
+tools/hardening/hdn-settings-panel:
+  map graphical settings verbs from a root-owned manifest to control-center
+  actions, preflight approved actions, and keep lower helper paths hidden
+
+tools/hardening/hdn-settings-ui:
+  provide a dependency-light graphical settings action selector above
+  settings-panel, with deterministic test selection and fail-closed no-display
+  behavior
+
 tools/hardening/hdn-auth-prompt:
   read root-owned prompt metadata from stdin, display a dependency-light
   graphical allow/cancel prompt through the desktop session, and fail closed
@@ -1882,6 +1913,10 @@ Core oracle groups:
   settings-panel configs, maps approved settings verbs to control-center
   actions, dry-runs the mapped route without prompting or changing the sealed
   mount, and runs the real action only after that preflight succeeds
+- the settings UI helper rejects unknown choices, rejects unsafe UI configs,
+  fails closed on canceled or no-display selection, dry-runs the mapped panel
+  route without changing the sealed mount, and runs the real action only after
+  that preflight succeeds
 - the image seal helper rejects unknown seal names, rejects unsafe image seal
   configs, dry-runs an approved brokered read-only mount list without changing
   mount state, and applies that list while leaving the sealed mount read-only
@@ -2098,7 +2133,7 @@ Core oracle groups:
 - Configure existing kernel hardening options.
 - Lock down BPF, perf, ptrace, user namespaces, debugfs, tracefs, procfs, module loading, kexec, and kernel log reads/writes through available upstream controls and HDN authorities.
 - Integrate Secure Boot, module signing, fs-verity, IMA/IPE/AppArmor/SELinux/Landlock where appropriate.
-- Build the graphical prompt daemon and settings panel on top of the
+- Build the graphical prompt daemon and settings UI on top of the settings-ui,
   settings-panel, control-center, and desktop-daemon contracts for normal
   desktop action requests, on the prompt-session contract when the product
   frontend needs to select its own session backend, or on the lower-level

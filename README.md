@@ -116,6 +116,13 @@ first preflight the same control-center route with `--dry-run`; QEMU proves
 unknown settings actions and unsafe settings manifests fail closed, and proves
 dry-run plus real `updates.install` keeps the protected mount sealed before
 resealing after the approved update.
+`hdn-settings-ui` now provides a dependency-light graphical settings selector
+above `hdn-settings-panel`: a root-owned product manifest owns the title,
+message, allowed action list, and settings-panel helper path, while the UI
+selects through `zenity` or `kdialog` when a desktop session exists and fails
+closed otherwise. QEMU proves unknown choices, unsafe UI manifests, canceled
+selection, no-display denial, and dry-run plus real `updates.install` through
+the settings UI route.
 Package and image update preflight now uses the same `--dry-run` contract
 through `hdn-image-seal`, `hdn-system-transaction`, and `hdn-package-hook`;
 QEMU proves those approved routes validate without changing the protected
@@ -183,16 +190,16 @@ The hardening smoke suite in the development tree is run under QEMU. Latest
 local result before this publication checkpoint:
 
 ```text
-QEMU hardening smoke: 982/982 pass
+QEMU hardening smoke: 987/987 pass
 ```
 
 Patch artifact at this checkpoint:
 
 ```text
 patch: patches/hdn-linux-7.0.12.patch
-lines: 70,934
-bytes: 2,107,532
-sha256: 21c70f3e6e6da5aed3d29038d999d881995f44fa7730fc1196fc068f1eae81b0
+lines: 72,081
+bytes: 2,138,483
+sha256: 1ad997a8a161b8c70dc943db502561b21b2461b79c3052d8660d01c18d8fa862
 ```
 
 ## Development Rule
