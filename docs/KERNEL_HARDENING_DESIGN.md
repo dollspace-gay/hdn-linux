@@ -208,14 +208,17 @@ Proc memory-map redaction is a build-time mitigation with a policy bypass, not
 a prompt. With `SECURITY_HARDENING_PROC_MEMMAP`, reads of another address
 space's `/proc/<pid>/maps`, `smaps`, `smaps_rollup`, `numa_maps`, and `stat`
 hide ASLR-sensitive addresses unless the caller has `AUTH_PROC_DISCLOSE`.
-Self and same-thread-group reads remain compatible, and the binary
-`PROCMAP_QUERY` ioctl is denied without disclosure authority so it cannot be
-used as a lower-friction address oracle. `/proc/ioports` and `/proc/iomem`
-retain resource names for hardware inventory, but their address ranges collapse
-to zero unless a capable caller also has `AUTH_PROC_DISCLOSE`. The same
-mitigation also caps privileged execs to a 512 KiB copied argv/env stack and an
-8 MiB stack rlimit, preserving stack-layout entropy for setuid, setgid,
-secureexec, and file-capability helpers without exposing a user-facing knob.
+Cross-process `/proc/<pid>/pagemap` reads and the binary `PROCMAP_QUERY` ioctl
+are denied without disclosure authority so they cannot become lower-friction
+address or page-state oracles. Self and same-thread-group reads remain
+compatible. `/proc/ioports` and `/proc/iomem` retain resource names for
+hardware inventory, but their address ranges collapse to zero unless a capable
+caller also has `AUTH_PROC_DISCLOSE`. Global page-monitoring metadata in
+`/proc/kpagecount`, `/proc/kpageflags`, and `/proc/kpagecgroup` is denied
+without disclosure authority. The same mitigation also caps privileged execs to
+a 512 KiB copied argv/env stack and an 8 MiB stack rlimit, preserving
+stack-layout entropy for setuid, setgid, secureexec, and file-capability
+helpers without exposing a user-facing knob.
 
 Network blackhole and TCP simultaneous-connect hardening are also intentionally
 not authorities. HDN treats them as invisible build-time baseline mitigations:
@@ -1672,6 +1675,9 @@ Core oracle groups:
 - procfs task visibility constrained and kernel disclosure redacted
 - procfs memory-map and stat address disclosure redacted without
   `PROC_DISCLOSE`, while self reads and authorized admin reads remain usable
+- cross-process `/proc/<pid>/pagemap`, `PROCMAP_QUERY`, and global
+  `/proc/kpage*` page-monitoring metadata denied without `PROC_DISCLOSE`,
+  while `/proc/self/pagemap` remains usable
 - `/proc/ioports` and `/proc/iomem` address ranges redacted without
   `PROC_DISCLOSE`, while resource names remain visible for compatibility
 - owner-only sysfs attributes and sensitive world-readable sysfs metadata such

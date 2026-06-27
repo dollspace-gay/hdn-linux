@@ -2704,6 +2704,29 @@ diff -ruN --exclude .git linux-7.0.12/fs/proc/kcore.c linux-7.0.12-hdn/fs/proc/k
  
  	filp->private_data = kmalloc(PAGE_SIZE, GFP_KERNEL);
  	if (!filp->private_data)
+diff -ruN --exclude .git linux-7.0.12/fs/proc/page.c linux-7.0.12-hdn/fs/proc/page.c
+--- linux-7.0.12/fs/proc/page.c	2026-06-09 05:32:51.000000000 -0500
++++ linux-7.0.12-hdn/fs/proc/page.c	2026-06-27 01:38:14.914062656 -0500
+@@ -10,6 +10,7 @@
+ #include <linux/proc_fs.h>
+ #include <linux/seq_file.h>
+ #include <linux/hugetlb.h>
++#include <linux/hardening.h>
+ #include <linux/memremap.h>
+ #include <linux/memcontrol.h>
+ #include <linux/mmu_notifier.h>
+@@ -73,6 +74,11 @@
+ 	pfn = src / KPMSIZE;
+ 	if (src & KPMMASK || count & KPMMASK)
+ 		return -EINVAL;
++	if (!count)
++		return 0;
++	ret = hdn_authorize_proc_resource_read();
++	if (ret)
++		return ret;
+ 	if (src >= max_dump_pfn * KPMSIZE)
+ 		return 0;
+ 	count = min_t(unsigned long, count, (max_dump_pfn * KPMSIZE) - src);
 diff -ruN --exclude .git linux-7.0.12/fs/proc/proc_sysctl.c linux-7.0.12-hdn/fs/proc/proc_sysctl.c
 --- linux-7.0.12/fs/proc/proc_sysctl.c	2026-06-09 05:32:51.000000000 -0500
 +++ linux-7.0.12-hdn/fs/proc/proc_sysctl.c	2026-06-25 17:33:49.756415247 -0500
@@ -2729,7 +2752,7 @@ diff -ruN --exclude .git linux-7.0.12/fs/proc/proc_sysctl.c linux-7.0.12-hdn/fs/
  	error = -EINVAL;
 diff -ruN --exclude .git linux-7.0.12/fs/proc/task_mmu.c linux-7.0.12-hdn/fs/proc/task_mmu.c
 --- linux-7.0.12/fs/proc/task_mmu.c	2026-06-09 05:32:51.000000000 -0500
-+++ linux-7.0.12-hdn/fs/proc/task_mmu.c	2026-06-26 10:30:47.371193206 -0500
++++ linux-7.0.12-hdn/fs/proc/task_mmu.c	2026-06-27 01:38:06.078063343 -0500
 @@ -23,6 +23,7 @@
  #include <linux/minmax.h>
  #include <linux/overflow.h>
@@ -2901,7 +2924,30 @@ diff -ruN --exclude .git linux-7.0.12/fs/proc/task_mmu.c linux-7.0.12-hdn/fs/pro
  
  	return 0;
  
-@@ -3321,7 +3358,8 @@
+@@ -2225,6 +2262,10 @@
+ 	if (!mm || !mmget_not_zero(mm))
+ 		goto out;
+ 
++	ret = hdn_authorize_proc_memmap_read(NULL, mm);
++	if (ret)
++		goto out_mm;
++
+ 	ret = -EINVAL;
+ 	/* file position must be aligned */
+ 	if ((*ppos % PM_ENTRY_BYTES) || (count % PM_ENTRY_BYTES))
+@@ -3095,6 +3136,11 @@
+ 			   unsigned long arg)
+ {
+ 	struct mm_struct *mm = file->private_data;
++	int ret;
++
++	ret = hdn_authorize_proc_memmap_read(NULL, mm);
++	if (ret)
++		return ret;
+ 
+ 	switch (cmd) {
+ 	case PAGEMAP_SCAN:
+@@ -3321,7 +3367,8 @@
  		mpol_to_str(buffer, sizeof(buffer), proc_priv->task_mempolicy);
  	}
  
@@ -2911,7 +2957,7 @@ diff -ruN --exclude .git linux-7.0.12/fs/proc/task_mmu.c linux-7.0.12-hdn/fs/pro
  
  	if (file) {
  		seq_puts(m, " file=");
-@@ -3336,7 +3374,8 @@
+@@ -3336,7 +3383,8 @@
  		seq_puts(m, " huge");
  
  	/* mmap_lock is held by m_start */
@@ -3706,8 +3752,8 @@ diff -ruN --exclude .git linux-7.0.12/include/linux/fs_struct.h linux-7.0.12-hdn
  #endif /* _LINUX_FS_STRUCT_H */
 diff -ruN --exclude .git linux-7.0.12/include/linux/hardening.h linux-7.0.12-hdn/include/linux/hardening.h
 --- linux-7.0.12/include/linux/hardening.h	1969-12-31 18:00:00.000000000 -0600
-+++ linux-7.0.12-hdn/include/linux/hardening.h	2026-06-27 00:29:10.654435465 -0500
-@@ -0,0 +1,1027 @@
++++ linux-7.0.12-hdn/include/linux/hardening.h	2026-06-27 01:37:49.026064803 -0500
+@@ -0,0 +1,1041 @@
 +/* SPDX-License-Identifier: GPL-2.0-only */
 +#ifndef _LINUX_HARDENING_H
 +#define _LINUX_HARDENING_H
@@ -3833,6 +3879,9 @@ diff -ruN --exclude .git linux-7.0.12/include/linux/hardening.h linux-7.0.12-hdn
 +bool hdn_proc_task_group_kgid(kgid_t *kgid);
 +bool hdn_proc_memmap_disclose(struct task_struct *target, struct mm_struct *mm);
 +bool hdn_proc_resource_disclose(void);
++int hdn_authorize_proc_memmap_read(struct task_struct *target,
++				   struct mm_struct *mm);
++int hdn_authorize_proc_resource_read(void);
 +bool hdn_kernel_symbol_disclose_allowed(void);
 +int hdn_authorize_kernel_symbol_lookup(void);
 +int hdn_authorize_kernel_symbol_lookup_transition(enum hdn_transition transition);
@@ -4145,6 +4194,17 @@ diff -ruN --exclude .git linux-7.0.12/include/linux/hardening.h linux-7.0.12-hdn
 +static inline bool hdn_proc_resource_disclose(void)
 +{
 +	return true;
++}
++
++static inline int hdn_authorize_proc_memmap_read(struct task_struct *target,
++						 struct mm_struct *mm)
++{
++	return 0;
++}
++
++static inline int hdn_authorize_proc_resource_read(void)
++{
++	return 0;
 +}
 +
 +static inline bool hdn_kernel_symbol_disclose_allowed(void)
@@ -10330,8 +10390,8 @@ diff -ruN --exclude .git linux-7.0.12/security/commoncap.c linux-7.0.12-hdn/secu
  }
 diff -ruN --exclude .git linux-7.0.12/security/hardening/Kconfig linux-7.0.12-hdn/security/hardening/Kconfig
 --- linux-7.0.12/security/hardening/Kconfig	1969-12-31 18:00:00.000000000 -0600
-+++ linux-7.0.12-hdn/security/hardening/Kconfig	2026-06-27 01:05:33.474244233 -0500
-@@ -0,0 +1,661 @@
++++ linux-7.0.12-hdn/security/hardening/Kconfig	2026-06-27 01:39:21.622057285 -0500
+@@ -0,0 +1,664 @@
 +# SPDX-License-Identifier: GPL-2.0-only
 +menuconfig SECURITY_HARDENING
 +	bool "Hardening contract layer"
@@ -10894,14 +10954,17 @@ diff -ruN --exclude .git linux-7.0.12/security/hardening/Kconfig linux-7.0.12-hd
 +	help
 +	  Redact ASLR-relevant addresses and offsets from /proc/<pid>/maps,
 +	  /proc/<pid>/smaps, /proc/<pid>/smaps_rollup, /proc/<pid>/numa_maps,
-+	  and /proc/<pid>/stat when a process reads a different address space
-+	  without PROC_DISCLOSE authority, and deny address-query ioctls for that
-+	  same case. System resource maps in /proc/ioports and /proc/iomem also
-+	  keep their device/resource names while collapsing ranges to zero without
-+	  disclosure authority. Self reads are left intact for compatibility, while
-+	  desktop tools keep useful mapping names and permissions without learning
-+	  target addresses. Privileged execs are also limited to a 512 KiB copied
-+	  argument/environment stack and an 8 MiB stack resource limit so a setuid,
++	  /proc/<pid>/stat, and /proc/<pid>/pagemap when a process reads a
++	  different address space without PROC_DISCLOSE authority, and deny
++	  address-query ioctls for that same case. System resource maps in
++	  /proc/ioports and /proc/iomem also keep their device/resource names
++	  while collapsing ranges to zero without disclosure authority. Global
++	  page-monitoring metadata in /proc/kpagecount, /proc/kpageflags, and
++	  /proc/kpagecgroup is denied without disclosure authority. Self reads
++	  are left intact for compatibility, while desktop tools keep useful
++	  mapping names and permissions without learning target addresses.
++	  Privileged execs are also limited to a 512 KiB copied argument/
++	  environment stack and an 8 MiB stack resource limit so a setuid,
 +	  setgid, or file-capability helper cannot consume the stack entropy that
 +	  these procfs redactions are meant to protect.
 +
@@ -11002,8 +11065,8 @@ diff -ruN --exclude .git linux-7.0.12/security/hardening/Makefile linux-7.0.12-h
 +obj-$(CONFIG_SECURITY_HARDENING) += core.o
 diff -ruN --exclude .git linux-7.0.12/security/hardening/core.c linux-7.0.12-hdn/security/hardening/core.c
 --- linux-7.0.12/security/hardening/core.c	1969-12-31 18:00:00.000000000 -0600
-+++ linux-7.0.12-hdn/security/hardening/core.c	2026-06-27 00:30:32.146434042 -0500
-@@ -0,0 +1,7772 @@
++++ linux-7.0.12-hdn/security/hardening/core.c	2026-06-27 01:37:59.222063932 -0500
+@@ -0,0 +1,7791 @@
 +// SPDX-License-Identifier: GPL-2.0-only
 +
 +#include <linux/binfmts.h>
@@ -15530,6 +15593,25 @@ diff -ruN --exclude .git linux-7.0.12/security/hardening/core.c linux-7.0.12-hdn
 +		return true;
 +
 +	return false;
++}
++
++int hdn_authorize_proc_memmap_read(struct task_struct *target,
++				   struct mm_struct *mm)
++{
++	if (hdn_proc_memmap_disclose(target, mm))
++		return 0;
++
++	return hdn_authorize(HDN_AUTH_PROC_DISCLOSE, HDN_TRANS_PROCFS_READ,
++			     HDN_REASON_PROFILE_DENIED, -EPERM);
++}
++
++int hdn_authorize_proc_resource_read(void)
++{
++	if (hdn_proc_resource_disclose())
++		return 0;
++
++	return hdn_authorize(HDN_AUTH_PROC_DISCLOSE, HDN_TRANS_PROCFS_READ,
++			     HDN_REASON_PROFILE_DENIED, -EPERM);
 +}
 +
 +bool hdn_kernel_symbol_disclose_allowed(void)
@@ -36894,8 +36976,8 @@ diff -ruN --exclude .git linux-7.0.12/tools/testing/selftests/hardening/hdn_elfn
 +}
 diff -ruN --exclude .git linux-7.0.12/tools/testing/selftests/hardening/hdn_smoke.c linux-7.0.12-hdn/tools/testing/selftests/hardening/hdn_smoke.c
 --- linux-7.0.12/tools/testing/selftests/hardening/hdn_smoke.c	1969-12-31 18:00:00.000000000 -0600
-+++ linux-7.0.12-hdn/tools/testing/selftests/hardening/hdn_smoke.c	2026-06-27 01:26:39.142126511 -0500
-@@ -0,0 +1,26873 @@
++++ linux-7.0.12-hdn/tools/testing/selftests/hardening/hdn_smoke.c	2026-06-27 01:39:02.746058973 -0500
+@@ -0,0 +1,26989 @@
 +// SPDX-License-Identifier: GPL-2.0-only
 +
 +#define _GNU_SOURCE
@@ -37163,6 +37245,9 @@ diff -ruN --exclude .git linux-7.0.12/tools/testing/selftests/hardening/hdn_smok
 +#define HDN_PROC_KALLSYMS "/proc/kallsyms"
 +#define HDN_PROC_IOPORTS "/proc/ioports"
 +#define HDN_PROC_IOMEM "/proc/iomem"
++#define HDN_PROC_KPAGECOUNT "/proc/kpagecount"
++#define HDN_PROC_KPAGEFLAGS "/proc/kpageflags"
++#define HDN_PROC_KPAGECGROUP "/proc/kpagecgroup"
 +#define HDN_PROC_VMALLOCINFO "/proc/vmallocinfo"
 +#define HDN_PROC_NET_PTYPE "/proc/net/ptype"
 +#define HDN_PROC_TIMER_LIST "/proc/timer_list"
@@ -46542,6 +46627,107 @@ diff -ruN --exclude .git linux-7.0.12/tools/testing/selftests/hardening/hdn_smok
 +static int proc_resource_maps_redacted_without_disclosure(void)
 +{
 +	return proc_resource_maps_visibility(false);
++}
++
++static off_t self_pagemap_offset(void)
++{
++	long page_size = sysconf(_SC_PAGESIZE);
++	uintptr_t addr = (uintptr_t)&page_size;
++
++	if (page_size <= 0)
++		page_size = 4096;
++
++	return (off_t)((addr / (uintptr_t)page_size) * sizeof(uint64_t));
++}
++
++static int read_pagemap_entry(const char *path, off_t offset,
++			      bool expect_denial)
++{
++	uint64_t entry;
++	ssize_t len;
++	int fd;
++
++	errno = 0;
++	fd = open(path, O_RDONLY | O_CLOEXEC);
++	if (fd < 0)
++		return errno == ENOENT ? KSFT_SKIP : 2;
++
++	errno = 0;
++	len = pread(fd, &entry, sizeof(entry), offset);
++	close(fd);
++	if (expect_denial) {
++		if (len >= 0)
++			return 1;
++		return errno_is_denial(errno) ? 0 : 2;
++	}
++
++	return len == sizeof(entry) ? 0 : 1;
++}
++
++static int proc_self_pagemap_allowed_without_disclosure(void)
++{
++	return read_pagemap_entry("/proc/self/pagemap", self_pagemap_offset(),
++				  false);
++}
++
++static int proc_pagemap_denied_without_disclosure(void)
++{
++	char path[64];
++	pid_t child;
++	int ret;
++
++	child = spawn_proc_memmap_target();
++	if (child < 0)
++		return 2;
++
++	snprintf(path, sizeof(path), "/proc/%d/pagemap", child);
++	ret = read_pagemap_entry(path, 0, true);
++
++	kill(child, SIGKILL);
++	waitpid(child, NULL, 0);
++	return ret;
++}
++
++static int proc_kpage_file_denied_without_disclosure(const char *path)
++{
++	uint64_t entry;
++	ssize_t len;
++	int fd;
++
++	errno = 0;
++	fd = open(path, O_RDONLY | O_CLOEXEC);
++	if (fd < 0)
++		return errno == ENOENT ? KSFT_SKIP : 2;
++
++	errno = 0;
++	len = read(fd, &entry, sizeof(entry));
++	close(fd);
++	if (len >= 0)
++		return 1;
++	return errno_is_denial(errno) ? 0 : 2;
++}
++
++static int proc_kpage_metadata_denied_without_disclosure(void)
++{
++	static const char * const paths[] = {
++		HDN_PROC_KPAGECOUNT,
++		HDN_PROC_KPAGEFLAGS,
++		HDN_PROC_KPAGECGROUP,
++	};
++	bool saw_file = false;
++	size_t i;
++
++	for (i = 0; i < ARRAY_SIZE(paths); i++) {
++		int ret = proc_kpage_file_denied_without_disclosure(paths[i]);
++
++		if (ret == KSFT_SKIP)
++			continue;
++		saw_file = true;
++		if (ret)
++			return ret;
++	}
++
++	return saw_file ? 0 : KSFT_SKIP;
 +}
 +
 +static int proc_vmallocinfo_symbols_hidden(void)
@@ -56961,6 +57147,9 @@ diff -ruN --exclude .git linux-7.0.12/tools/testing/selftests/hardening/hdn_smok
 +		ksft_test_result_skip("restricted profile hides boot params sysfs entry\n");
 +			ksft_test_result_skip("restricted profile denies proc disclosure\n");
 +			ksft_test_result_skip("restricted profile redacts proc memmap addresses\n");
++			ksft_test_result_skip("restricted profile preserves self pagemap reads\n");
++			ksft_test_result_skip("restricted profile denies cross-process pagemap reads\n");
++			ksft_test_result_skip("restricted profile denies global kpage metadata\n");
 +				ksft_test_result_skip("restricted profile redacts proc resource-map addresses\n");
 +				ksft_test_result_skip("restricted profile redacts vmalloc caller symbols\n");
 +				ksft_test_result_skip("restricted profile denies modprobe helper path write\n");
@@ -57958,6 +58147,15 @@ diff -ruN --exclude .git linux-7.0.12/tools/testing/selftests/hardening/hdn_smok
 +	report_child_result(restricted_committed ?
 +			    proc_memmap_redacted_without_disclosure() : 2,
 +			    "restricted profile redacts proc memmap addresses");
++	report_child_result(restricted_committed ?
++			    proc_self_pagemap_allowed_without_disclosure() : 2,
++			    "restricted profile preserves self pagemap reads");
++	report_child_result(restricted_committed ?
++			    proc_pagemap_denied_without_disclosure() : 2,
++			    "restricted profile denies cross-process pagemap reads");
++	report_child_result(restricted_committed ?
++			    proc_kpage_metadata_denied_without_disclosure() : 2,
++			    "restricted profile denies global kpage metadata");
 +	report_child_result(restricted_committed ?
 +			    proc_resource_maps_redacted_without_disclosure() : 2,
 +			    "restricted profile redacts proc resource-map addresses");
@@ -63374,7 +63572,7 @@ diff -ruN --exclude .git linux-7.0.12/tools/testing/selftests/hardening/hdn_smok
 +	if (access(HDN_STATUS, R_OK))
 +		ksft_exit_skip("hardening securityfs status not present\n");
 +
-+	ksft_set_plan(952);
++	ksft_set_plan(955);
 +	test_securityfs_status();
 +	test_symbol_test_module_load();
 +	test_securityfs_status_contains("abi_version: 89",
@@ -64162,7 +64360,7 @@ diff -ruN --exclude .git linux-7.0.12/tools/testing/selftests/hardening/role.pol
 +use-role 2 desktop-admin
 diff -ruN --exclude .git linux-7.0.12/tools/testing/selftests/hardening/run-qemu-smoke.sh linux-7.0.12-hdn/tools/testing/selftests/hardening/run-qemu-smoke.sh
 --- linux-7.0.12/tools/testing/selftests/hardening/run-qemu-smoke.sh	1969-12-31 18:00:00.000000000 -0600
-+++ linux-7.0.12-hdn/tools/testing/selftests/hardening/run-qemu-smoke.sh	2026-06-27 01:26:45.298124303 -0500
++++ linux-7.0.12-hdn/tools/testing/selftests/hardening/run-qemu-smoke.sh	2026-06-27 01:39:07.814058531 -0500
 @@ -0,0 +1,1221 @@
 +#!/bin/sh
 +# SPDX-License-Identifier: GPL-2.0
@@ -64197,7 +64395,7 @@ diff -ruN --exclude .git linux-7.0.12/tools/testing/selftests/hardening/run-qemu
 +QEMU_MEMORY=${QEMU_MEMORY:-1024M}
 +QEMU_SMP=${QEMU_SMP:-2}
 +QEMU_MACHINE=${QEMU_MACHINE:-q35,accel=tcg}
-+HDN_SMOKE_EXPECTED_PASS=${HDN_SMOKE_EXPECTED_PASS:-952}
++HDN_SMOKE_EXPECTED_PASS=${HDN_SMOKE_EXPECTED_PASS:-955}
 +WORK=${HDN_QEMU_WORK:-"${TMPDIR:-/tmp}/hdn-qemu-smoke.$$"}
 +LOG=${HDN_QEMU_LOG:-"$WORK/qemu.log"}
 +QMP=${HDN_QEMU_QMP:-"$WORK/qmp.sock"}

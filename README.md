@@ -95,6 +95,9 @@ and candidate policy generation above `hdn-policy-learn` and
 Other-user proc task visibility now has grouped proc mount compatibility plus
 an HDN-native global task-view group for proc, pidfd, and proc task-directory
 mode visibility.
+Proc memory-map hardening now also denies cross-process `/proc/<pid>/pagemap`
+reads and global `/proc/kpage*` page-monitor metadata without disclosure
+authority while preserving `/proc/self/pagemap` compatibility.
 Sensitive sysfs kernel metadata such as `/sys/kernel/vmcoreinfo`,
 `/sys/kernel/notes`, and `/sys/kernel/boot_params/data` now requires the
 sysfs-read authority and is hidden from restricted directory enumeration, while
@@ -130,16 +133,16 @@ The hardening smoke suite in the development tree is run under QEMU. Latest
 local result before this publication checkpoint:
 
 ```text
-QEMU hardening smoke: 952/952 pass
+QEMU hardening smoke: 955/955 pass
 ```
 
 Patch artifact at this checkpoint:
 
 ```text
 patch: patches/hdn-linux-7.0.12.patch
-lines: 65,564
-bytes: 1,950,995
-sha256: e1780cb47b19edcaa6a23b69acf44c4e3aad9177c0c46dd1d4527133588ea053
+lines: 65,762
+bytes: 1,956,227
+sha256: c0667511305868f5fd1e834566e2086f9d0065c565493be059d1ee24e46432b3
 ```
 
 ## Development Rule
