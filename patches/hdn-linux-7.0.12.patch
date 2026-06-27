@@ -2537,7 +2537,7 @@ diff -ruN '--exclude=.git' '--exclude=.config' '--exclude=*.o' '--exclude=*.cmd'
  		seq_put_decimal_ull(m, " ", mm->start_brk);
 diff -ruN '--exclude=.git' '--exclude=.config' '--exclude=*.o' '--exclude=*.cmd' '--exclude=.tmp_*' '--exclude=certs/signing_key*' linux-7.0.12/fs/proc/base.c linux-7.0.12-hdn/fs/proc/base.c
 --- linux-7.0.12/fs/proc/base.c	2026-06-09 05:32:51.000000000 -0500
-+++ linux-7.0.12-hdn/fs/proc/base.c	2026-06-27 06:42:30.632403182 -0500
++++ linux-7.0.12-hdn/fs/proc/base.c	2026-06-27 06:49:22.648344606 -0500
 @@ -72,6 +72,7 @@
  #include <linux/module.h>
  #include <linux/mount.h>
@@ -2742,7 +2742,26 @@ diff -ruN '--exclude=.git' '--exclude=.config' '--exclude=*.o' '--exclude=*.cmd'
  	if (whole) {
  		struct signal_struct *sig = task->signal;
  		struct task_struct *t;
-@@ -3309,6 +3400,23 @@
+@@ -3228,7 +3319,17 @@
+ static int proc_pid_personality(struct seq_file *m, struct pid_namespace *ns,
+ 				struct pid *pid, struct task_struct *task)
+ {
+-	int err = lock_trace(task);
++	struct mm_struct *mm;
++	int err;
++
++	mm = get_task_mm(task);
++	err = hdn_authorize_proc_sensitive_read(task, mm);
++	if (mm)
++		mmput(mm);
++	if (err)
++		return err;
++
++	err = lock_trace(task);
+ 	if (!err) {
+ 		seq_printf(m, "%08x\n", task->personality);
+ 		unlock_trace(task);
+@@ -3309,6 +3410,23 @@
  static const struct file_operations proc_task_operations;
  static const struct inode_operations proc_task_inode_operations;
  
@@ -2766,7 +2785,7 @@ diff -ruN '--exclude=.git' '--exclude=.config' '--exclude=*.o' '--exclude=*.cmd'
  static const struct pid_entry tgid_base_stuff[] = {
  	DIR("task",       S_IRUGO|S_IXUGO, proc_task_inode_operations, proc_task_operations),
  	DIR("fd",         S_IRUSR|S_IXUSR, proc_fd_inode_operations, proc_fd_operations),
-@@ -3395,6 +3503,9 @@
+@@ -3395,6 +3513,9 @@
  #ifdef CONFIG_TASK_IO_ACCOUNTING
  	ONE("io",	S_IRUSR, proc_tgid_io_accounting),
  #endif
@@ -2776,7 +2795,7 @@ diff -ruN '--exclude=.git' '--exclude=.config' '--exclude=*.o' '--exclude=*.cmd'
  #ifdef CONFIG_USER_NS
  	REG("uid_map",    S_IRUGO|S_IWUSR, proc_uid_map_operations),
  	REG("gid_map",    S_IRUGO|S_IWUSR, proc_gid_map_operations),
-@@ -3523,6 +3634,10 @@
+@@ -3523,6 +3644,10 @@
  	if (!task)
  		goto out;
  
@@ -19769,8 +19788,8 @@ diff -ruN '--exclude=.git' '--exclude=.config' '--exclude=*.o' '--exclude=*.cmd'
 +.PHONY: all clean install
 diff -ruN '--exclude=.git' '--exclude=.config' '--exclude=*.o' '--exclude=*.cmd' '--exclude=.tmp_*' '--exclude=certs/signing_key*' linux-7.0.12/tools/hardening/README.rst linux-7.0.12-hdn/tools/hardening/README.rst
 --- linux-7.0.12/tools/hardening/README.rst	1969-12-31 18:00:00.000000000 -0600
-+++ linux-7.0.12-hdn/tools/hardening/README.rst	2026-06-27 06:42:30.648403201 -0500
-@@ -0,0 +1,1683 @@
++++ linux-7.0.12-hdn/tools/hardening/README.rst	2026-06-27 06:49:22.668344603 -0500
+@@ -0,0 +1,1684 @@
 +.. SPDX-License-Identifier: GPL-2.0-only
 +
 +Linux Hardening Policy Tools
@@ -20258,7 +20277,7 @@ diff -ruN '--exclude=.git' '--exclude=.config' '--exclude=*.o' '--exclude=*.cmd'
 +to point it at a non-default kernel build directory. The QEMU firmware policy
 +proof uses the upstream ``test_firmware`` driver, so the smoke kernel must be
 +built with ``CONFIG_TEST_FIRMWARE=y``. The current development harness expects
-+1027 passing hardening checks, including support-bundle fail-closed, collection
++1029 passing hardening checks, including support-bundle fail-closed, collection
 +proofs, object-scoped ptrace denial, protected shared-memory attach policy, and
 +abstract AF_UNIX object policy plus proc-sensitive syscall and metadata
 +disclosure checks.
@@ -20947,7 +20966,8 @@ diff -ruN '--exclude=.git' '--exclude=.config' '--exclude=*.o' '--exclude=*.cmd'
 +addresses, see null/zero base addresses for loaded modules in
 +``/proc/modules``, and cannot read another mm's ``/proc/<pid>/cmdline``,
 +``/proc/<pid>/environ``, ``/proc/<pid>/auxv``, or
-+``/proc/<pid>/syscall``, nor another task's ``/proc/<pid>/io`` accounting.
++``/proc/<pid>/syscall``, nor another task's ``/proc/<pid>/io`` accounting or
++``/proc/<pid>/personality`` flags.
 +
 +``PROC_TASK_VIEW`` authority is the narrow bypass for HDN's hidepid-like
 +task-directory visibility rule. Profiles without it can see their own UID's
@@ -42324,8 +42344,8 @@ diff -ruN '--exclude=.git' '--exclude=.config' '--exclude=*.o' '--exclude=*.cmd'
 +}
 diff -ruN '--exclude=.git' '--exclude=.config' '--exclude=*.o' '--exclude=*.cmd' '--exclude=.tmp_*' '--exclude=certs/signing_key*' linux-7.0.12/tools/testing/selftests/hardening/hdn_smoke.c linux-7.0.12-hdn/tools/testing/selftests/hardening/hdn_smoke.c
 --- linux-7.0.12/tools/testing/selftests/hardening/hdn_smoke.c	1969-12-31 18:00:00.000000000 -0600
-+++ linux-7.0.12-hdn/tools/testing/selftests/hardening/hdn_smoke.c	2026-06-27 06:42:30.644403196 -0500
-@@ -0,0 +1,30412 @@
++++ linux-7.0.12-hdn/tools/testing/selftests/hardening/hdn_smoke.c	2026-06-27 06:49:22.664344604 -0500
+@@ -0,0 +1,30429 @@
 +// SPDX-License-Identifier: GPL-2.0-only
 +
 +#define _GNU_SOURCE
@@ -53050,6 +53070,11 @@ diff -ruN '--exclude=.git' '--exclude=.config' '--exclude=*.o' '--exclude=*.cmd'
 +	return proc_sensitive_file_visibility("io", "rchar:", true);
 +}
 +
++static int proc_personality_disclosed_by_policy(void)
++{
++	return proc_sensitive_file_visibility("personality", NULL, true);
++}
++
 +static int proc_cmdline_denied_without_disclosure(void)
 +{
 +	return proc_sensitive_file_visibility("cmdline", HDN_PROC_SENSITIVE_ARG,
@@ -53075,6 +53100,11 @@ diff -ruN '--exclude=.git' '--exclude=.config' '--exclude=*.o' '--exclude=*.cmd'
 +static int proc_io_denied_without_disclosure(void)
 +{
 +	return proc_sensitive_file_visibility("io", "rchar:", false);
++}
++
++static int proc_personality_denied_without_disclosure(void)
++{
++	return proc_sensitive_file_visibility("personality", NULL, false);
 +}
 +
 +static pid_t spawn_proc_memmap_target(void)
@@ -65043,6 +65073,7 @@ diff -ruN '--exclude=.git' '--exclude=.config' '--exclude=*.o' '--exclude=*.cmd'
 +				ksft_test_result_skip("proc disclosure policy exposes target auxv\n");
 +				ksft_test_result_skip("proc disclosure policy exposes target syscall metadata\n");
 +				ksft_test_result_skip("proc disclosure policy exposes target io accounting\n");
++				ksft_test_result_skip("proc disclosure policy exposes target personality flags\n");
 +				ksft_test_result_skip("proc resource-map disclosure policy exposes address ranges\n");
 +			ksft_test_result_skip("module-autoload profile can write modprobe helper path\n");
 +			ksft_test_result_skip("module-autoload profile denies unsafe modprobe helper path\n");
@@ -65104,6 +65135,7 @@ diff -ruN '--exclude=.git' '--exclude=.config' '--exclude=*.o' '--exclude=*.cmd'
 +					ksft_test_result_skip("restricted profile denies cross-process auxv reads\n");
 +					ksft_test_result_skip("restricted profile denies cross-process syscall reads\n");
 +					ksft_test_result_skip("restricted profile denies cross-process io accounting reads\n");
++					ksft_test_result_skip("restricted profile denies cross-process personality reads\n");
 +					ksft_test_result_skip("restricted profile redacts proc resource-map addresses\n");
 +				ksft_test_result_skip("restricted profile redacts vmalloc caller symbols\n");
 +				ksft_test_result_skip("restricted profile denies modprobe helper path write\n");
@@ -65975,6 +66007,8 @@ diff -ruN '--exclude=.git' '--exclude=.config' '--exclude=*.o' '--exclude=*.cmd'
 +				    "proc disclosure policy exposes target syscall metadata");
 +		report_child_result(committed ? proc_io_disclosed_by_policy() : 2,
 +				    "proc disclosure policy exposes target io accounting");
++		report_child_result(committed ? proc_personality_disclosed_by_policy() : 2,
++				    "proc disclosure policy exposes target personality flags");
 +		report_child_result(committed ?
 +				    proc_resource_maps_disclosed_by_policy() : 2,
 +				    "proc resource-map disclosure policy exposes address ranges");
@@ -66210,6 +66244,9 @@ diff -ruN '--exclude=.git' '--exclude=.config' '--exclude=*.o' '--exclude=*.cmd'
 +		report_child_result(restricted_committed ?
 +				    proc_io_denied_without_disclosure() : 2,
 +				    "restricted profile denies cross-process io accounting reads");
++		report_child_result(restricted_committed ?
++				    proc_personality_denied_without_disclosure() : 2,
++				    "restricted profile denies cross-process personality reads");
 +		report_child_result(restricted_committed ?
 +				    proc_resource_maps_redacted_without_disclosure() : 2,
 +				    "restricted profile redacts proc resource-map addresses");
@@ -72293,7 +72330,7 @@ diff -ruN '--exclude=.git' '--exclude=.config' '--exclude=*.o' '--exclude=*.cmd'
 +	if (access(HDN_STATUS, R_OK))
 +		ksft_exit_skip("hardening securityfs status not present\n");
 +
-+	ksft_set_plan(1027);
++	ksft_set_plan(1029);
 +	test_securityfs_status();
 +	test_symbol_test_module_load();
 +	test_securityfs_status_contains("abi_version: 93",
@@ -73139,7 +73176,7 @@ diff -ruN '--exclude=.git' '--exclude=.config' '--exclude=*.o' '--exclude=*.cmd'
 +use-role 2 desktop-admin
 diff -ruN '--exclude=.git' '--exclude=.config' '--exclude=*.o' '--exclude=*.cmd' '--exclude=.tmp_*' '--exclude=certs/signing_key*' linux-7.0.12/tools/testing/selftests/hardening/run-qemu-smoke.sh linux-7.0.12-hdn/tools/testing/selftests/hardening/run-qemu-smoke.sh
 --- linux-7.0.12/tools/testing/selftests/hardening/run-qemu-smoke.sh	1969-12-31 18:00:00.000000000 -0600
-+++ linux-7.0.12-hdn/tools/testing/selftests/hardening/run-qemu-smoke.sh	2026-06-27 06:42:30.648403201 -0500
++++ linux-7.0.12-hdn/tools/testing/selftests/hardening/run-qemu-smoke.sh	2026-06-27 06:49:22.668344603 -0500
 @@ -0,0 +1,1370 @@
 +#!/bin/sh
 +# SPDX-License-Identifier: GPL-2.0
@@ -73174,7 +73211,7 @@ diff -ruN '--exclude=.git' '--exclude=.config' '--exclude=*.o' '--exclude=*.cmd'
 +QEMU_MEMORY=${QEMU_MEMORY:-1024M}
 +QEMU_SMP=${QEMU_SMP:-2}
 +QEMU_MACHINE=${QEMU_MACHINE:-q35,accel=tcg}
-+HDN_SMOKE_EXPECTED_PASS=${HDN_SMOKE_EXPECTED_PASS:-1027}
++HDN_SMOKE_EXPECTED_PASS=${HDN_SMOKE_EXPECTED_PASS:-1029}
 +WORK=${HDN_QEMU_WORK:-"${TMPDIR:-/tmp}/hdn-qemu-smoke.$$"}
 +LOG=${HDN_QEMU_LOG:-"$WORK/qemu.log"}
 +QMP=${HDN_QEMU_QMP:-"$WORK/qmp.sock"}
