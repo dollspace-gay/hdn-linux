@@ -3752,8 +3752,8 @@ diff -ruN --exclude .git linux-7.0.12/include/linux/fs_struct.h linux-7.0.12-hdn
  #endif /* _LINUX_FS_STRUCT_H */
 diff -ruN --exclude .git linux-7.0.12/include/linux/hardening.h linux-7.0.12-hdn/include/linux/hardening.h
 --- linux-7.0.12/include/linux/hardening.h	1969-12-31 18:00:00.000000000 -0600
-+++ linux-7.0.12-hdn/include/linux/hardening.h	2026-06-27 01:37:49.026064803 -0500
-@@ -0,0 +1,1041 @@
++++ linux-7.0.12-hdn/include/linux/hardening.h	2026-06-27 05:28:59.568788675 -0500
+@@ -0,0 +1,1048 @@
 +/* SPDX-License-Identifier: GPL-2.0-only */
 +#ifndef _LINUX_HARDENING_H
 +#define _LINUX_HARDENING_H
@@ -3954,6 +3954,7 @@ diff -ruN --exclude .git linux-7.0.12/include/linux/hardening.h linux-7.0.12-hdn
 +int hdn_authorize_chroot_chmod(const struct path *path, umode_t mode);
 +int hdn_authorize_chroot_mknod(umode_t mode, dev_t dev);
 +int hdn_authorize_chroot_shmat(int shmid);
++int hdn_authorize_protected_shmat(u64 creator_profile_id, int shmid);
 +int hdn_authorize_chroot_nice(struct task_struct *target, int nice);
 +int hdn_authorize_chroot_rename(const struct path *old_dir,
 +				struct dentry *old_dentry,
@@ -4497,6 +4498,12 @@ diff -ruN --exclude .git linux-7.0.12/include/linux/hardening.h linux-7.0.12-hdn
 +	return 0;
 +}
 +
++static inline int hdn_authorize_protected_shmat(u64 creator_profile_id,
++						int shmid)
++{
++	return 0;
++}
++
 +static inline int hdn_authorize_chroot_nice(struct task_struct *target,
 +					    int nice)
 +{
@@ -4982,15 +4989,15 @@ diff -ruN --exclude .git linux-7.0.12/include/trace/events/mmap.h linux-7.0.12-h
  TRACE_EVENT(exit_mmap,
 diff -ruN --exclude .git linux-7.0.12/include/uapi/linux/hardening.h linux-7.0.12-hdn/include/uapi/linux/hardening.h
 --- linux-7.0.12/include/uapi/linux/hardening.h	1969-12-31 18:00:00.000000000 -0600
-+++ linux-7.0.12-hdn/include/uapi/linux/hardening.h	2026-06-27 05:12:08.352869050 -0500
-@@ -0,0 +1,648 @@
++++ linux-7.0.12-hdn/include/uapi/linux/hardening.h	2026-06-27 05:28:26.112816474 -0500
+@@ -0,0 +1,650 @@
 +/* SPDX-License-Identifier: GPL-2.0 WITH Linux-syscall-note */
 +#ifndef _UAPI_LINUX_HARDENING_H
 +#define _UAPI_LINUX_HARDENING_H
 +
 +#include <linux/types.h>
 +
-+#define HDN_POLICY_ABI_VERSION 90
++#define HDN_POLICY_ABI_VERSION 91
 +#define HDN_POLICY_MAGIC 0x48444e50 /* "HDNP" */
 +#define HDN_PROFILE_NAME_LEN 32
 +#define HDN_POLICY_PATH_LEN 256
@@ -5397,6 +5404,7 @@ diff -ruN --exclude .git linux-7.0.12/include/uapi/linux/hardening.h linux-7.0.1
 +	HDN_REASON_BRUTE_DAEMON_THROTTLED = 54,
 +	HDN_REASON_KERNEL_LOCKOUT = 55,
 +	HDN_REASON_RESOURCE_PROFILE_LIMIT = 56,
++	HDN_REASON_PROTECTED_SHM = 57,
 +};
 +
 +enum hdn_phase {
@@ -5440,6 +5448,7 @@ diff -ruN --exclude .git linux-7.0.12/include/uapi/linux/hardening.h linux-7.0.1
 +	HDN_PROFILE_ENFORCE_READONLY_MOUNTS = 1ULL << 6,
 +	HDN_PROFILE_DENY_UNTRUSTED_USER_EXEC = 1ULL << 7,
 +	HDN_PROFILE_AUDIT_PROCESS_ACCOUNT = 1ULL << 8,
++	HDN_PROFILE_PROTECT_SHM = 1ULL << 9,
 +};
 +
 +enum hdn_exec_rule_flags {
@@ -5917,7 +5926,7 @@ diff -ruN --exclude .git linux-7.0.12/ipc/mqueue.c linux-7.0.12-hdn/ipc/mqueue.c
  
 diff -ruN --exclude .git linux-7.0.12/ipc/shm.c linux-7.0.12-hdn/ipc/shm.c
 --- linux-7.0.12/ipc/shm.c	2026-06-09 05:32:51.000000000 -0500
-+++ linux-7.0.12-hdn/ipc/shm.c	2026-06-25 05:41:28.259814026 -0500
++++ linux-7.0.12-hdn/ipc/shm.c	2026-06-27 05:28:59.576788656 -0500
 @@ -44,6 +44,7 @@
  #include <linux/nsproxy.h>
  #include <linux/mount.h>
@@ -5926,11 +5935,31 @@ diff -ruN --exclude .git linux-7.0.12/ipc/shm.c linux-7.0.12-hdn/ipc/shm.c
  #include <linux/rhashtable.h>
  #include <linux/nstree.h>
  
-@@ -1589,6 +1590,10 @@
+@@ -63,6 +64,7 @@
+ 	struct pid		*shm_cprid;
+ 	struct pid		*shm_lprid;
+ 	struct ucounts		*mlock_ucounts;
++	u64			hardening_profile_id;
+ 
+ 	/*
+ 	 * The task created the shm object, for
+@@ -775,6 +777,7 @@
+ 	shp->shm_nattch = 0;
+ 	shp->shm_file = file;
+ 	shp->shm_creator = current;
++	shp->hardening_profile_id = hdn_current_profile_id();
+ 
+ 	/* ipc_addid() locks shp upon success. */
+ 	error = ipc_addid(&shm_ids(ns), &shp->shm_perm, ns->shm_ctlmni);
+@@ -1589,6 +1592,14 @@
  	if (ipcperms(ns, &shp->shm_perm, acc_mode))
  		goto out_unlock;
  
 +	err = hdn_authorize_chroot_shmat(shmid);
++	if (err)
++		goto out_unlock;
++
++	err = hdn_authorize_protected_shmat(shp->hardening_profile_id, shmid);
 +	if (err)
 +		goto out_unlock;
 +
@@ -11065,8 +11094,8 @@ diff -ruN --exclude .git linux-7.0.12/security/hardening/Makefile linux-7.0.12-h
 +obj-$(CONFIG_SECURITY_HARDENING) += core.o
 diff -ruN --exclude .git linux-7.0.12/security/hardening/core.c linux-7.0.12-hdn/security/hardening/core.c
 --- linux-7.0.12/security/hardening/core.c	1969-12-31 18:00:00.000000000 -0600
-+++ linux-7.0.12-hdn/security/hardening/core.c	2026-06-27 05:13:04.180864094 -0500
-@@ -0,0 +1,7822 @@
++++ linux-7.0.12-hdn/security/hardening/core.c	2026-06-27 05:28:59.572788665 -0500
+@@ -0,0 +1,7839 @@
 +// SPDX-License-Identifier: GPL-2.0-only
 +
 +#include <linux/binfmts.h>
@@ -16355,6 +16384,22 @@ diff -ruN --exclude .git linux-7.0.12/security/hardening/core.c linux-7.0.12-hdn
 +			       HDN_REASON_CHROOT_SHMAT, -EPERM, shmid);
 +}
 +
++int hdn_authorize_protected_shmat(u64 creator_profile_id, int shmid)
++{
++	if (!IS_ENABLED(CONFIG_SECURITY_HARDENING_SYSVIPC))
++		return 0;
++	if (!creator_profile_id)
++		return 0;
++	if (creator_profile_id == hdn_current_profile_id())
++		return 0;
++	if (!hdn_profile_id_flag_enabled(creator_profile_id,
++					 HDN_PROFILE_PROTECT_SHM))
++		return 0;
++
++	return hdn_deny_object(HDN_AUTH_IPC_ADMIN, HDN_TRANS_SYSVIPC_ACCESS,
++			       HDN_REASON_PROTECTED_SHM, -EACCES, shmid);
++}
++
 +int hdn_authorize_chroot_nice(struct task_struct *target, int nice)
 +{
 +	if (!target)
@@ -17116,7 +17161,8 @@ diff -ruN --exclude .git linux-7.0.12/security/hardening/core.c linux-7.0.12-hdn
 +				  HDN_PROFILE_DENY_UNPRIVILEGED_PRIVEXEC |
 +				  HDN_PROFILE_ENFORCE_READONLY_MOUNTS |
 +				  HDN_PROFILE_DENY_UNTRUSTED_USER_EXEC |
-+				  HDN_PROFILE_AUDIT_PROCESS_ACCOUNT;
++				  HDN_PROFILE_AUDIT_PROCESS_ACCOUNT |
++				  HDN_PROFILE_PROTECT_SHM;
 +	u64 valid_exec_flags = HDN_EXEC_MATCH_FILE_ID |
 +			       HDN_EXEC_MATCH_ORIGINAL_ID |
 +			       HDN_EXEC_MATCH_VERITY_DIGEST |
@@ -19294,8 +19340,8 @@ diff -ruN --exclude .git linux-7.0.12/tools/hardening/Makefile linux-7.0.12-hdn/
 +.PHONY: all clean install
 diff -ruN --exclude .git linux-7.0.12/tools/hardening/README.rst linux-7.0.12-hdn/tools/hardening/README.rst
 --- linux-7.0.12/tools/hardening/README.rst	1969-12-31 18:00:00.000000000 -0600
-+++ linux-7.0.12-hdn/tools/hardening/README.rst	2026-06-27 05:20:00.516856385 -0500
-@@ -0,0 +1,1648 @@
++++ linux-7.0.12-hdn/tools/hardening/README.rst	2026-06-27 05:30:50.192768332 -0500
+@@ -0,0 +1,1656 @@
 +.. SPDX-License-Identifier: GPL-2.0-only
 +
 +Linux Hardening Policy Tools
@@ -19783,8 +19829,8 @@ diff -ruN --exclude .git linux-7.0.12/tools/hardening/README.rst linux-7.0.12-hd
 +to point it at a non-default kernel build directory. The QEMU firmware policy
 +proof uses the upstream ``test_firmware`` driver, so the smoke kernel must be
 +built with ``CONFIG_TEST_FIRMWARE=y``. The current development harness expects
-+993 passing hardening checks, including support-bundle fail-closed, collection
-+proofs, and object-scoped ptrace denial.
++997 passing hardening checks, including support-bundle fail-closed, collection
++proofs, object-scoped ptrace denial, and protected shared-memory attach policy.
 +
 +The kernel loader requires the compiled payload to carry an appended PKCS#7
 +signature using the standard kernel module-signature trailer. Unsigned policy
@@ -19837,7 +19883,7 @@ diff -ruN --exclude .git linux-7.0.12/tools/hardening/README.rst linux-7.0.12-hd
 +  response 3 KILL_MEMORY KILL_KERNEL_SURFACE
 +  feature 1 DENY_UNTRUSTED_USER_EXEC
 +  feature 2 DENY_UNPRIVILEGED_PRIVEXEC
-+  feature 3 ENFORCE_TRUSTED_EXEC CHROOT_CONTAINED AUDIT_PROCESS_ACCOUNT
++  feature 3 ENFORCE_TRUSTED_EXEC CHROOT_CONTAINED AUDIT_PROCESS_ACCOUNT PROTECT_SHM
 +
 +  role desktop-admin allow POLICY_ADMIN CRED_CHANGE
 +  role desktop-admin audit POLICY_ADMIN
@@ -20584,6 +20630,14 @@ diff -ruN --exclude .git linux-7.0.12/tools/hardening/README.rst linux-7.0.12-hd
 +all three System V IPC object types and POSIX mqueue send/receive access by
 +creating root-owned mode ``0666`` objects and verifying that an unprivileged
 +uid cannot use them.
++
++``PROTECT_SHM`` is a profile feature for System V shared memory. HDN stamps the
++creator profile onto each shared-memory segment and denies ``shmat()`` from a
++different profile when the creator profile enabled the feature, even if normal
++SysV permissions would otherwise allow the attach. Same-profile attaches remain
++allowed. The check uses the stable profile identifier recorded at creation time
++rather than chasing the creator pid at attach time, so pid reuse and task exit do
++not change the protected object boundary.
 +
 +``TTY_INJECT`` authority gates terminal command-injection ioctls. Profiles
 +without that authority are denied ``TIOCSTI`` and VT ``TIOCLINUX`` before input
@@ -24154,8 +24208,8 @@ diff -ruN --exclude .git linux-7.0.12/tools/hardening/hdn-desktop-daemon.c linux
 +}
 diff -ruN --exclude .git linux-7.0.12/tools/hardening/hdn-event-decode.c linux-7.0.12-hdn/tools/hardening/hdn-event-decode.c
 --- linux-7.0.12/tools/hardening/hdn-event-decode.c	1969-12-31 18:00:00.000000000 -0600
-+++ linux-7.0.12-hdn/tools/hardening/hdn-event-decode.c	2026-06-27 05:12:25.620870409 -0500
-@@ -0,0 +1,930 @@
++++ linux-7.0.12-hdn/tools/hardening/hdn-event-decode.c	2026-06-27 05:28:37.816813463 -0500
+@@ -0,0 +1,931 @@
 +// SPDX-License-Identifier: GPL-2.0-only
 +
 +#define _GNU_SOURCE
@@ -24480,6 +24534,7 @@ diff -ruN --exclude .git linux-7.0.12/tools/hardening/hdn-event-decode.c linux-7
 +	  "BRUTE_DAEMON_THROTTLED" },
 +	{ HDN_REASON_KERNEL_LOCKOUT, "KERNEL_LOCKOUT" },
 +	{ HDN_REASON_RESOURCE_PROFILE_LIMIT, "RESOURCE_PROFILE_LIMIT" },
++	{ HDN_REASON_PROTECTED_SHM, "PROTECTED_SHM" },
 +};
 +
 +static const struct hdn_name resource_names[] = {
@@ -26486,8 +26541,8 @@ diff -ruN --exclude .git linux-7.0.12/tools/hardening/hdn-policy-daemon.c linux-
 +}
 diff -ruN --exclude .git linux-7.0.12/tools/hardening/hdn-policy-learn.c linux-7.0.12-hdn/tools/hardening/hdn-policy-learn.c
 --- linux-7.0.12/tools/hardening/hdn-policy-learn.c	1969-12-31 18:00:00.000000000 -0600
-+++ linux-7.0.12-hdn/tools/hardening/hdn-policy-learn.c	2026-06-27 05:12:25.624870410 -0500
-@@ -0,0 +1,882 @@
++++ linux-7.0.12-hdn/tools/hardening/hdn-policy-learn.c	2026-06-27 05:28:37.816813463 -0500
+@@ -0,0 +1,885 @@
 +// SPDX-License-Identifier: GPL-2.0-only
 +
 +#define _GNU_SOURCE
@@ -26814,6 +26869,7 @@ diff -ruN --exclude .git linux-7.0.12/tools/hardening/hdn-policy-learn.c linux-7
 +	  "BRUTE_DAEMON_THROTTLED" },
 +	{ HDN_REASON_KERNEL_LOCKOUT, "KERNEL_LOCKOUT" },
 +	{ HDN_REASON_RESOURCE_PROFILE_LIMIT, "RESOURCE_PROFILE_LIMIT" },
++	{ HDN_REASON_PROTECTED_SHM, "PROTECTED_SHM" },
 +};
 +
 +struct hdn_mem_name {
@@ -27184,6 +27240,8 @@ diff -ruN --exclude .git linux-7.0.12/tools/hardening/hdn-policy-learn.c linux-7
 +	}
 +
 +	if (event->reason == HDN_REASON_RESOURCE_PROFILE_LIMIT)
++		return add_review(reviews, event);
++	if (event->reason == HDN_REASON_PROTECTED_SHM)
 +		return add_review(reviews, event);
 +
 +	if (event->authority < HDN_AUTH__MAX &&
@@ -28688,8 +28746,8 @@ diff -ruN --exclude .git linux-7.0.12/tools/hardening/hdn-policy-workflow.c linu
 +}
 diff -ruN --exclude .git linux-7.0.12/tools/hardening/hdn-policy.c linux-7.0.12-hdn/tools/hardening/hdn-policy.c
 --- linux-7.0.12/tools/hardening/hdn-policy.c	1969-12-31 18:00:00.000000000 -0600
-+++ linux-7.0.12-hdn/tools/hardening/hdn-policy.c	2026-06-27 05:12:39.632868698 -0500
-@@ -0,0 +1,2297 @@
++++ linux-7.0.12-hdn/tools/hardening/hdn-policy.c	2026-06-27 05:28:37.812813462 -0500
+@@ -0,0 +1,2298 @@
 +// SPDX-License-Identifier: GPL-2.0-only
 +
 +#include <ctype.h>
@@ -28842,6 +28900,7 @@ diff -ruN --exclude .git linux-7.0.12/tools/hardening/hdn-policy.c linux-7.0.12-
 +	  HDN_PROFILE_DENY_UNTRUSTED_USER_EXEC },
 +	{ "AUDIT_PROCESS_ACCOUNT",
 +	  HDN_PROFILE_AUDIT_PROCESS_ACCOUNT },
++	{ "PROTECT_SHM", HDN_PROFILE_PROTECT_SHM },
 +};
 +
 +static const struct name_value resource_names[] = {
@@ -38600,8 +38659,8 @@ diff -ruN --exclude .git linux-7.0.12/tools/hardening/hdn-settings-ui.c linux-7.
 +}
 diff -ruN --exclude .git linux-7.0.12/tools/hardening/hdn-status.c linux-7.0.12-hdn/tools/hardening/hdn-status.c
 --- linux-7.0.12/tools/hardening/hdn-status.c	1969-12-31 18:00:00.000000000 -0600
-+++ linux-7.0.12-hdn/tools/hardening/hdn-status.c	2026-06-27 05:12:25.624870410 -0500
-@@ -0,0 +1,1180 @@
++++ linux-7.0.12-hdn/tools/hardening/hdn-status.c	2026-06-27 05:28:37.816813463 -0500
+@@ -0,0 +1,1181 @@
 +// SPDX-License-Identifier: GPL-2.0-only
 +
 +#define _GNU_SOURCE
@@ -38919,6 +38978,7 @@ diff -ruN --exclude .git linux-7.0.12/tools/hardening/hdn-status.c linux-7.0.12-
 +	{ HDN_REASON_BRUTE_DAEMON_THROTTLED, "BRUTE_DAEMON_THROTTLED" },
 +	{ HDN_REASON_KERNEL_LOCKOUT, "KERNEL_LOCKOUT" },
 +	{ HDN_REASON_RESOURCE_PROFILE_LIMIT, "RESOURCE_PROFILE_LIMIT" },
++	{ HDN_REASON_PROTECTED_SHM, "PROTECTED_SHM" },
 +};
 +
 +static void usage(const char *prog)
@@ -41769,8 +41829,8 @@ diff -ruN --exclude .git linux-7.0.12/tools/testing/selftests/hardening/hdn_elfn
 +}
 diff -ruN --exclude .git linux-7.0.12/tools/testing/selftests/hardening/hdn_smoke.c linux-7.0.12-hdn/tools/testing/selftests/hardening/hdn_smoke.c
 --- linux-7.0.12/tools/testing/selftests/hardening/hdn_smoke.c	1969-12-31 18:00:00.000000000 -0600
-+++ linux-7.0.12-hdn/tools/testing/selftests/hardening/hdn_smoke.c	2026-06-27 05:17:52.380858772 -0500
-@@ -0,0 +1,29389 @@
++++ linux-7.0.12-hdn/tools/testing/selftests/hardening/hdn_smoke.c	2026-06-27 05:29:54.588802572 -0500
+@@ -0,0 +1,29482 @@
 +// SPDX-License-Identifier: GPL-2.0-only
 +
 +#define _GNU_SOURCE
@@ -45187,6 +45247,31 @@ diff -ruN --exclude .git linux-7.0.12/tools/testing/selftests/hardening/hdn_smok
 +	return child_exit_result(child);
 +}
 +
++static int event_decoder_finds_protected_shm_denial(void)
++{
++	pid_t child;
++
++	if (access(HDN_EVENT_DECODE_EXEC, X_OK))
++		return KSFT_SKIP;
++
++	child = fork();
++	if (child < 0)
++		return 2;
++
++	if (!child) {
++		execl(HDN_EVENT_DECODE_EXEC, "hdn-event-decode", "--quiet",
++		      "--expect", "authority=IPC_ADMIN",
++		      "--expect", "transition=SYSVIPC_ACCESS",
++		      "--expect", "reason=PROTECTED_SHM",
++		      "--expect", "action=DENY_AUDIT", NULL);
++		fprintf(stderr, "event decoder exec failed: %s\n",
++			strerror(errno));
++		_exit(2);
++	}
++
++	return child_exit_result(child);
++}
++
 +static int event_decoder_read_output(int fd, char *buf, size_t size)
 +{
 +	size_t offset = 0;
@@ -45493,7 +45578,7 @@ diff -ruN --exclude .git linux-7.0.12/tools/testing/selftests/hardening/hdn_smok
 +static int status_helper_decodes_audit_flood_fixture(void)
 +{
 +	static const char fixture[] =
-+		"abi_version: 90\n"
++		"abi_version: 91\n"
 +		"phase: runtime\n"
 +		"phase_id: 3\n"
 +		"policy_loaded: 1\n"
@@ -59770,6 +59855,61 @@ diff -ruN --exclude .git linux-7.0.12/tools/testing/selftests/hardening/hdn_smok
 +	return ret;
 +}
 +
++static int protected_shm_same_profile_allowed(void)
++{
++	void *addr;
++	int shmid;
++
++	shmid = shmget(IPC_PRIVATE, 4096, IPC_CREAT | 0600);
++	if (shmid < 0)
++		return 2;
++
++	addr = shmat(shmid, NULL, 0);
++	if (addr == (void *)-1) {
++		shmctl(shmid, IPC_RMID, NULL);
++		return 2;
++	}
++
++	shmdt(addr);
++	shmctl(shmid, IPC_RMID, NULL);
++	return 0;
++}
++
++static int protected_shm_cross_profile_denied(void)
++{
++	pid_t child;
++	int shmid;
++	int ret;
++
++	shmid = shmget(IPC_PRIVATE, 4096, IPC_CREAT | 0666);
++	if (shmid < 0)
++		return 2;
++
++	child = fork();
++	if (child < 0) {
++		shmctl(shmid, IPC_RMID, NULL);
++		return 2;
++	}
++
++	if (!child) {
++		void *addr;
++
++		if (setgid(HDN_TEST_NOBODY) || setuid(HDN_TEST_NOBODY))
++			_exit(2);
++		errno = 0;
++		addr = shmat(shmid, NULL, 0);
++		if (addr != (void *)-1) {
++			shmdt(addr);
++			_exit(1);
++		}
++		_exit(errno_is_denial(errno) ? 0 : 2);
++	}
++
++	ret = child_exit_result(child);
++	shmctl(shmid, IPC_RMID, NULL);
++	return ret;
++}
++
 +static int setup_posix_mqueue_test(mqd_t *mqd)
 +{
 +	struct mq_attr attr = {
@@ -63681,6 +63821,8 @@ diff -ruN --exclude .git linux-7.0.12/tools/testing/selftests/hardening/hdn_smok
 +		ksft_test_result_skip("restricted profile denies proc mem access\n");
 +		ksft_test_result_skip("restricted profile denies cross-profile signal\n");
 +		ksft_test_result_skip("restricted profile allows direct-child signal\n");
++		ksft_test_result_skip("restricted profile allows protected shared memory inside profile\n");
++		ksft_test_result_skip("restricted profile denies protected shared memory across profiles\n");
 +		ksft_test_result_skip("restricted profile denies process_vm_readv across profiles\n");
 +		ksft_test_result_skip("restricted profile denies process_vm_writev across profiles\n");
 +		ksft_test_result_skip("restricted profile allows process_vm_readv inside profile\n");
@@ -64656,6 +64798,12 @@ diff -ruN --exclude .git linux-7.0.12/tools/testing/selftests/hardening/hdn_smok
 +	report_child_result(restricted_committed ?
 +			    forked_child_result(signal_direct_child_allowed) : 2,
 +			    "restricted profile allows direct-child signal");
++	report_child_result(restricted_committed ?
++			    protected_shm_same_profile_allowed() : 2,
++			    "restricted profile allows protected shared memory inside profile");
++	report_child_result(restricted_committed ?
++			    protected_shm_cross_profile_denied() : 2,
++			    "restricted profile denies protected shared memory across profiles");
 +	report_child_result(restricted_committed ?
 +			    process_vm_read_cross_profile_denied() : 2,
 +			    "restricted profile denies process_vm_readv across profiles");
@@ -70733,11 +70881,11 @@ diff -ruN --exclude .git linux-7.0.12/tools/testing/selftests/hardening/hdn_smok
 +	if (access(HDN_STATUS, R_OK))
 +		ksft_exit_skip("hardening securityfs status not present\n");
 +
-+	ksft_set_plan(993);
++	ksft_set_plan(997);
 +	test_securityfs_status();
 +	test_symbol_test_module_load();
-+	test_securityfs_status_contains("abi_version: 90",
-+					"hardening status reports policy ABI 90");
++	test_securityfs_status_contains("abi_version: 91",
++					"hardening status reports policy ABI 91");
 +	test_securityfs_status_contains("phase:",
 +					"hardening status reports sealing phase");
 +	test_securityfs_status_contains("policy_staged:",
@@ -71145,6 +71293,11 @@ diff -ruN --exclude .git linux-7.0.12/tools/testing/selftests/hardening/hdn_smok
 +					"hardening events report raw module denial");
 +	test_securityfs_events_contains("authority=23",
 +					"hardening events report System V IPC denial");
++	test_securityfs_events_line_contains("authority=23 transition=28",
++					     "reason=57",
++					     "hardening events report protected shared memory denial");
++	report_child_result(event_decoder_finds_protected_shm_denial(),
++			    "event decoder names protected shared memory denial");
 +	test_securityfs_events_contains("authority=24",
 +					"hardening events report TTY injection denial");
 +	test_securityfs_events_contains("reason=1",
@@ -71516,8 +71669,8 @@ diff -ruN --exclude .git linux-7.0.12/tools/testing/selftests/hardening/process-
 +feature 2 AUDIT_PROCESS_ACCOUNT
 diff -ruN --exclude .git linux-7.0.12/tools/testing/selftests/hardening/restricted.policy linux-7.0.12-hdn/tools/testing/selftests/hardening/restricted.policy
 --- linux-7.0.12/tools/testing/selftests/hardening/restricted.policy	1969-12-31 18:00:00.000000000 -0600
-+++ linux-7.0.12-hdn/tools/testing/selftests/hardening/restricted.policy	2026-06-26 23:52:58.482638589 -0500
-@@ -0,0 +1,16 @@
++++ linux-7.0.12-hdn/tools/testing/selftests/hardening/restricted.policy	2026-06-27 05:29:54.564802570 -0500
+@@ -0,0 +1,17 @@
 +# SPDX-License-Identifier: GPL-2.0-only
 +# Root-profile policy used by the QEMU smoke test to prove profile-denied
 +# authority gates that normal Unix permissions would otherwise mask.
@@ -71530,9 +71683,10 @@ diff -ruN --exclude .git linux-7.0.12/tools/testing/selftests/hardening/restrict
 +profile 1 default
 +profile 2 restricted-root
 +
++allow 1 IPC_ADMIN
 +allow 2 POLICY_ADMIN CRED_CHANGE
 +feature 1 DENY_UNTRUSTED_USER_EXEC
-+feature 2 ENFORCE_TRUSTED_EXEC CHROOT_CONTAINED
++feature 2 ENFORCE_TRUSTED_EXEC CHROOT_CONTAINED PROTECT_SHM
 +resource 2 NOFILE 64 128
 diff -ruN --exclude .git linux-7.0.12/tools/testing/selftests/hardening/role.policy linux-7.0.12-hdn/tools/testing/selftests/hardening/role.policy
 --- linux-7.0.12/tools/testing/selftests/hardening/role.policy	1969-12-31 18:00:00.000000000 -0600
@@ -71554,7 +71708,7 @@ diff -ruN --exclude .git linux-7.0.12/tools/testing/selftests/hardening/role.pol
 +use-role 2 desktop-admin
 diff -ruN --exclude .git linux-7.0.12/tools/testing/selftests/hardening/run-qemu-smoke.sh linux-7.0.12-hdn/tools/testing/selftests/hardening/run-qemu-smoke.sh
 --- linux-7.0.12/tools/testing/selftests/hardening/run-qemu-smoke.sh	1969-12-31 18:00:00.000000000 -0600
-+++ linux-7.0.12-hdn/tools/testing/selftests/hardening/run-qemu-smoke.sh	2026-06-27 05:15:09.232868082 -0500
++++ linux-7.0.12-hdn/tools/testing/selftests/hardening/run-qemu-smoke.sh	2026-06-27 05:29:54.564802570 -0500
 @@ -0,0 +1,1370 @@
 +#!/bin/sh
 +# SPDX-License-Identifier: GPL-2.0
@@ -71589,7 +71743,7 @@ diff -ruN --exclude .git linux-7.0.12/tools/testing/selftests/hardening/run-qemu
 +QEMU_MEMORY=${QEMU_MEMORY:-1024M}
 +QEMU_SMP=${QEMU_SMP:-2}
 +QEMU_MACHINE=${QEMU_MACHINE:-q35,accel=tcg}
-+HDN_SMOKE_EXPECTED_PASS=${HDN_SMOKE_EXPECTED_PASS:-993}
++HDN_SMOKE_EXPECTED_PASS=${HDN_SMOKE_EXPECTED_PASS:-997}
 +WORK=${HDN_QEMU_WORK:-"${TMPDIR:-/tmp}/hdn-qemu-smoke.$$"}
 +LOG=${HDN_QEMU_LOG:-"$WORK/qemu.log"}
 +QMP=${HDN_QEMU_QMP:-"$WORK/qmp.sock"}

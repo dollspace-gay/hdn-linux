@@ -1499,6 +1499,8 @@ io_uring/:
 
 ipc/:
   harden overly permissive System V IPC and POSIX mqueue access
+  protect SysV shared-memory attaches across HDN profile boundaries with
+  creator-profile object stamps
 
 drivers/tty/:
   gate terminal input-injection ioctls
@@ -2048,6 +2050,8 @@ Core oracle groups:
 - `RLIMIT_LOCKS` pressure is conflict/denial telemetry for BSD `flock()` and
   POSIX/OFD lock acquisition failures, not fake quota enforcement
 - over-permissive System V IPC and POSIX mqueue access denied across uid/gid
+- profile-protected SysV shared-memory segments allow same-profile attach,
+  deny cross-profile attach, and report a named `PROTECTED_SHM` reason in QEMU
 - direct raw block-device opens denied without block-device authority
 - raw block-device query can be allowed without granting block-device admin
   ioctls or block io_uring discard

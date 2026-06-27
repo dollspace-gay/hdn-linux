@@ -27,8 +27,8 @@ This is not a finished distro kernel yet. Current rough parity estimates:
 
 Recent coverage includes signed/sealed HDN policy, authority-gated BPF/perf/proc
 disclosure, module admission hardening, read-only mount controls, object policy
-rules including split setid-bit, object-scoped ptrace denial, incoming
-rename-target, and hardlink target
+rules including split setid-bit, object-scoped ptrace denial,
+profile-protected SysV shared-memory attach, incoming rename-target, and hardlink target
 controls plus AF_UNIX connect, bind, listen, accept, datagram send, and datagram
 receive controls, recursive tree false-positive proofs for operation and
 target-directory rules, `deny-find` ordinary-open hiding, preopened descriptors,
@@ -196,16 +196,16 @@ The hardening smoke suite in the development tree is run under QEMU. Latest
 local result before this publication checkpoint:
 
 ```text
-QEMU hardening smoke: 993/993 pass
+QEMU hardening smoke: 997/997 pass
 ```
 
 Patch artifact at this checkpoint:
 
 ```text
 patch: patches/hdn-linux-7.0.12.patch
-lines: 73,105
-bytes: 2,164,364
-sha256: 99818cb587e237874008bcbe9ee54710f597c42e3df9a1d6bcc474806667eb97
+lines: 73,259
+bytes: 2,168,981
+sha256: a4a5c794ae9dcf1e3c7eecf269ea7a22620f87e0e5fc213fba6592a2d5ad701f
 ```
 
 ## Development Rule
