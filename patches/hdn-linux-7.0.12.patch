@@ -3570,8 +3570,8 @@ diff -ruN --exclude .git linux-7.0.12/include/linux/btf.h linux-7.0.12-hdn/inclu
  
 diff -ruN --exclude .git linux-7.0.12/include/linux/hardening.h linux-7.0.12-hdn/include/linux/hardening.h
 --- linux-7.0.12/include/linux/hardening.h	1969-12-31 18:00:00.000000000 -0600
-+++ linux-7.0.12-hdn/include/linux/hardening.h	2026-06-26 18:57:51.120431635 -0500
-@@ -0,0 +1,975 @@
++++ linux-7.0.12-hdn/include/linux/hardening.h	2026-06-26 19:22:03.656301128 -0500
+@@ -0,0 +1,976 @@
 +/* SPDX-License-Identifier: GPL-2.0-only */
 +#ifndef _LINUX_HARDENING_H
 +#define _LINUX_HARDENING_H
@@ -3733,7 +3733,7 @@ diff -ruN --exclude .git linux-7.0.12/include/linux/hardening.h linux-7.0.12-hdn
 +int hdn_authorize_object_write_open(const struct path *path,
 +				    bool append_write);
 +int hdn_authorize_object_write_file(struct file *file, bool append_write);
-+int hdn_authorize_object_ioctl(struct file *file);
++int hdn_authorize_object_ioctl(struct file *file, unsigned int cmd);
 +int hdn_authorize_object_lock(struct file *file, unsigned int cmd);
 +int hdn_authorize_object_watch(const struct path *path);
 +int hdn_authorize_object_receive(struct file *file);
@@ -4178,7 +4178,8 @@ diff -ruN --exclude .git linux-7.0.12/include/linux/hardening.h linux-7.0.12-hdn
 +	return 0;
 +}
 +
-+static inline int hdn_authorize_object_ioctl(struct file *file)
++static inline int hdn_authorize_object_ioctl(struct file *file,
++					     unsigned int cmd)
 +{
 +	return 0;
 +}
@@ -10708,8 +10709,8 @@ diff -ruN --exclude .git linux-7.0.12/security/hardening/Makefile linux-7.0.12-h
 +obj-$(CONFIG_SECURITY_HARDENING) += core.o
 diff -ruN --exclude .git linux-7.0.12/security/hardening/core.c linux-7.0.12-hdn/security/hardening/core.c
 --- linux-7.0.12/security/hardening/core.c	1969-12-31 18:00:00.000000000 -0600
-+++ linux-7.0.12-hdn/security/hardening/core.c	2026-06-26 18:58:24.808375827 -0500
-@@ -0,0 +1,7458 @@
++++ linux-7.0.12-hdn/security/hardening/core.c	2026-06-26 19:21:57.964301631 -0500
+@@ -0,0 +1,7471 @@
 +// SPDX-License-Identifier: GPL-2.0-only
 +
 +#include <linux/binfmts.h>
@@ -10770,6 +10771,7 @@ diff -ruN --exclude .git linux-7.0.12/security/hardening/core.c linux-7.0.12-hdn
 +#include <net/inet_sock.h>
 +#include <net/sock.h>
 +#include <asm/byteorder.h>
++#include <asm/ioctls.h>
 +#include <uapi/linux/prctl.h>
 +
 +#define HDN_EVENT_RING_SIZE 1024
@@ -13726,21 +13728,6 @@ diff -ruN --exclude .git linux-7.0.12/security/hardening/core.c linux-7.0.12-hdn
 +						append_write);
 +}
 +
-+int hdn_authorize_object_ioctl(struct file *file)
-+{
-+	if (!file)
-+		return 0;
-+
-+	if (!hdn_object_access_denied(&file->f_path, hdn_current_profile_id(),
-+				      HDN_OBJECT_DENY_IOCTL))
-+		return 0;
-+
-+	return hdn_deny_object(HDN_AUTH_OBJECT_IOCTL,
-+			       HDN_TRANS_OBJECT_IOCTL,
-+			       HDN_REASON_OBJECT_POLICY, -EACCES,
-+			       hdn_file_object_id(file));
-+}
-+
 +int hdn_authorize_object_lock(struct file *file, unsigned int cmd)
 +{
 +	if (!file || cmd == F_UNLCK)
@@ -13789,6 +13776,10 @@ diff -ruN --exclude .git linux-7.0.12/security/hardening/core.c linux-7.0.12-hdn
 +static bool hdn_fcntl_cmd_controls_file(unsigned int cmd)
 +{
 +	switch (cmd) {
++	case FIOCLEX:
++	case FIONCLEX:
++	case FIONBIO:
++	case FIOASYNC:
 +	case F_DUPFD:
 +	case F_DUPFD_CLOEXEC:
 +	case F_SETFD:
@@ -13820,6 +13811,29 @@ diff -ruN --exclude .git linux-7.0.12/security/hardening/core.c linux-7.0.12-hdn
 +	default:
 +		return false;
 +	}
++}
++
++int hdn_authorize_object_ioctl(struct file *file, unsigned int cmd)
++{
++	int ret;
++
++	if (!file)
++		return 0;
++
++	if (hdn_fcntl_cmd_controls_file(cmd)) {
++		ret = hdn_authorize_object_fcntl(file, cmd);
++		if (ret)
++			return ret;
++	}
++
++	if (!hdn_object_access_denied(&file->f_path, hdn_current_profile_id(),
++				      HDN_OBJECT_DENY_IOCTL))
++		return 0;
++
++	return hdn_deny_object(HDN_AUTH_OBJECT_IOCTL,
++			       HDN_TRANS_OBJECT_IOCTL,
++			       HDN_REASON_OBJECT_POLICY, -EACCES,
++			       hdn_file_object_id(file));
 +}
 +
 +int hdn_authorize_object_fcntl(struct file *file, unsigned int cmd)
@@ -18232,7 +18246,7 @@ diff -ruN --exclude .git linux-7.0.12/security/min_addr.c linux-7.0.12-hdn/secur
  	update_mmap_min_addr();
 diff -ruN --exclude .git linux-7.0.12/security/security.c linux-7.0.12-hdn/security/security.c
 --- linux-7.0.12/security/security.c	2026-06-09 05:32:51.000000000 -0500
-+++ linux-7.0.12-hdn/security/security.c	2026-06-26 04:42:45.978749775 -0500
++++ linux-7.0.12-hdn/security/security.c	2026-06-26 19:22:08.400300707 -0500
 @@ -19,6 +19,7 @@
  #include <linux/kernel.h>
  #include <linux/kernel_read_file.h>
@@ -18260,7 +18274,7 @@ diff -ruN --exclude .git linux-7.0.12/security/security.c linux-7.0.12-hdn/secur
  {
 +	int ret;
 +
-+	ret = hdn_authorize_object_ioctl(file);
++	ret = hdn_authorize_object_ioctl(file, cmd);
 +	if (ret)
 +		return ret;
 +
@@ -18273,7 +18287,7 @@ diff -ruN --exclude .git linux-7.0.12/security/security.c linux-7.0.12-hdn/secur
  {
 +	int ret;
 +
-+	ret = hdn_authorize_object_ioctl(file);
++	ret = hdn_authorize_object_ioctl(file, cmd);
 +	if (ret)
 +		return ret;
 +
@@ -18517,8 +18531,8 @@ diff -ruN --exclude .git linux-7.0.12/tools/hardening/Makefile linux-7.0.12-hdn/
 +.PHONY: all clean install
 diff -ruN --exclude .git linux-7.0.12/tools/hardening/README.rst linux-7.0.12-hdn/tools/hardening/README.rst
 --- linux-7.0.12/tools/hardening/README.rst	1969-12-31 18:00:00.000000000 -0600
-+++ linux-7.0.12-hdn/tools/hardening/README.rst	2026-06-26 19:15:26.120336889 -0500
-@@ -0,0 +1,1388 @@
++++ linux-7.0.12-hdn/tools/hardening/README.rst	2026-06-26 19:22:47.992297177 -0500
+@@ -0,0 +1,1389 @@
 +.. SPDX-License-Identifier: GPL-2.0-only
 +
 +Linux Hardening Policy Tools
@@ -19179,7 +19193,8 @@ diff -ruN --exclude .git linux-7.0.12/tools/hardening/README.rst linux-7.0.12-hd
 +used by Unix-domain socket descriptor passing. It enforces deny-fcntl for
 +descriptor and file-control operations through the common ``fcntl(2)`` security
 +path, including fd duplication, flag/owner/signal changes, leases, seals,
-+pipe sizing, delegation updates, write-hint updates, and lock acquisition,
++pipe sizing, delegation updates, write-hint updates, lock acquisition, and
++``ioctl(2)`` aliases for close-on-exec, nonblocking, and async flag changes,
 +while leaving read-only fcntl queries usable. It enforces deny-chdir for
 +current-working-directory changes through ``chdir(2)`` and ``fchdir(2)``,
 +including directory descriptors opened before policy commit. It enforces
@@ -35729,8 +35744,8 @@ diff -ruN --exclude .git linux-7.0.12/tools/testing/selftests/hardening/hdn_elfn
 +}
 diff -ruN --exclude .git linux-7.0.12/tools/testing/selftests/hardening/hdn_smoke.c linux-7.0.12-hdn/tools/testing/selftests/hardening/hdn_smoke.c
 --- linux-7.0.12/tools/testing/selftests/hardening/hdn_smoke.c	1969-12-31 18:00:00.000000000 -0600
-+++ linux-7.0.12-hdn/tools/testing/selftests/hardening/hdn_smoke.c	2026-06-26 19:10:15.420363554 -0500
-@@ -0,0 +1,24311 @@
++++ linux-7.0.12-hdn/tools/testing/selftests/hardening/hdn_smoke.c	2026-06-26 19:22:34.200298409 -0500
+@@ -0,0 +1,24354 @@
 +// SPDX-License-Identifier: GPL-2.0-only
 +
 +#define _GNU_SOURCE
@@ -45435,6 +45450,41 @@ diff -ruN --exclude .git linux-7.0.12/tools/testing/selftests/hardening/hdn_smok
 +	return object_fcntl_dup_result(HDN_OBJECT_FCNTL_UNPROTECTED, true);
 +}
 +
++static int object_fcntl_ioctl_flag_result(const char *path, bool expect_allowed)
++{
++	int saved_errno = 0;
++	int fd;
++	int ret;
++
++	fd = open(path, O_RDONLY);
++	if (fd < 0)
++		return 2;
++
++	errno = 0;
++	ret = ioctl(fd, FIOCLEX);
++	saved_errno = errno;
++	close(fd);
++
++	if (!ret)
++		return expect_allowed ? 0 : 1;
++
++	if (expect_allowed)
++		return 1;
++	return errno_is_denial(saved_errno) ? 0 : 2;
++}
++
++static int object_fcntl_ioctl_flag_denied(void)
++{
++	return object_fcntl_ioctl_flag_result(HDN_OBJECT_FCNTL_PROTECTED,
++					      false);
++}
++
++static int object_fcntl_ioctl_flag_unmatched_allowed(void)
++{
++	return object_fcntl_ioctl_flag_result(HDN_OBJECT_FCNTL_UNPROTECTED,
++					      true);
++}
++
 +static int object_fcntl_query_allowed(void)
 +{
 +	int fd;
@@ -54208,6 +54258,8 @@ diff -ruN --exclude .git linux-7.0.12/tools/testing/selftests/hardening/hdn_smok
 +				ksft_test_result_skip("object receive policy allows unmatched fd receive\n");
 +				ksft_test_result_skip("object fcntl policy denies protected fd duplication\n");
 +					ksft_test_result_skip("object fcntl policy allows unmatched fd duplication\n");
++					ksft_test_result_skip("object fcntl policy denies protected ioctl flag alias\n");
++					ksft_test_result_skip("object fcntl policy allows unmatched ioctl flag alias\n");
 +					ksft_test_result_skip("object fcntl policy allows protected status query\n");
 +					ksft_test_result_skip("object chdir policy denies protected chdir\n");
 +					ksft_test_result_skip("object chdir policy allows unmatched chdir\n");
@@ -57473,6 +57525,12 @@ diff -ruN --exclude .git linux-7.0.12/tools/testing/selftests/hardening/hdn_smok
 +					    object_fcntl_unmatched_dup_allowed() : 2,
 +					    "object fcntl policy allows unmatched fd duplication");
 +			report_child_result(object_policy_committed ?
++					    object_fcntl_ioctl_flag_denied() : 2,
++					    "object fcntl policy denies protected ioctl flag alias");
++			report_child_result(object_policy_committed ?
++					    object_fcntl_ioctl_flag_unmatched_allowed() : 2,
++					    "object fcntl policy allows unmatched ioctl flag alias");
++			report_child_result(object_policy_committed ?
 +					    object_fcntl_query_allowed() : 2,
 +					    "object fcntl policy allows protected status query");
 +			report_child_result(object_policy_committed ?
@@ -59657,7 +59715,7 @@ diff -ruN --exclude .git linux-7.0.12/tools/testing/selftests/hardening/hdn_smok
 +	if (access(HDN_STATUS, R_OK))
 +		ksft_exit_skip("hardening securityfs status not present\n");
 +
-+	ksft_set_plan(827);
++	ksft_set_plan(829);
 +	test_securityfs_status();
 +	test_symbol_test_module_load();
 +	test_securityfs_status_contains("abi_version: 81",
@@ -60390,7 +60448,7 @@ diff -ruN --exclude .git linux-7.0.12/tools/testing/selftests/hardening/role.pol
 +use-role 2 desktop-admin
 diff -ruN --exclude .git linux-7.0.12/tools/testing/selftests/hardening/run-qemu-smoke.sh linux-7.0.12-hdn/tools/testing/selftests/hardening/run-qemu-smoke.sh
 --- linux-7.0.12/tools/testing/selftests/hardening/run-qemu-smoke.sh	1969-12-31 18:00:00.000000000 -0600
-+++ linux-7.0.12-hdn/tools/testing/selftests/hardening/run-qemu-smoke.sh	2026-06-26 19:10:22.704363397 -0500
++++ linux-7.0.12-hdn/tools/testing/selftests/hardening/run-qemu-smoke.sh	2026-06-26 19:22:38.528298020 -0500
 @@ -0,0 +1,1060 @@
 +#!/bin/sh
 +# SPDX-License-Identifier: GPL-2.0
@@ -60425,7 +60483,7 @@ diff -ruN --exclude .git linux-7.0.12/tools/testing/selftests/hardening/run-qemu
 +QEMU_MEMORY=${QEMU_MEMORY:-1024M}
 +QEMU_SMP=${QEMU_SMP:-2}
 +QEMU_MACHINE=${QEMU_MACHINE:-q35,accel=tcg}
-+HDN_SMOKE_EXPECTED_PASS=${HDN_SMOKE_EXPECTED_PASS:-827}
++HDN_SMOKE_EXPECTED_PASS=${HDN_SMOKE_EXPECTED_PASS:-829}
 +WORK=${HDN_QEMU_WORK:-"${TMPDIR:-/tmp}/hdn-qemu-smoke.$$"}
 +LOG=${HDN_QEMU_LOG:-"$WORK/qemu.log"}
 +QMP=${HDN_QEMU_QMP:-"$WORK/qmp.sock"}

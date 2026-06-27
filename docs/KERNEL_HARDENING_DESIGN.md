@@ -997,7 +997,8 @@ opened before policy commit. Pure lookup-style discovery is covered by
 	`ENOENT` while recording an `OBJECT_FIND` denial event. Descriptor passing and
 	descriptor-control surfaces are covered through `security_file_receive()` and
 	`security_file_fcntl()`: `deny-receive` blocks received protected file
-	descriptors, and `deny-fcntl` blocks mutating/control fcntl commands while
+	descriptors, and `deny-fcntl` blocks mutating/control fcntl commands plus
+	ioctl aliases for close-on-exec, nonblocking, and async flag changes while
 	leaving status queries usable. `deny-chdir` covers `chdir(2)` and
 	`fchdir(2)`, `deny-mount` covers mount-tree attachment through
 	`mount(2)` and the `move_mount(2)` destination path, and
