@@ -18594,8 +18594,8 @@ diff -ruN --exclude .git linux-7.0.12/tools/hardening/Makefile linux-7.0.12-hdn/
 +.PHONY: all clean install
 diff -ruN --exclude .git linux-7.0.12/tools/hardening/README.rst linux-7.0.12-hdn/tools/hardening/README.rst
 --- linux-7.0.12/tools/hardening/README.rst	1969-12-31 18:00:00.000000000 -0600
-+++ linux-7.0.12-hdn/tools/hardening/README.rst	2026-06-26 21:28:37.519386678 -0500
-@@ -0,0 +1,1392 @@
++++ linux-7.0.12-hdn/tools/hardening/README.rst	2026-06-26 21:35:52.455378600 -0500
+@@ -0,0 +1,1393 @@
 +.. SPDX-License-Identifier: GPL-2.0-only
 +
 +Linux Hardening Policy Tools
@@ -19315,9 +19315,10 @@ diff -ruN --exclude .git linux-7.0.12/tools/hardening/README.rst linux-7.0.12-hd
 +nested attr, xattr, access-probe, stat, list, and find changes, and append-only rewrite and shared writable mapping paths are denied while unmatched files,
 +unmatched directories, unmatched link sources, unmatched attrs, unmatched
 +xattr reads and mutations, unmatched access probes, unmatched stat probes, unmatched list probes,
-+unmatched find probes, unmatched ioctl targets, unmatched advisory lock
-+targets, unmatched FIFO, character-device, and block-device read/write opens, unmatched inotify/dnotify/fanotify watch targets, unmatched fd receive, fcntl
-+duplicate targets, mount targets, move-mount targets, umount targets, unmatched trees, and append writes
++unmatched find probes, unmatched executable paths, unmatched ioctl targets,
++unmatched advisory lock targets, unmatched FIFO, character-device, and block-device read/write opens, unmatched inotify/dnotify/fanotify watch targets, unmatched fd receive, fcntl
++duplicate targets, chdir targets, truncate targets, rename sources, filesystem
++socket connect targets, mount targets, move-mount targets, umount targets, unmatched trees, and append writes
 +remain usable.
 +
 +The exploit-mitigation baseline also forces upstream strict kernel RWX and
@@ -35810,8 +35811,8 @@ diff -ruN --exclude .git linux-7.0.12/tools/testing/selftests/hardening/hdn_elfn
 +}
 diff -ruN --exclude .git linux-7.0.12/tools/testing/selftests/hardening/hdn_smoke.c linux-7.0.12-hdn/tools/testing/selftests/hardening/hdn_smoke.c
 --- linux-7.0.12/tools/testing/selftests/hardening/hdn_smoke.c	1969-12-31 18:00:00.000000000 -0600
-+++ linux-7.0.12-hdn/tools/testing/selftests/hardening/hdn_smoke.c	2026-06-26 21:26:05.323433596 -0500
-@@ -0,0 +1,25537 @@
++++ linux-7.0.12-hdn/tools/testing/selftests/hardening/hdn_smoke.c	2026-06-26 21:33:54.219391855 -0500
+@@ -0,0 +1,25685 @@
 +// SPDX-License-Identifier: GPL-2.0-only
 +
 +#define _GNU_SOURCE
@@ -36338,6 +36339,30 @@ diff -ruN --exclude .git linux-7.0.12/tools/testing/selftests/hardening/hdn_smok
 +	HDN_OBJECT_CREATE_UNPROTECTED_DIR "/tree-rename-source-denied"
 +#define HDN_OBJECT_TREE_OPS_UNIX_CONNECT \
 +	HDN_OBJECT_TREE_OPS_NESTED "/unix-connect-sock"
++#define HDN_OBJECT_TREE_OPS_EXEC_UNMATCHED \
++	HDN_OBJECT_TREE_UNPROTECTED_DIR "/nested/exec-target"
++#define HDN_OBJECT_TREE_OPS_LINK_SOURCE_UNMATCHED \
++	HDN_OBJECT_TREE_UNPROTECTED_DIR "/nested/link-source"
++#define HDN_OBJECT_TREE_OPS_LINK_TARGET_UNMATCHED \
++	HDN_OBJECT_CREATE_UNPROTECTED_DIR "/tree-link-source-unmatched"
++#define HDN_OBJECT_TREE_OPS_IOCTL_UNMATCHED \
++	HDN_OBJECT_TREE_UNPROTECTED_DIR "/nested/ioctl-target"
++#define HDN_OBJECT_TREE_OPS_LOCK_UNMATCHED \
++	HDN_OBJECT_TREE_UNPROTECTED_DIR "/nested/lock-target"
++#define HDN_OBJECT_TREE_OPS_WATCH_UNMATCHED \
++	HDN_OBJECT_TREE_UNPROTECTED_DIR "/nested/watch-target"
++#define HDN_OBJECT_TREE_OPS_FCNTL_UNMATCHED \
++	HDN_OBJECT_TREE_UNPROTECTED_DIR "/nested/fcntl-target"
++#define HDN_OBJECT_TREE_OPS_CHDIR_UNMATCHED \
++	HDN_OBJECT_TREE_UNPROTECTED_DIR "/nested/chdir-target"
++#define HDN_OBJECT_TREE_OPS_TRUNCATE_UNMATCHED \
++	HDN_OBJECT_TREE_UNPROTECTED_DIR "/nested/truncate-target"
++#define HDN_OBJECT_TREE_OPS_RENAME_UNMATCHED \
++	HDN_OBJECT_TREE_UNPROTECTED_DIR "/nested/rename-target"
++#define HDN_OBJECT_TREE_OPS_RENAME_TARGET_UNMATCHED \
++	HDN_OBJECT_CREATE_UNPROTECTED_DIR "/tree-rename-source-unmatched"
++#define HDN_OBJECT_TREE_OPS_UNIX_CONNECT_UNMATCHED \
++	HDN_OBJECT_TREE_UNPROTECTED_DIR "/nested/unix-connect-sock"
 +#define HDN_OBJECT_TREE_RECEIVE \
 +	"/hdn-object-tree-receive/nested/receive-target"
 +#define HDN_OBJECT_TREE_RECEIVE_UNMATCHED \
@@ -46245,6 +46270,11 @@ diff -ruN --exclude .git linux-7.0.12/tools/testing/selftests/hardening/hdn_smok
 +	return object_exec_path(HDN_OBJECT_TREE_OPS_EXEC, true);
 +}
 +
++static int object_tree_exec_unmatched_allowed(void)
++{
++	return object_exec_path(HDN_OBJECT_TREE_OPS_EXEC_UNMATCHED, false);
++}
++
 +static int object_tree_link_source_denied(void)
 +{
 +	unlink(HDN_OBJECT_TREE_OPS_LINK_TARGET);
@@ -46257,9 +46287,25 @@ diff -ruN --exclude .git linux-7.0.12/tools/testing/selftests/hardening/hdn_smok
 +	return errno_is_denial(errno) ? 0 : 2;
 +}
 +
++static int object_tree_link_source_unmatched_allowed(void)
++{
++	unlink(HDN_OBJECT_TREE_OPS_LINK_TARGET_UNMATCHED);
++	if (link(HDN_OBJECT_TREE_OPS_LINK_SOURCE_UNMATCHED,
++		 HDN_OBJECT_TREE_OPS_LINK_TARGET_UNMATCHED))
++		return 2;
++
++	unlink(HDN_OBJECT_TREE_OPS_LINK_TARGET_UNMATCHED);
++	return 0;
++}
++
 +static int object_tree_ioctl_denied(void)
 +{
 +	return object_ioctl_path(HDN_OBJECT_TREE_OPS_IOCTL, true);
++}
++
++static int object_tree_ioctl_unmatched_allowed(void)
++{
++	return object_ioctl_path(HDN_OBJECT_TREE_OPS_IOCTL_UNMATCHED, false);
 +}
 +
 +static int object_tree_lock_denied(void)
@@ -46267,9 +46313,20 @@ diff -ruN --exclude .git linux-7.0.12/tools/testing/selftests/hardening/hdn_smok
 +	return object_lock_path(HDN_OBJECT_TREE_OPS_LOCK, false, true);
 +}
 +
++static int object_tree_lock_unmatched_allowed(void)
++{
++	return object_lock_path(HDN_OBJECT_TREE_OPS_LOCK_UNMATCHED, false,
++				false);
++}
++
 +static int object_tree_watch_denied(void)
 +{
 +	return object_watch_path(HDN_OBJECT_TREE_OPS_WATCH, true);
++}
++
++static int object_tree_watch_unmatched_allowed(void)
++{
++	return object_watch_path(HDN_OBJECT_TREE_OPS_WATCH_UNMATCHED, false);
 +}
 +
 +static int object_tree_fcntl_dup_denied(void)
@@ -46277,9 +46334,20 @@ diff -ruN --exclude .git linux-7.0.12/tools/testing/selftests/hardening/hdn_smok
 +	return object_fcntl_dup_result(HDN_OBJECT_TREE_OPS_FCNTL, false);
 +}
 +
++static int object_tree_fcntl_dup_unmatched_allowed(void)
++{
++	return object_fcntl_dup_result(HDN_OBJECT_TREE_OPS_FCNTL_UNMATCHED,
++				       true);
++}
++
 +static int object_tree_chdir_denied(void)
 +{
 +	return object_chdir_path(HDN_OBJECT_TREE_OPS_CHDIR, true);
++}
++
++static int object_tree_chdir_unmatched_allowed(void)
++{
++	return object_chdir_path(HDN_OBJECT_TREE_OPS_CHDIR_UNMATCHED, false);
 +}
 +
 +static int object_tree_preopened_fchdir_denied(int fd)
@@ -46297,6 +46365,14 @@ diff -ruN --exclude .git linux-7.0.12/tools/testing/selftests/hardening/hdn_smok
 +	saved_errno = errno;
 +
 +	return errno_is_denial(saved_errno) ? 0 : 2;
++}
++
++static int object_tree_truncate_unmatched_allowed(void)
++{
++	if (write_text_file(HDN_OBJECT_TREE_OPS_TRUNCATE_UNMATCHED,
++			    "unmatched tree truncate target\n"))
++		return 2;
++	return truncate(HDN_OBJECT_TREE_OPS_TRUNCATE_UNMATCHED, 0) ? 2 : 0;
 +}
 +
 +static int object_tree_preopened_ftruncate_denied(int fd)
@@ -46321,10 +46397,32 @@ diff -ruN --exclude .git linux-7.0.12/tools/testing/selftests/hardening/hdn_smok
 +	return errno_is_denial(saved_errno) ? 0 : 2;
 +}
 +
++static int object_tree_rename_unmatched_allowed(void)
++{
++	unlink(HDN_OBJECT_TREE_OPS_RENAME_TARGET_UNMATCHED);
++	if (write_text_file(HDN_OBJECT_TREE_OPS_RENAME_UNMATCHED,
++			    "unmatched tree rename target\n"))
++		return 2;
++	if (rename(HDN_OBJECT_TREE_OPS_RENAME_UNMATCHED,
++		   HDN_OBJECT_TREE_OPS_RENAME_TARGET_UNMATCHED))
++		return 2;
++	if (rename(HDN_OBJECT_TREE_OPS_RENAME_TARGET_UNMATCHED,
++		   HDN_OBJECT_TREE_OPS_RENAME_UNMATCHED))
++		return 2;
++
++	return 0;
++}
++
 +static int object_tree_unix_connect_denied(void)
 +{
 +	return object_unix_connect_result(HDN_OBJECT_TREE_OPS_UNIX_CONNECT,
 +					  false);
++}
++
++static int object_tree_unix_connect_unmatched_allowed(void)
++{
++	return object_unix_connect_result(
++		HDN_OBJECT_TREE_OPS_UNIX_CONNECT_UNMATCHED, true);
 +}
 +
 +static int object_tree_chmod_denied(void)
@@ -54671,6 +54769,7 @@ diff -ruN --exclude .git linux-7.0.12/tools/testing/selftests/hardening/hdn_smok
 +	int object_unix_connect_protected_fd = -1;
 +	int object_unix_connect_unprotected_fd = -1;
 +	int object_tree_unix_connect_fd = -1;
++	int object_tree_unix_connect_unmatched_fd = -1;
 +	int object_tree_unix_listen_fd = -1;
 +	int object_tree_unix_accept_fd = -1;
 +	int object_tree_unix_send_fd = -1;
@@ -55245,6 +55344,16 @@ diff -ruN --exclude .git linux-7.0.12/tools/testing/selftests/hardening/hdn_smok
 +				ksft_test_result_skip("object tree ops policy denies preopened nested ftruncate\n");
 +				ksft_test_result_skip("object tree ops policy denies nested source rename\n");
 +				ksft_test_result_skip("object tree ops policy denies nested socket connect\n");
++				ksft_test_result_skip("object tree ops policy allows unmatched exec\n");
++				ksft_test_result_skip("object tree ops policy allows unmatched hardlink source\n");
++				ksft_test_result_skip("object tree ops policy allows unmatched ioctl\n");
++				ksft_test_result_skip("object tree ops policy allows unmatched lock\n");
++				ksft_test_result_skip("object tree ops policy allows unmatched inotify watch\n");
++				ksft_test_result_skip("object tree ops policy allows unmatched fd duplication\n");
++				ksft_test_result_skip("object tree ops policy allows unmatched chdir\n");
++				ksft_test_result_skip("object tree ops policy allows unmatched truncate\n");
++				ksft_test_result_skip("object tree ops policy allows unmatched source rename\n");
++				ksft_test_result_skip("object tree ops policy allows unmatched socket connect\n");
 +				ksft_test_result_skip("object tree receive policy denies nested fd receive\n");
 +				ksft_test_result_skip("object tree mount policy denies nested mount target\n");
 +				ksft_test_result_skip("object tree mount policy denies nested move_mount target\n");
@@ -57899,6 +58008,10 @@ diff -ruN --exclude .git linux-7.0.12/tools/testing/selftests/hardening/hdn_smok
 +			HDN_OBJECT_TREE_OPS_UNIX_CONNECT,
 +			&object_tree_unix_connect_fd);
 +	if (!ret)
++		ret = setup_object_unix_connect_socket(
++			HDN_OBJECT_TREE_OPS_UNIX_CONNECT_UNMATCHED,
++			&object_tree_unix_connect_unmatched_fd);
++	if (!ret)
 +		ret = setup_object_unix_socket(HDN_OBJECT_TREE_IPC_LISTEN,
 +					       &object_tree_unix_listen_fd,
 +					       false);
@@ -58728,6 +58841,36 @@ diff -ruN --exclude .git linux-7.0.12/tools/testing/selftests/hardening/hdn_smok
 +			    object_tree_unix_connect_denied() : 2,
 +			    "object tree ops policy denies nested socket connect");
 +	report_child_result(object_policy_committed ?
++			    object_tree_exec_unmatched_allowed() : 2,
++			    "object tree ops policy allows unmatched exec");
++	report_child_result(object_policy_committed ?
++			    object_tree_link_source_unmatched_allowed() : 2,
++			    "object tree ops policy allows unmatched hardlink source");
++	report_child_result(object_policy_committed ?
++			    object_tree_ioctl_unmatched_allowed() : 2,
++			    "object tree ops policy allows unmatched ioctl");
++	report_child_result(object_policy_committed ?
++			    object_tree_lock_unmatched_allowed() : 2,
++			    "object tree ops policy allows unmatched lock");
++	report_child_result(object_policy_committed ?
++			    object_tree_watch_unmatched_allowed() : 2,
++			    "object tree ops policy allows unmatched inotify watch");
++	report_child_result(object_policy_committed ?
++			    object_tree_fcntl_dup_unmatched_allowed() : 2,
++			    "object tree ops policy allows unmatched fd duplication");
++	report_child_result(object_policy_committed ?
++			    object_tree_chdir_unmatched_allowed() : 2,
++			    "object tree ops policy allows unmatched chdir");
++	report_child_result(object_policy_committed ?
++			    object_tree_truncate_unmatched_allowed() : 2,
++			    "object tree ops policy allows unmatched truncate");
++	report_child_result(object_policy_committed ?
++			    object_tree_rename_unmatched_allowed() : 2,
++			    "object tree ops policy allows unmatched source rename");
++	report_child_result(object_policy_committed ?
++			    object_tree_unix_connect_unmatched_allowed() : 2,
++			    "object tree ops policy allows unmatched socket connect");
++	report_child_result(object_policy_committed ?
 +			    object_tree_receive_denied() : 2,
 +			    "object tree receive policy denies nested fd receive");
 +	report_child_result(object_policy_committed ?
@@ -58929,6 +59072,10 @@ diff -ruN --exclude .git linux-7.0.12/tools/testing/selftests/hardening/hdn_smok
 +		close(object_tree_unix_connect_fd);
 +		object_tree_unix_connect_fd = -1;
 +	}
++	if (object_tree_unix_connect_unmatched_fd >= 0) {
++		close(object_tree_unix_connect_unmatched_fd);
++		object_tree_unix_connect_unmatched_fd = -1;
++	}
 +	if (object_tree_unix_listen_fd >= 0) {
 +		close(object_tree_unix_listen_fd);
 +		object_tree_unix_listen_fd = -1;
@@ -58991,6 +59138,8 @@ diff -ruN --exclude .git linux-7.0.12/tools/testing/selftests/hardening/hdn_smok
 +	}
 +		unlink(HDN_OBJECT_UNIX_CONNECT_PROTECTED);
 +		unlink(HDN_OBJECT_UNIX_CONNECT_UNPROTECTED);
++		unlink(HDN_OBJECT_TREE_OPS_UNIX_CONNECT);
++		unlink(HDN_OBJECT_TREE_OPS_UNIX_CONNECT_UNMATCHED);
 +		unlink(HDN_OBJECT_UNIX_BIND_PROTECTED);
 +		unlink(HDN_OBJECT_UNIX_BIND_UNPROTECTED);
 +		unlink(HDN_OBJECT_UNIX_LISTEN_PROTECTED);
@@ -60964,7 +61113,7 @@ diff -ruN --exclude .git linux-7.0.12/tools/testing/selftests/hardening/hdn_smok
 +	if (access(HDN_STATUS, R_OK))
 +		ksft_exit_skip("hardening securityfs status not present\n");
 +
-+	ksft_set_plan(890);
++	ksft_set_plan(900);
 +	test_securityfs_status();
 +	test_symbol_test_module_load();
 +	test_securityfs_status_contains("abi_version: 81",
@@ -61732,8 +61881,8 @@ diff -ruN --exclude .git linux-7.0.12/tools/testing/selftests/hardening/role.pol
 +use-role 2 desktop-admin
 diff -ruN --exclude .git linux-7.0.12/tools/testing/selftests/hardening/run-qemu-smoke.sh linux-7.0.12-hdn/tools/testing/selftests/hardening/run-qemu-smoke.sh
 --- linux-7.0.12/tools/testing/selftests/hardening/run-qemu-smoke.sh	1969-12-31 18:00:00.000000000 -0600
-+++ linux-7.0.12-hdn/tools/testing/selftests/hardening/run-qemu-smoke.sh	2026-06-26 21:25:53.251434835 -0500
-@@ -0,0 +1,1171 @@
++++ linux-7.0.12-hdn/tools/testing/selftests/hardening/run-qemu-smoke.sh	2026-06-26 21:33:36.363389149 -0500
+@@ -0,0 +1,1197 @@
 +#!/bin/sh
 +# SPDX-License-Identifier: GPL-2.0
 +
@@ -61767,7 +61916,7 @@ diff -ruN --exclude .git linux-7.0.12/tools/testing/selftests/hardening/run-qemu
 +QEMU_MEMORY=${QEMU_MEMORY:-1024M}
 +QEMU_SMP=${QEMU_SMP:-2}
 +QEMU_MACHINE=${QEMU_MACHINE:-q35,accel=tcg}
-+HDN_SMOKE_EXPECTED_PASS=${HDN_SMOKE_EXPECTED_PASS:-890}
++HDN_SMOKE_EXPECTED_PASS=${HDN_SMOKE_EXPECTED_PASS:-900}
 +WORK=${HDN_QEMU_WORK:-"${TMPDIR:-/tmp}/hdn-qemu-smoke.$$"}
 +LOG=${HDN_QEMU_LOG:-"$WORK/qemu.log"}
 +QMP=${HDN_QEMU_QMP:-"$WORK/qmp.sock"}
@@ -62737,6 +62886,32 @@ diff -ruN --exclude .git linux-7.0.12/tools/testing/selftests/hardening/run-qemu
 +printf '%s\n' 'unprotected object tree write target' \
 +	> "$WORK/initramfs/hdn-object-tree-unprotected/nested/write-target"
 +chmod 0644 "$WORK/initramfs/hdn-object-tree-unprotected/nested/write-target"
++cp "$WORK/hdn_smoke" \
++	"$WORK/initramfs/hdn-object-tree-unprotected/nested/exec-target"
++chmod 0755 "$WORK/initramfs/hdn-object-tree-unprotected/nested/exec-target"
++printf '%s\n' 'unprotected object tree link source' \
++	> "$WORK/initramfs/hdn-object-tree-unprotected/nested/link-source"
++chmod 0644 "$WORK/initramfs/hdn-object-tree-unprotected/nested/link-source"
++printf '%s\n' 'unprotected object tree ioctl target' \
++	> "$WORK/initramfs/hdn-object-tree-unprotected/nested/ioctl-target"
++chmod 0644 "$WORK/initramfs/hdn-object-tree-unprotected/nested/ioctl-target"
++printf '%s\n' 'unprotected object tree lock target' \
++	> "$WORK/initramfs/hdn-object-tree-unprotected/nested/lock-target"
++chmod 0644 "$WORK/initramfs/hdn-object-tree-unprotected/nested/lock-target"
++printf '%s\n' 'unprotected object tree watch target' \
++	> "$WORK/initramfs/hdn-object-tree-unprotected/nested/watch-target"
++chmod 0644 "$WORK/initramfs/hdn-object-tree-unprotected/nested/watch-target"
++printf '%s\n' 'unprotected object tree fcntl target' \
++	> "$WORK/initramfs/hdn-object-tree-unprotected/nested/fcntl-target"
++chmod 0644 "$WORK/initramfs/hdn-object-tree-unprotected/nested/fcntl-target"
++mkdir -p "$WORK/initramfs/hdn-object-tree-unprotected/nested/chdir-target"
++chmod 0755 "$WORK/initramfs/hdn-object-tree-unprotected/nested/chdir-target"
++printf '%s\n' 'unprotected object tree truncate target' \
++	> "$WORK/initramfs/hdn-object-tree-unprotected/nested/truncate-target"
++chmod 0644 "$WORK/initramfs/hdn-object-tree-unprotected/nested/truncate-target"
++printf '%s\n' 'unprotected object tree rename target' \
++	> "$WORK/initramfs/hdn-object-tree-unprotected/nested/rename-target"
++chmod 0644 "$WORK/initramfs/hdn-object-tree-unprotected/nested/rename-target"
 +printf '%s\n' 'unprotected object tree receive target' \
 +	> "$WORK/initramfs/hdn-object-tree-unprotected/nested/receive-target"
 +chmod 0644 "$WORK/initramfs/hdn-object-tree-unprotected/nested/receive-target"
