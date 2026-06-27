@@ -4807,15 +4807,15 @@ diff -ruN --exclude .git /home/doll/distro/linux-7.0.12/include/trace/events/mma
  TRACE_EVENT(exit_mmap,
 diff -ruN --exclude .git /home/doll/distro/linux-7.0.12/include/uapi/linux/hardening.h /home/doll/distro/linux-7.0.12-hdn/include/uapi/linux/hardening.h
 --- /home/doll/distro/linux-7.0.12/include/uapi/linux/hardening.h	1969-12-31 18:00:00.000000000 -0600
-+++ /home/doll/distro/linux-7.0.12-hdn/include/uapi/linux/hardening.h	2026-06-26 23:05:09.190899126 -0500
-@@ -0,0 +1,627 @@
++++ /home/doll/distro/linux-7.0.12-hdn/include/uapi/linux/hardening.h	2026-06-26 23:21:00.726810208 -0500
+@@ -0,0 +1,628 @@
 +/* SPDX-License-Identifier: GPL-2.0 WITH Linux-syscall-note */
 +#ifndef _UAPI_LINUX_HARDENING_H
 +#define _UAPI_LINUX_HARDENING_H
 +
 +#include <linux/types.h>
 +
-+#define HDN_POLICY_ABI_VERSION 86
++#define HDN_POLICY_ABI_VERSION 87
 +#define HDN_POLICY_MAGIC 0x48444e50 /* "HDNP" */
 +#define HDN_PROFILE_NAME_LEN 32
 +#define HDN_POLICY_PATH_LEN 256
@@ -5267,6 +5267,7 @@ diff -ruN --exclude .git /home/doll/distro/linux-7.0.12/include/uapi/linux/harde
 +	HDN_EXEC_MATCH_VERITY_DIGEST = 1ULL << 2,
 +	HDN_EXEC_RESOLVE_FILE_PATH = 1ULL << 3,
 +	HDN_EXEC_RESOLVE_ORIGINAL_PATH = 1ULL << 4,
++	HDN_EXEC_INHERIT_PROFILE = 1ULL << 5,
 +};
 +
 +enum hdn_subject_rule_flags {
@@ -10815,8 +10816,8 @@ diff -ruN --exclude .git /home/doll/distro/linux-7.0.12/security/hardening/Makef
 +obj-$(CONFIG_SECURITY_HARDENING) += core.o
 diff -ruN --exclude .git /home/doll/distro/linux-7.0.12/security/hardening/core.c /home/doll/distro/linux-7.0.12-hdn/security/hardening/core.c
 --- /home/doll/distro/linux-7.0.12/security/hardening/core.c	1969-12-31 18:00:00.000000000 -0600
-+++ /home/doll/distro/linux-7.0.12-hdn/security/hardening/core.c	2026-06-26 23:05:50.346894722 -0500
-@@ -0,0 +1,7571 @@
++++ /home/doll/distro/linux-7.0.12-hdn/security/hardening/core.c	2026-06-26 23:24:20.550792753 -0500
+@@ -0,0 +1,7588 @@
 +// SPDX-License-Identifier: GPL-2.0-only
 +
 +#include <linux/binfmts.h>
@@ -14307,7 +14308,11 @@ diff -ruN --exclude .git /home/doll/distro/linux-7.0.12/security/hardening/core.
 +						   bprm, &file_id,
 +						   parent_profile))
 +				continue;
-+			profile_id = policy->exec_rules[i].target_profile_id;
++			if (policy->exec_rules[i].flags &
++			    HDN_EXEC_INHERIT_PROFILE)
++				profile_id = parent_profile;
++			else
++				profile_id = policy->exec_rules[i].target_profile_id;
 +			break;
 +		}
 +	}
@@ -16689,6 +16694,12 @@ diff -ruN --exclude .git /home/doll/distro/linux-7.0.12/security/hardening/core.
 +			       HDN_EXEC_MATCH_ORIGINAL_ID |
 +			       HDN_EXEC_MATCH_VERITY_DIGEST |
 +			       HDN_EXEC_RESOLVE_FILE_PATH |
++			       HDN_EXEC_RESOLVE_ORIGINAL_PATH |
++			       HDN_EXEC_INHERIT_PROFILE;
++	u64 exec_match_flags = HDN_EXEC_MATCH_FILE_ID |
++			       HDN_EXEC_MATCH_ORIGINAL_ID |
++			       HDN_EXEC_MATCH_VERITY_DIGEST |
++			       HDN_EXEC_RESOLVE_FILE_PATH |
 +			       HDN_EXEC_RESOLVE_ORIGINAL_PATH;
 +	u64 valid_subject_flags = HDN_SUBJECT_MATCH_UID |
 +				  HDN_SUBJECT_MATCH_GID;
@@ -16873,12 +16884,19 @@ diff -ruN --exclude .git /home/doll/distro/linux-7.0.12/security/hardening/core.
 +	for (i = 0; i < policy->exec_rule_count; i++) {
 +		const struct hdn_exec_rule_record *rule = &policy->exec_rules[i];
 +
-+		if (!hdn_policy_has_profile(policy, rule->target_profile_id))
++		if (rule->flags & HDN_EXEC_INHERIT_PROFILE) {
++			if (rule->target_profile_id)
++				return -EINVAL;
++		} else if (!hdn_policy_has_profile(policy,
++						   rule->target_profile_id)) {
 +			return -EINVAL;
++		}
 +		if (rule->parent_profile_id &&
 +		    !hdn_policy_has_profile(policy, rule->parent_profile_id))
 +			return -EINVAL;
 +		if (!rule->flags || (rule->flags & ~valid_exec_flags))
++			return -EINVAL;
++		if (!(rule->flags & exec_match_flags))
 +			return -EINVAL;
 +		if ((rule->flags & HDN_EXEC_MATCH_FILE_ID) &&
 +		    (rule->flags & HDN_EXEC_RESOLVE_FILE_PATH))
@@ -18763,8 +18781,8 @@ diff -ruN --exclude .git /home/doll/distro/linux-7.0.12/tools/hardening/Makefile
 +.PHONY: all clean install
 diff -ruN --exclude .git /home/doll/distro/linux-7.0.12/tools/hardening/README.rst /home/doll/distro/linux-7.0.12-hdn/tools/hardening/README.rst
 --- /home/doll/distro/linux-7.0.12/tools/hardening/README.rst	1969-12-31 18:00:00.000000000 -0600
-+++ /home/doll/distro/linux-7.0.12-hdn/tools/hardening/README.rst	2026-06-26 23:15:38.946839789 -0500
-@@ -0,0 +1,1421 @@
++++ /home/doll/distro/linux-7.0.12-hdn/tools/hardening/README.rst	2026-06-26 23:28:36.366768760 -0500
+@@ -0,0 +1,1427 @@
 +.. SPDX-License-Identifier: GPL-2.0-only
 +
 +Linux Hardening Policy Tools
@@ -19213,6 +19231,7 @@ diff -ruN --exclude .git /home/doll/distro/linux-7.0.12/tools/hardening/README.r
 +  exec 3 path /usr/bin/example
 +  exec 3 verity sha256 0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef
 +  exec 3 interpreter-path /usr/bin/python3 original-path /opt/app/main.py
++  exec inherit path /usr/libexec/profile-helper parent 3
 +
 +  module 2 path /lib/modules/example.ko
 +  module 2 verity sha256 0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef
@@ -20117,6 +20136,7 @@ diff -ruN --exclude .git /home/doll/distro/linux-7.0.12/tools/hardening/README.r
 +  exec 3 verity FS_VERITY_HASH_ALG_SHA256 0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef
 +  exec 3 interpreter-path /usr/bin/python3 original-path /opt/app/main.py
 +  exec 3 interpreter 8 1 111 original 8 1 222 verity sha512 000102030405060708090a0b0c0d0e0f101112131415161718191a1b1c1d1e1f202122232425262728292a2b2c2d2e2f303132333435363738393a3b3c3d3e3f parent 1
++  exec inherit path /usr/bin/helper parent 3
 +
 +Exec path rules are kept in the signed policy payload and resolved inside the
 +target kernel when the policy is loaded. The staged policy is then sealed with
@@ -20128,9 +20148,13 @@ diff -ruN --exclude .git /home/doll/distro/linux-7.0.12/tools/hardening/README.r
 +interpreter directly does not inherit the script profile. Verity rules match
 +the final executable file's fs-verity digest as reported by the kernel. The
 +algorithm accepts ``sha256``, ``sha512``, the ``FS_VERITY_HASH_ALG_*`` names,
-+or the numeric UAPI value. The QEMU smoke suite carries a dedicated identity
-+policy proving direct binary matches, unmatched copies, interpreter/script
-+matches, and replacement of a trusted path after policy load.
++or the numeric UAPI value. ``exec inherit`` rules match executable identity like
++normal exec rules but leave the caller in its current profile; the optional
++``parent PROFILE`` clause scopes that inheritance to a caller profile. The QEMU
++smoke suite carries a dedicated identity policy proving direct binary matches,
++unmatched copies, interpreter/script matches, exec-profile inheritance,
++parent-scoped inheritance, unmatched parent-scoped defaults, and replacement of
++a trusted path after policy load.
 +
 +Module rules are a separate trust table for ``finit_module()``. A caller needs
 +``MODULE_LOAD`` authority and the module file must match a rule for the
@@ -26929,8 +26953,8 @@ diff -ruN --exclude .git /home/doll/distro/linux-7.0.12/tools/hardening/hdn-poli
 +}
 diff -ruN --exclude .git /home/doll/distro/linux-7.0.12/tools/hardening/hdn-policy.c /home/doll/distro/linux-7.0.12-hdn/tools/hardening/hdn-policy.c
 --- /home/doll/distro/linux-7.0.12/tools/hardening/hdn-policy.c	1969-12-31 18:00:00.000000000 -0600
-+++ /home/doll/distro/linux-7.0.12-hdn/tools/hardening/hdn-policy.c	2026-06-26 23:06:30.230891272 -0500
-@@ -0,0 +1,2075 @@
++++ /home/doll/distro/linux-7.0.12-hdn/tools/hardening/hdn-policy.c	2026-06-26 23:21:56.142805653 -0500
+@@ -0,0 +1,2083 @@
 +// SPDX-License-Identifier: GPL-2.0-only
 +
 +#include <ctype.h>
@@ -28167,6 +28191,7 @@ diff -ruN --exclude .git /home/doll/distro/linux-7.0.12/tools/hardening/hdn-poli
 +	char *mode;
 +	char *name;
 +	uint64_t target;
++	bool inherit = false;
 +	int ret;
 +
 +	if (builder->exec_rule_count >= HDN_MAX_EXEC_RULES)
@@ -28180,18 +28205,25 @@ diff -ruN --exclude .git /home/doll/distro/linux-7.0.12/tools/hardening/hdn-poli
 +		return -EINVAL;
 +	}
 +
-+	ret = parse_u64(profile_text, &target);
-+	if (ret)
-+		return ret;
-+	if (!find_profile(builder->profiles, target)) {
-+		fprintf(stderr, "%u: unknown exec target profile %llu\n",
-+			line, (unsigned long long)target);
-+		return -ENOENT;
++	if (!strcmp(profile_text, "inherit")) {
++		inherit = true;
++		target = 0;
++	} else {
++		ret = parse_u64(profile_text, &target);
++		if (ret)
++			return ret;
++		if (!find_profile(builder->profiles, target)) {
++			fprintf(stderr, "%u: unknown exec target profile %llu\n",
++				line, (unsigned long long)target);
++			return -ENOENT;
++		}
 +	}
 +
 +	rule = &builder->exec_rules[builder->exec_rule_count];
 +	memset(rule, 0, sizeof(*rule));
 +	rule->target_profile_id = target;
++	if (inherit)
++		rule->flags |= HDN_EXEC_INHERIT_PROFILE;
 +
 +	if (!strcmp(mode, "path")) {
 +		name = strtok_r(NULL, " \t\r\n", &save);
@@ -36062,8 +36094,8 @@ diff -ruN --exclude .git /home/doll/distro/linux-7.0.12/tools/testing/selftests/
 Binary files /home/doll/distro/linux-7.0.12/tools/testing/selftests/hardening/hdn_smoke and /home/doll/distro/linux-7.0.12-hdn/tools/testing/selftests/hardening/hdn_smoke differ
 diff -ruN --exclude .git /home/doll/distro/linux-7.0.12/tools/testing/selftests/hardening/hdn_smoke.c /home/doll/distro/linux-7.0.12-hdn/tools/testing/selftests/hardening/hdn_smoke.c
 --- /home/doll/distro/linux-7.0.12/tools/testing/selftests/hardening/hdn_smoke.c	1969-12-31 18:00:00.000000000 -0600
-+++ /home/doll/distro/linux-7.0.12-hdn/tools/testing/selftests/hardening/hdn_smoke.c	2026-06-26 23:13:15.610847976 -0500
-@@ -0,0 +1,26398 @@
++++ /home/doll/distro/linux-7.0.12-hdn/tools/testing/selftests/hardening/hdn_smoke.c	2026-06-26 23:23:06.062799045 -0500
+@@ -0,0 +1,26442 @@
 +// SPDX-License-Identifier: GPL-2.0-only
 +
 +#define _GNU_SOURCE
@@ -36356,6 +36388,8 @@ diff -ruN --exclude .git /home/doll/distro/linux-7.0.12/tools/testing/selftests/
 +#define HDN_IDENTITY_COPY_EXEC "/hdn-identity-copy"
 +#define HDN_IDENTITY_BACKUP_EXEC "/hdn-identity-trusted.old"
 +#define HDN_IDENTITY_SCRIPT "/hdn-identity-script"
++#define HDN_IDENTITY_INHERIT_EXEC "/hdn-identity-inherit"
++#define HDN_IDENTITY_PARENT_INHERIT_EXEC "/hdn-identity-parent-inherit"
 +#define HDN_OBJECT_WRITE_PROTECTED "/hdn-object-write-protected"
 +#define HDN_OBJECT_WRITE_UNPROTECTED "/hdn-object-write-unprotected"
 +#define HDN_OBJECT_WRITE_UNMATCHED_TRUNCATE \
@@ -39597,7 +39631,7 @@ diff -ruN --exclude .git /home/doll/distro/linux-7.0.12/tools/testing/selftests/
 +static int status_helper_decodes_audit_flood_fixture(void)
 +{
 +	static const char fixture[] =
-+		"abi_version: 86\n"
++		"abi_version: 87\n"
 +		"phase: runtime\n"
 +		"phase_id: 3\n"
 +		"policy_loaded: 1\n"
@@ -52504,6 +52538,24 @@ diff -ruN --exclude .git /home/doll/distro/linux-7.0.12/tools/testing/selftests/
 +			      "--identity-script-sentinel");
 +}
 +
++static int identity_inherit_profile_selected(void)
++{
++	return exec_as_nobody(HDN_IDENTITY_TRUSTED_EXEC,
++			      "--identity-launch-inherit-sentinel");
++}
++
++static int identity_parent_inherit_profile_selected(void)
++{
++	return exec_as_nobody(HDN_IDENTITY_TRUSTED_EXEC,
++			      "--identity-launch-parent-inherit-sentinel");
++}
++
++static int identity_parent_inherit_unmatched_defaults(void)
++{
++	return exec_as_nobody(HDN_IDENTITY_PARENT_INHERIT_EXEC,
++			      "--identity-default-sentinel");
++}
++
 +static int identity_replaced_path_defaults(void)
 +{
 +	int ret = 0;
@@ -55826,6 +55878,9 @@ diff -ruN --exclude .git /home/doll/distro/linux-7.0.12/tools/testing/selftests/
 +		ksft_test_result_skip("identity binary exec enters matched profile\n");
 +		ksft_test_result_skip("identity unmatched copy enters default profile\n");
 +		ksft_test_result_skip("identity script enters interpreter-chain profile\n");
++		ksft_test_result_skip("identity inherit exec preserves caller profile\n");
++		ksft_test_result_skip("identity parent inherit exec preserves matched caller profile\n");
++		ksft_test_result_skip("identity parent inherit rule ignores unmatched caller profile\n");
 +		ksft_test_result_skip("identity replaced trusted path enters default profile\n");
 +		ksft_test_result_skip("identity hardening policy rollback succeeds\n");
 +		ksft_test_result_skip("module-path hardening policy stages\n");
@@ -57052,6 +57107,15 @@ diff -ruN --exclude .git /home/doll/distro/linux-7.0.12/tools/testing/selftests/
 +	report_child_result(identity_committed ?
 +			    identity_script_profile_selected() : 2,
 +			    "identity script enters interpreter-chain profile");
++	report_child_result(identity_committed ?
++			    identity_inherit_profile_selected() : 2,
++			    "identity inherit exec preserves caller profile");
++	report_child_result(identity_committed ?
++			    identity_parent_inherit_profile_selected() : 2,
++			    "identity parent inherit exec preserves matched caller profile");
++	report_child_result(identity_committed ?
++			    identity_parent_inherit_unmatched_defaults() : 2,
++			    "identity parent inherit rule ignores unmatched caller profile");
 +	report_child_result(identity_committed ?
 +			    identity_replaced_path_defaults() : 2,
 +			    "identity replaced trusted path enters default profile");
@@ -62048,6 +62112,18 @@ diff -ruN --exclude .git /home/doll/distro/linux-7.0.12/tools/testing/selftests/
 +		return profile_sentinel(1);
 +	if (argc >= 2 && !strcmp(argv[1], "--identity-script-sentinel"))
 +		return profile_sentinel(4);
++	if (argc >= 2 && !strcmp(argv[1], "--identity-launch-inherit-sentinel")) {
++		execl(HDN_IDENTITY_INHERIT_EXEC, HDN_IDENTITY_INHERIT_EXEC,
++		      "--identity-binary-sentinel", NULL);
++		return 2;
++	}
++	if (argc >= 2 &&
++	    !strcmp(argv[1], "--identity-launch-parent-inherit-sentinel")) {
++		execl(HDN_IDENTITY_PARENT_INHERIT_EXEC,
++		      HDN_IDENTITY_PARENT_INHERIT_EXEC,
++		      "--identity-binary-sentinel", NULL);
++		return 2;
++	}
 +	if (argc >= 2 && !strcmp(argv[1], "--subject-uid-sentinel"))
 +		return profile_sentinel(7);
 +	if (argc >= 2 && !strcmp(argv[1], "--subject-gid-sentinel"))
@@ -62077,11 +62153,11 @@ diff -ruN --exclude .git /home/doll/distro/linux-7.0.12/tools/testing/selftests/
 +	if (access(HDN_STATUS, R_OK))
 +		ksft_exit_skip("hardening securityfs status not present\n");
 +
-+	ksft_set_plan(933);
++	ksft_set_plan(936);
 +	test_securityfs_status();
 +	test_symbol_test_module_load();
-+	test_securityfs_status_contains("abi_version: 86",
-+					"hardening status reports policy ABI 86");
++	test_securityfs_status_contains("abi_version: 87",
++					"hardening status reports policy ABI 87");
 +	test_securityfs_status_contains("phase:",
 +					"hardening status reports sealing phase");
 +	test_securityfs_status_contains("policy_staged:",
@@ -62464,8 +62540,8 @@ diff -ruN --exclude .git /home/doll/distro/linux-7.0.12/tools/testing/selftests/
 +}
 diff -ruN --exclude .git /home/doll/distro/linux-7.0.12/tools/testing/selftests/hardening/identity.policy /home/doll/distro/linux-7.0.12-hdn/tools/testing/selftests/hardening/identity.policy
 --- /home/doll/distro/linux-7.0.12/tools/testing/selftests/hardening/identity.policy	1969-12-31 18:00:00.000000000 -0600
-+++ /home/doll/distro/linux-7.0.12-hdn/tools/testing/selftests/hardening/identity.policy	2026-06-26 21:50:26.263304069 -0500
-@@ -0,0 +1,25 @@
++++ /home/doll/distro/linux-7.0.12-hdn/tools/testing/selftests/hardening/identity.policy	2026-06-26 23:22:22.634803290 -0500
+@@ -0,0 +1,27 @@
 +# SPDX-License-Identifier: GPL-2.0-only
 +# Policy used by the QEMU smoke test to prove runtime path resolution for
 +# executable identity and interpreter chains.
@@ -62491,6 +62567,8 @@ diff -ruN --exclude .git /home/doll/distro/linux-7.0.12/tools/testing/selftests/
 +
 +exec 3 path /hdn-identity-trusted
 +exec 4 interpreter-path /hdn_smoke original-path /hdn-identity-script
++exec inherit path /hdn-identity-inherit
++exec inherit path /hdn-identity-parent-inherit parent 3
 diff -ruN --exclude .git /home/doll/distro/linux-7.0.12/tools/testing/selftests/hardening/jit.policy /home/doll/distro/linux-7.0.12-hdn/tools/testing/selftests/hardening/jit.policy
 --- /home/doll/distro/linux-7.0.12/tools/testing/selftests/hardening/jit.policy	1969-12-31 18:00:00.000000000 -0600
 +++ /home/doll/distro/linux-7.0.12-hdn/tools/testing/selftests/hardening/jit.policy	2026-06-25 03:29:42.910876294 -0500
@@ -62852,8 +62930,8 @@ diff -ruN --exclude .git /home/doll/distro/linux-7.0.12/tools/testing/selftests/
 +use-role 2 desktop-admin
 diff -ruN --exclude .git /home/doll/distro/linux-7.0.12/tools/testing/selftests/hardening/run-qemu-smoke.sh /home/doll/distro/linux-7.0.12-hdn/tools/testing/selftests/hardening/run-qemu-smoke.sh
 --- /home/doll/distro/linux-7.0.12/tools/testing/selftests/hardening/run-qemu-smoke.sh	1969-12-31 18:00:00.000000000 -0600
-+++ /home/doll/distro/linux-7.0.12-hdn/tools/testing/selftests/hardening/run-qemu-smoke.sh	2026-06-26 23:08:40.822880256 -0500
-@@ -0,0 +1,1219 @@
++++ /home/doll/distro/linux-7.0.12-hdn/tools/testing/selftests/hardening/run-qemu-smoke.sh	2026-06-26 23:22:28.794802737 -0500
+@@ -0,0 +1,1221 @@
 +#!/bin/sh
 +# SPDX-License-Identifier: GPL-2.0
 +
@@ -62887,7 +62965,7 @@ diff -ruN --exclude .git /home/doll/distro/linux-7.0.12/tools/testing/selftests/
 +QEMU_MEMORY=${QEMU_MEMORY:-1024M}
 +QEMU_SMP=${QEMU_SMP:-2}
 +QEMU_MACHINE=${QEMU_MACHINE:-q35,accel=tcg}
-+HDN_SMOKE_EXPECTED_PASS=${HDN_SMOKE_EXPECTED_PASS:-933}
++HDN_SMOKE_EXPECTED_PASS=${HDN_SMOKE_EXPECTED_PASS:-936}
 +WORK=${HDN_QEMU_WORK:-"${TMPDIR:-/tmp}/hdn-qemu-smoke.$$"}
 +LOG=${HDN_QEMU_LOG:-"$WORK/qemu.log"}
 +QMP=${HDN_QEMU_QMP:-"$WORK/qmp.sock"}
@@ -63260,6 +63338,8 @@ diff -ruN --exclude .git /home/doll/distro/linux-7.0.12/tools/testing/selftests/
 +chmod 0755 "$WORK/initramfs/sbin/modprobe"
 +cp "$WORK/hdn_smoke" "$WORK/initramfs/hdn-identity-trusted"
 +cp "$WORK/hdn_smoke" "$WORK/initramfs/hdn-identity-copy"
++cp "$WORK/hdn_smoke" "$WORK/initramfs/hdn-identity-inherit"
++cp "$WORK/hdn_smoke" "$WORK/initramfs/hdn-identity-parent-inherit"
 +cp "$WORK/hdn_smoke" "$WORK/initramfs/hdn-object-exec-protected"
 +cp "$WORK/hdn_smoke" "$WORK/initramfs/hdn-object-exec-unprotected"
 +chmod 0755 "$WORK/initramfs/hdn-object-exec-protected"

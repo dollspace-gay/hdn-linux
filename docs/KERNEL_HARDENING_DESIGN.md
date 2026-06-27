@@ -922,6 +922,12 @@ effective, saved, filesystem, and supplementary groups. Privileged exec still
 enters the sealed privileged profile, so account subject rules cannot silently
 weaken setuid/filecap handling.
 
+The signed exec identity map supports both explicit `exec PROFILE ...`
+transitions and `exec inherit ...` rules. Inheritance rules match executable
+identity the same way as ordinary exec rules but preserve the caller's active
+profile, optionally scoped with `parent PROFILE`. This covers profile-preserving
+helper launches without making the runtime path resolve a userspace role graph.
+
 The first implemented role layer is also deliberately compiler-side. Text
 policy can define reusable `role NAME allow|audit|mem|response|feature ...`
 templates, nest them with `role CHILD include PARENT...`, and attach them with
@@ -1864,6 +1870,8 @@ Core oracle groups:
 - unsigned user binary gets user profile
 - compiler roles expand inherited reusable grants into sealed profiles
 - UID/GID subject rules select account profiles
+- signed exec inheritance preserves caller profiles and parent-scoped inheritance
+  ignores unmatched callers
 - signed object read/write/delete/create/creat/mkdir/mknod/symlink/unlink/rmdir/exec/link/link-target/attr/chmod/chown/utime/setid/xattr/setxattr/removexattr/access/stat/list/find/ioctl/lock/watch/receive/fcntl/chdir/mount/mount-source/umount/truncate/rename/rename-target/unix-connect/unix-bind/unix-listen/unix-accept/unix-send/unix-recv, append-only, recursive split-operation tree, recursive descriptor, operation-tree, target-tree, and preopened-descriptor unmatched checks, fd-receive, mount topology with unmatched-target and source checks, split metadata/xattr, and filesystem-socket IPC operation tree, and recursive append-only tree rules constrain protected file, executable, metadata, setid-bit, extended-attribute, directory-entry, fd-passing, descriptor-control, working-directory, mount topology, size/extent mutation, move access, and filesystem socket IPC by resolved identity
 - script inherits correct interpreter-chain profile
 - non-root TPE denies execution from unsafe executable directories
