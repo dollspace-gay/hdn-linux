@@ -22,12 +22,13 @@ The current patch is carried as a generated diff against upstream Linux
 This is not a finished distro kernel yet. Current rough parity estimates:
 
 - Strict grsecurity/PaX-style patch feature parity: about 18-20%.
-- Practical daily-driver hardening equivalence: about 66%.
+- Practical daily-driver hardening equivalence: about 67%.
 
 Recent coverage includes signed/sealed HDN policy, authority-gated BPF/perf/proc
 disclosure, module admission hardening, read-only mount controls, object policy
-rules including split incoming rename-target control plus AF_UNIX connect, bind,
-listen, accept, datagram send, and datagram receive controls, recursive tree false-positive proofs for operation
+rules including split incoming rename-target and hardlink target controls plus
+AF_UNIX connect, bind, listen, accept, datagram send, and datagram receive
+controls, recursive tree false-positive proofs for operation
 rules, preopened descriptors, fd receive, and mount topology, chroot
 restrictions, TPE-style execution controls, IPC/socket/device hardening,
 privileged-exec restrictions, RWX/textrel/exec-stack controls, thread-stack
@@ -118,16 +119,16 @@ The hardening smoke suite in the development tree is run under QEMU. Latest
 local result before this publication checkpoint:
 
 ```text
-QEMU hardening smoke: 909/909 pass
+QEMU hardening smoke: 913/913 pass
 ```
 
 Patch artifact at this checkpoint:
 
 ```text
 patch: patches/hdn-linux-7.0.12.patch
-lines: 63,551
-bytes: 1,886,392
-sha256: 896ac9d9e60ef89c1ad2162fe5b39eb50975c14ddfbe35d7021abf0d2e6e9a2d
+lines: 63,667
+bytes: 1,890,618
+sha256: 9f958b4db5f9d739b98d979274c10ff0994ac86613a6be5c3f2406b2d50d8e83
 ```
 
 ## Development Rule

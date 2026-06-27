@@ -1210,7 +1210,7 @@ diff -ruN --exclude .git linux-7.0.12/fs/mount.h linux-7.0.12-hdn/fs/mount.h
  	struct fsnotify_mark_connector __rcu *n_fsnotify_marks;
 diff -ruN --exclude .git linux-7.0.12/fs/namei.c linux-7.0.12-hdn/fs/namei.c
 --- linux-7.0.12/fs/namei.c	2026-06-09 05:32:51.000000000 -0500
-+++ linux-7.0.12-hdn/fs/namei.c	2026-06-26 22:03:41.687234626 -0500
++++ linux-7.0.12-hdn/fs/namei.c	2026-06-26 22:23:17.087126882 -0500
 @@ -35,6 +35,7 @@
  #include <linux/fcntl.h>
  #include <linux/device_cgroup.h>
@@ -1666,11 +1666,15 @@ diff -ruN --exclude .git linux-7.0.12/fs/namei.c linux-7.0.12-hdn/fs/namei.c
  	if (!dir->i_op->symlink)
  		return -EPERM;
  
-@@ -5714,6 +5925,14 @@
+@@ -5714,6 +5925,18 @@
  	if (error)
  		return error;
  
 +	error = hdn_authorize_object_create(new_dentry->d_parent);
++	if (error)
++		return error;
++
++	error = hdn_authorize_object_link_target(new_dentry->d_parent);
 +	if (error)
 +		return error;
 +
@@ -1681,7 +1685,7 @@ diff -ruN --exclude .git linux-7.0.12/fs/namei.c linux-7.0.12-hdn/fs/namei.c
  	if (dir->i_sb != inode->i_sb)
  		return -EXDEV;
  
-@@ -5938,6 +6157,39 @@
+@@ -5938,6 +6161,39 @@
  	if (error)
  		return error;
  
@@ -1721,7 +1725,7 @@ diff -ruN --exclude .git linux-7.0.12/fs/namei.c linux-7.0.12-hdn/fs/namei.c
  	if (!old_dir->i_op->rename)
  		return -EPERM;
  
-@@ -6142,6 +6394,11 @@
+@@ -6142,6 +6398,11 @@
  			goto exit_unlock;
  	}
  
@@ -3592,8 +3596,8 @@ diff -ruN --exclude .git linux-7.0.12/include/linux/btf.h linux-7.0.12-hdn/inclu
  
 diff -ruN --exclude .git linux-7.0.12/include/linux/hardening.h linux-7.0.12-hdn/include/linux/hardening.h
 --- linux-7.0.12/include/linux/hardening.h	1969-12-31 18:00:00.000000000 -0600
-+++ linux-7.0.12-hdn/include/linux/hardening.h	2026-06-26 22:03:16.867234782 -0500
-@@ -0,0 +1,994 @@
++++ linux-7.0.12-hdn/include/linux/hardening.h	2026-06-26 22:23:01.539128181 -0500
+@@ -0,0 +1,1000 @@
 +/* SPDX-License-Identifier: GPL-2.0-only */
 +#ifndef _LINUX_HARDENING_H
 +#define _LINUX_HARDENING_H
@@ -3740,6 +3744,7 @@ diff -ruN --exclude .git linux-7.0.12/include/linux/hardening.h linux-7.0.12-hdn
 +int hdn_authorize_object_rename(const struct dentry *dentry);
 +int hdn_authorize_object_rename_target(const struct dentry *dir);
 +int hdn_authorize_object_link_source(const struct dentry *dentry);
++int hdn_authorize_object_link_target(const struct dentry *dir);
 +int hdn_authorize_object_access(const struct path *path, int mode);
 +int hdn_authorize_object_stat(const struct path *path);
 +int hdn_authorize_object_list(const struct path *path);
@@ -4138,6 +4143,11 @@ diff -ruN --exclude .git linux-7.0.12/include/linux/hardening.h linux-7.0.12-hdn
 +}
 +
 +static inline int hdn_authorize_object_link_source(const struct dentry *dentry)
++{
++	return 0;
++}
++
++static inline int hdn_authorize_object_link_target(const struct dentry *dir)
 +{
 +	return 0;
 +}
@@ -4774,15 +4784,15 @@ diff -ruN --exclude .git linux-7.0.12/include/trace/events/mmap.h linux-7.0.12-h
  TRACE_EVENT(exit_mmap,
 diff -ruN --exclude .git linux-7.0.12/include/uapi/linux/hardening.h linux-7.0.12-hdn/include/uapi/linux/hardening.h
 --- linux-7.0.12/include/uapi/linux/hardening.h	1969-12-31 18:00:00.000000000 -0600
-+++ linux-7.0.12-hdn/include/uapi/linux/hardening.h	2026-06-26 22:02:53.255236264 -0500
-@@ -0,0 +1,615 @@
++++ linux-7.0.12-hdn/include/uapi/linux/hardening.h	2026-06-26 22:22:54.871128751 -0500
+@@ -0,0 +1,619 @@
 +/* SPDX-License-Identifier: GPL-2.0 WITH Linux-syscall-note */
 +#ifndef _UAPI_LINUX_HARDENING_H
 +#define _UAPI_LINUX_HARDENING_H
 +
 +#include <linux/types.h>
 +
-+#define HDN_POLICY_ABI_VERSION 83
++#define HDN_POLICY_ABI_VERSION 84
 +#define HDN_POLICY_MAGIC 0x48444e50 /* "HDNP" */
 +#define HDN_PROFILE_NAME_LEN 32
 +#define HDN_POLICY_PATH_LEN 256
@@ -4898,6 +4908,7 @@ diff -ruN --exclude .git linux-7.0.12/include/uapi/linux/hardening.h linux-7.0.1
 +	HDN_AUTH_OBJECT_UNIX_RECV = 83,
 +	HDN_AUTH_KERNEL_LOG_WRITE = 84,
 +	HDN_AUTH_OBJECT_RENAME_TARGET = 85,
++	HDN_AUTH_OBJECT_LINK_TARGET = 86,
 +	HDN_AUTH__MAX,
 +};
 +
@@ -5000,6 +5011,7 @@ diff -ruN --exclude .git linux-7.0.12/include/uapi/linux/hardening.h linux-7.0.1
 +	HDN_TRANS_OBJECT_UNIX_RECV = 95,
 +	HDN_TRANS_KERNEL_LOG_WRITE = 96,
 +	HDN_TRANS_OBJECT_RENAME_TARGET = 97,
++	HDN_TRANS_OBJECT_LINK_TARGET = 98,
 +	HDN_TRANS__MAX,
 +};
 +
@@ -5102,6 +5114,7 @@ diff -ruN --exclude .git linux-7.0.12/include/uapi/linux/hardening.h linux-7.0.1
 +	HDN_EVENT_ID_OBJECT_UNIX_RECV = HDN_TRANS_OBJECT_UNIX_RECV,
 +	HDN_EVENT_ID_KERNEL_LOG_WRITE = HDN_TRANS_KERNEL_LOG_WRITE,
 +	HDN_EVENT_ID_OBJECT_RENAME_TARGET = HDN_TRANS_OBJECT_RENAME_TARGET,
++	HDN_EVENT_ID_OBJECT_LINK_TARGET = HDN_TRANS_OBJECT_LINK_TARGET,
 +};
 +
 +enum hdn_decision_action {
@@ -5284,6 +5297,7 @@ diff -ruN --exclude .git linux-7.0.12/include/uapi/linux/hardening.h linux-7.0.1
 +	HDN_OBJECT_DENY_UNIX_SEND = 1ULL << 42,
 +	HDN_OBJECT_DENY_UNIX_RECV = 1ULL << 43,
 +	HDN_OBJECT_DENY_RENAME_TARGET = 1ULL << 44,
++	HDN_OBJECT_DENY_LINK_TARGET = 1ULL << 45,
 +};
 +
 +struct hdn_event {
@@ -10770,8 +10784,8 @@ diff -ruN --exclude .git linux-7.0.12/security/hardening/Makefile linux-7.0.12-h
 +obj-$(CONFIG_SECURITY_HARDENING) += core.o
 diff -ruN --exclude .git linux-7.0.12/security/hardening/core.c linux-7.0.12-hdn/security/hardening/core.c
 --- linux-7.0.12/security/hardening/core.c	1969-12-31 18:00:00.000000000 -0600
-+++ linux-7.0.12-hdn/security/hardening/core.c	2026-06-26 22:03:32.863234951 -0500
-@@ -0,0 +1,7495 @@
++++ linux-7.0.12-hdn/security/hardening/core.c	2026-06-26 22:23:09.151127541 -0500
+@@ -0,0 +1,7505 @@
 +// SPDX-License-Identifier: GPL-2.0-only
 +
 +#include <linux/binfmts.h>
@@ -13578,6 +13592,14 @@ diff -ruN --exclude .git linux-7.0.12/security/hardening/core.c linux-7.0.12-hdn
 +	return hdn_deny_object(HDN_AUTH_OBJECT_LINK, HDN_TRANS_OBJECT_LINK,
 +			       HDN_REASON_OBJECT_POLICY, -EACCES,
 +			       hdn_inode_object_id(inode));
++}
++
++int hdn_authorize_object_link_target(const struct dentry *dir)
++{
++	return hdn_authorize_object_dentry_flag(
++		dir, HDN_OBJECT_DENY_LINK_TARGET,
++		HDN_AUTH_OBJECT_LINK_TARGET,
++		HDN_TRANS_OBJECT_LINK_TARGET, true);
 +}
 +
 +static bool hdn_object_attr_request(unsigned int ia_valid)
@@ -16621,7 +16643,8 @@ diff -ruN --exclude .git linux-7.0.12/security/hardening/core.c linux-7.0.12-hdn
 +					 HDN_OBJECT_DENY_UNIX_ACCEPT |
 +					 HDN_OBJECT_DENY_UNIX_SEND |
 +					 HDN_OBJECT_DENY_UNIX_RECV |
-+					 HDN_OBJECT_DENY_RENAME_TARGET;
++					 HDN_OBJECT_DENY_RENAME_TARGET |
++					 HDN_OBJECT_DENY_LINK_TARGET;
 +	u64 valid_module_flags = HDN_MODULE_MATCH_FILE_ID |
 +				 HDN_MODULE_MATCH_VERITY_DIGEST |
 +				 HDN_MODULE_RESOLVE_FILE_PATH;
@@ -16727,7 +16750,8 @@ diff -ruN --exclude .git linux-7.0.12/security/hardening/core.c linux-7.0.12-hdn
 +					     HDN_OBJECT_DENY_UNIX_ACCEPT |
 +					     HDN_OBJECT_DENY_UNIX_SEND |
 +					     HDN_OBJECT_DENY_UNIX_RECV |
-+					     HDN_OBJECT_DENY_RENAME_TARGET)))
++					     HDN_OBJECT_DENY_RENAME_TARGET |
++					     HDN_OBJECT_DENY_LINK_TARGET)))
 +					return -EINVAL;
 +		if ((rule->flags & HDN_OBJECT_MATCH_FILE_ID) &&
 +		    (rule->flags & HDN_OBJECT_RESOLVE_FILE_PATH))
@@ -18642,8 +18666,8 @@ diff -ruN --exclude .git linux-7.0.12/tools/hardening/Makefile linux-7.0.12-hdn/
 +.PHONY: all clean install
 diff -ruN --exclude .git linux-7.0.12/tools/hardening/README.rst linux-7.0.12-hdn/tools/hardening/README.rst
 --- linux-7.0.12/tools/hardening/README.rst	1969-12-31 18:00:00.000000000 -0600
-+++ linux-7.0.12-hdn/tools/hardening/README.rst	2026-06-26 22:19:33.327145739 -0500
-@@ -0,0 +1,1400 @@
++++ linux-7.0.12-hdn/tools/hardening/README.rst	2026-06-26 22:29:35.011094331 -0500
+@@ -0,0 +1,1404 @@
 +.. SPDX-License-Identifier: GPL-2.0-only
 +
 +Linux Hardening Policy Tools
@@ -19055,6 +19079,7 @@ diff -ruN --exclude .git linux-7.0.12/tools/hardening/README.rst linux-7.0.12-hd
 +  object 2 deny-exec path /usr/bin/blocked-tool
 +  object 2 append-only path /var/log/hdn/audit.log
 +  object 2 deny-link path /etc/hdn/link-sensitive.conf
++  object 2 deny-link-target path /etc/hdn/no-link-in
 +  object 2 deny-attr path /etc/hdn/locked-metadata.conf
 +  object 2 deny-chmod path /etc/hdn/mode-locked.conf
 +  object 2 deny-chown path /etc/hdn/owner-locked.conf
@@ -19184,6 +19209,7 @@ diff -ruN --exclude .git linux-7.0.12/tools/hardening/README.rst linux-7.0.12-hd
 +``object <profile> deny-exec path <absolute-path>``,
 +``object <profile> append-only path <absolute-path>``,
 +``object <profile> deny-link path <absolute-path>``,
++``object <profile> deny-link-target path <absolute-path>``,
 +``object <profile> deny-attr path <absolute-path>``,
 +``object <profile> deny-chmod path <absolute-path>``,
 +``object <profile> deny-chown path <absolute-path>``,
@@ -19271,7 +19297,9 @@ diff -ruN --exclude .git linux-7.0.12/tools/hardening/README.rst linux-7.0.12-hd
 +enforces deny-exec for
 +``execve(2)`` and file-backed executable ``mmap(2)``/``mprotect(2)``
 +transitions. It enforces deny-link for hardlink attempts whose source is a
-+protected regular file. It enforces deny-attr as an aggregate metadata gate for
++protected regular file, and deny-link-target for incoming hardlinks by target
++directory identity without blocking ordinary creates in that directory. It
++enforces deny-attr as an aggregate metadata gate for
 +mode, ownership, size, explicit timestamp changes through the common setattr
 +path, VFS file-attribute changes such as ``FS_IOC_SETFLAGS`` through the common
 +fileattr path, and extended attribute or POSIX ACL set/remove operations
@@ -19337,7 +19365,7 @@ diff -ruN --exclude .git linux-7.0.12/tools/hardening/README.rst linux-7.0.12-hd
 +	AF_UNIX datagram receives by bound socket identity.
 +QEMU stages a
 +dedicated object policy and proves protected
-+read/write/delete/create/creat/mkdir/mknod/symlink/unlink/rmdir/exec/link/attr/chmod/chown/utime/xattr/setxattr/removexattr/access/stat/list/find/ioctl/lock/watch/receive/fcntl/chdir/mount/umount/truncate/rename/rename-target/unix-connect/unix-bind/unix-listen/unix-accept/unix-send/unix-recv targets, protected
++read/write/delete/create/creat/mkdir/mknod/symlink/unlink/rmdir/exec/link/link-target/attr/chmod/chown/utime/xattr/setxattr/removexattr/access/stat/list/find/ioctl/lock/watch/receive/fcntl/chdir/mount/umount/truncate/rename/rename-target/unix-connect/unix-bind/unix-listen/unix-accept/unix-send/unix-recv targets, protected
 +	file-capability xattr get/list/set/remove attempts, protected POSIX ACL xattr reads, preopened descriptor reads, readable mmap, and readable mprotect,
 +	unmatched readable mmap and mprotect,
 +		protected FIFO, character-device, and block-device read/write open denial,
@@ -22962,8 +22990,8 @@ diff -ruN --exclude .git linux-7.0.12/tools/hardening/hdn-desktop-daemon.c linux
 +}
 diff -ruN --exclude .git linux-7.0.12/tools/hardening/hdn-event-decode.c linux-7.0.12-hdn/tools/hardening/hdn-event-decode.c
 --- linux-7.0.12/tools/hardening/hdn-event-decode.c	1969-12-31 18:00:00.000000000 -0600
-+++ linux-7.0.12-hdn/tools/hardening/hdn-event-decode.c	2026-06-26 22:04:20.431226995 -0500
-@@ -0,0 +1,921 @@
++++ linux-7.0.12-hdn/tools/hardening/hdn-event-decode.c	2026-06-26 22:23:40.535124642 -0500
+@@ -0,0 +1,923 @@
 +// SPDX-License-Identifier: GPL-2.0-only
 +
 +#define _GNU_SOURCE
@@ -23092,6 +23120,7 @@ diff -ruN --exclude .git linux-7.0.12/tools/hardening/hdn-event-decode.c linux-7
 +	{ HDN_AUTH_OBJECT_TRUNCATE, "OBJECT_TRUNCATE" },
 +	{ HDN_AUTH_OBJECT_RENAME, "OBJECT_RENAME" },
 +	{ HDN_AUTH_OBJECT_RENAME_TARGET, "OBJECT_RENAME_TARGET" },
++	{ HDN_AUTH_OBJECT_LINK_TARGET, "OBJECT_LINK_TARGET" },
 +	{ HDN_AUTH_OBJECT_UNIX_CONNECT, "OBJECT_UNIX_CONNECT" },
 +	{ HDN_AUTH_OBJECT_CHMOD, "OBJECT_CHMOD" },
 +	{ HDN_AUTH_OBJECT_CHOWN, "OBJECT_CHOWN" },
@@ -23189,6 +23218,7 @@ diff -ruN --exclude .git linux-7.0.12/tools/hardening/hdn-event-decode.c linux-7
 +	{ HDN_TRANS_OBJECT_TRUNCATE, "OBJECT_TRUNCATE" },
 +	{ HDN_TRANS_OBJECT_RENAME, "OBJECT_RENAME" },
 +	{ HDN_TRANS_OBJECT_RENAME_TARGET, "OBJECT_RENAME_TARGET" },
++	{ HDN_TRANS_OBJECT_LINK_TARGET, "OBJECT_LINK_TARGET" },
 +	{ HDN_TRANS_OBJECT_UNIX_CONNECT, "OBJECT_UNIX_CONNECT" },
 +	{ HDN_TRANS_OBJECT_CHMOD, "OBJECT_CHMOD" },
 +	{ HDN_TRANS_OBJECT_CHOWN, "OBJECT_CHOWN" },
@@ -24732,8 +24762,8 @@ diff -ruN --exclude .git linux-7.0.12/tools/hardening/hdn-package-hook.c linux-7
 +}
 diff -ruN --exclude .git linux-7.0.12/tools/hardening/hdn-policy-learn.c linux-7.0.12-hdn/tools/hardening/hdn-policy-learn.c
 --- linux-7.0.12/tools/hardening/hdn-policy-learn.c	1969-12-31 18:00:00.000000000 -0600
-+++ linux-7.0.12-hdn/tools/hardening/hdn-policy-learn.c	2026-06-26 22:05:12.523222394 -0500
-@@ -0,0 +1,866 @@
++++ linux-7.0.12-hdn/tools/hardening/hdn-policy-learn.c	2026-06-26 22:23:58.963122991 -0500
+@@ -0,0 +1,869 @@
 +// SPDX-License-Identifier: GPL-2.0-only
 +
 +#define _GNU_SOURCE
@@ -24864,6 +24894,7 @@ diff -ruN --exclude .git linux-7.0.12/tools/hardening/hdn-policy-learn.c linux-7
 +	{ HDN_AUTH_OBJECT_TRUNCATE, "OBJECT_TRUNCATE" },
 +	{ HDN_AUTH_OBJECT_RENAME, "OBJECT_RENAME" },
 +	{ HDN_AUTH_OBJECT_RENAME_TARGET, "OBJECT_RENAME_TARGET" },
++	{ HDN_AUTH_OBJECT_LINK_TARGET, "OBJECT_LINK_TARGET" },
 +	{ HDN_AUTH_OBJECT_UNIX_CONNECT, "OBJECT_UNIX_CONNECT" },
 +	{ HDN_AUTH_OBJECT_CHMOD, "OBJECT_CHMOD" },
 +	{ HDN_AUTH_OBJECT_CHOWN, "OBJECT_CHOWN" },
@@ -24961,6 +24992,7 @@ diff -ruN --exclude .git linux-7.0.12/tools/hardening/hdn-policy-learn.c linux-7
 +	{ HDN_TRANS_OBJECT_TRUNCATE, "OBJECT_TRUNCATE" },
 +	{ HDN_TRANS_OBJECT_RENAME, "OBJECT_RENAME" },
 +	{ HDN_TRANS_OBJECT_RENAME_TARGET, "OBJECT_RENAME_TARGET" },
++	{ HDN_TRANS_OBJECT_LINK_TARGET, "OBJECT_LINK_TARGET" },
 +	{ HDN_TRANS_OBJECT_UNIX_CONNECT, "OBJECT_UNIX_CONNECT" },
 +	{ HDN_TRANS_OBJECT_CHMOD, "OBJECT_CHMOD" },
 +	{ HDN_TRANS_OBJECT_CHOWN, "OBJECT_CHOWN" },
@@ -25330,6 +25362,7 @@ diff -ruN --exclude .git linux-7.0.12/tools/hardening/hdn-policy-learn.c linux-7
 +	case HDN_AUTH_OBJECT_TRUNCATE:
 +	case HDN_AUTH_OBJECT_RENAME:
 +	case HDN_AUTH_OBJECT_RENAME_TARGET:
++	case HDN_AUTH_OBJECT_LINK_TARGET:
 +	case HDN_AUTH_OBJECT_UNIX_CONNECT:
 +	case HDN_AUTH_OBJECT_CHMOD:
 +	case HDN_AUTH_OBJECT_CHOWN:
@@ -26769,8 +26802,8 @@ diff -ruN --exclude .git linux-7.0.12/tools/hardening/hdn-policy-workflow.c linu
 +}
 diff -ruN --exclude .git linux-7.0.12/tools/hardening/hdn-policy.c linux-7.0.12-hdn/tools/hardening/hdn-policy.c
 --- linux-7.0.12/tools/hardening/hdn-policy.c	1969-12-31 18:00:00.000000000 -0600
-+++ linux-7.0.12-hdn/tools/hardening/hdn-policy.c	2026-06-26 22:04:12.111227739 -0500
-@@ -0,0 +1,2066 @@
++++ linux-7.0.12-hdn/tools/hardening/hdn-policy.c	2026-06-26 22:23:33.459125327 -0500
+@@ -0,0 +1,2069 @@
 +// SPDX-License-Identifier: GPL-2.0-only
 +
 +#include <ctype.h>
@@ -27569,7 +27602,7 @@ diff -ruN --exclude .git linux-7.0.12/tools/hardening/hdn-policy.c linux-7.0.12-
 +	mode = strtok_r(NULL, " \t\r\n", &save);
 +	if (!profile_text || !action || !mode) {
 +		fprintf(stderr,
-+			"%u: object needs PROFILE deny-read|deny-write|deny-delete|deny-create|deny-creat|deny-mkdir|deny-mknod|deny-symlink|deny-unlink|deny-rmdir|deny-exec|append-only|deny-link|deny-attr|deny-chmod|deny-chown|deny-utime|deny-xattr|deny-setxattr|deny-removexattr|deny-access|deny-stat|deny-list|deny-find|deny-ioctl|deny-lock|deny-watch|deny-receive|deny-fcntl|deny-chdir|deny-mount|deny-umount|deny-truncate|deny-rename|deny-rename-target|deny-unix-connect|deny-unix-bind|deny-unix-listen|deny-unix-accept|deny-unix-send|deny-unix-recv path|nofollow-path|tree|inode\n",
++			"%u: object needs PROFILE deny-read|deny-write|deny-delete|deny-create|deny-creat|deny-mkdir|deny-mknod|deny-symlink|deny-unlink|deny-rmdir|deny-exec|append-only|deny-link|deny-link-target|deny-attr|deny-chmod|deny-chown|deny-utime|deny-xattr|deny-setxattr|deny-removexattr|deny-access|deny-stat|deny-list|deny-find|deny-ioctl|deny-lock|deny-watch|deny-receive|deny-fcntl|deny-chdir|deny-mount|deny-umount|deny-truncate|deny-rename|deny-rename-target|deny-unix-connect|deny-unix-bind|deny-unix-listen|deny-unix-accept|deny-unix-send|deny-unix-recv path|nofollow-path|tree|inode\n",
 +			line);
 +		return -EINVAL;
 +	}
@@ -27597,6 +27630,7 @@ diff -ruN --exclude .git linux-7.0.12/tools/hardening/hdn-policy.c linux-7.0.12-
 +	    strcmp(action_name, "DENY_EXEC") &&
 +	    strcmp(action_name, "APPEND_ONLY") &&
 +	    strcmp(action_name, "DENY_LINK") &&
++	    strcmp(action_name, "DENY_LINK_TARGET") &&
 +	    strcmp(action_name, "DENY_ATTR") &&
 +	    strcmp(action_name, "DENY_CHMOD") &&
 +	    strcmp(action_name, "DENY_CHOWN") &&
@@ -27659,6 +27693,8 @@ diff -ruN --exclude .git linux-7.0.12/tools/hardening/hdn-policy.c linux-7.0.12-
 +		rule->flags = HDN_OBJECT_APPEND_ONLY;
 +	else if (!strcmp(action_name, "DENY_LINK"))
 +		rule->flags = HDN_OBJECT_DENY_LINK;
++	else if (!strcmp(action_name, "DENY_LINK_TARGET"))
++		rule->flags = HDN_OBJECT_DENY_LINK_TARGET;
 +	else if (!strcmp(action_name, "DENY_ATTR"))
 +		rule->flags = HDN_OBJECT_DENY_ATTR;
 +	else if (!strcmp(action_name, "DENY_CHMOD"))
@@ -33758,8 +33794,8 @@ diff -ruN --exclude .git linux-7.0.12/tools/hardening/hdn-rofs-transaction.c lin
 +}
 diff -ruN --exclude .git linux-7.0.12/tools/hardening/hdn-status.c linux-7.0.12-hdn/tools/hardening/hdn-status.c
 --- linux-7.0.12/tools/hardening/hdn-status.c	1969-12-31 18:00:00.000000000 -0600
-+++ linux-7.0.12-hdn/tools/hardening/hdn-status.c	2026-06-26 22:05:00.675223432 -0500
-@@ -0,0 +1,934 @@
++++ linux-7.0.12-hdn/tools/hardening/hdn-status.c	2026-06-26 22:23:48.035123954 -0500
+@@ -0,0 +1,936 @@
 +// SPDX-License-Identifier: GPL-2.0-only
 +
 +#define _GNU_SOURCE
@@ -33881,6 +33917,7 @@ diff -ruN --exclude .git linux-7.0.12/tools/hardening/hdn-status.c linux-7.0.12-
 +	{ HDN_AUTH_OBJECT_TRUNCATE, "OBJECT_TRUNCATE" },
 +	{ HDN_AUTH_OBJECT_RENAME, "OBJECT_RENAME" },
 +	{ HDN_AUTH_OBJECT_RENAME_TARGET, "OBJECT_RENAME_TARGET" },
++	{ HDN_AUTH_OBJECT_LINK_TARGET, "OBJECT_LINK_TARGET" },
 +	{ HDN_AUTH_OBJECT_UNIX_CONNECT, "OBJECT_UNIX_CONNECT" },
 +	{ HDN_AUTH_OBJECT_CHMOD, "OBJECT_CHMOD" },
 +	{ HDN_AUTH_OBJECT_CHOWN, "OBJECT_CHOWN" },
@@ -33978,6 +34015,7 @@ diff -ruN --exclude .git linux-7.0.12/tools/hardening/hdn-status.c linux-7.0.12-
 +	{ HDN_TRANS_OBJECT_TRUNCATE, "OBJECT_TRUNCATE" },
 +	{ HDN_TRANS_OBJECT_RENAME, "OBJECT_RENAME" },
 +	{ HDN_TRANS_OBJECT_RENAME_TARGET, "OBJECT_RENAME_TARGET" },
++	{ HDN_TRANS_OBJECT_LINK_TARGET, "OBJECT_LINK_TARGET" },
 +	{ HDN_TRANS_OBJECT_UNIX_CONNECT, "OBJECT_UNIX_CONNECT" },
 +	{ HDN_TRANS_OBJECT_CHMOD, "OBJECT_CHMOD" },
 +	{ HDN_TRANS_OBJECT_CHOWN, "OBJECT_CHOWN" },
@@ -35884,8 +35922,8 @@ diff -ruN --exclude .git linux-7.0.12/tools/testing/selftests/hardening/hdn_elfn
 +}
 diff -ruN --exclude .git linux-7.0.12/tools/testing/selftests/hardening/hdn_smoke.c linux-7.0.12-hdn/tools/testing/selftests/hardening/hdn_smoke.c
 --- linux-7.0.12/tools/testing/selftests/hardening/hdn_smoke.c	1969-12-31 18:00:00.000000000 -0600
-+++ linux-7.0.12-hdn/tools/testing/selftests/hardening/hdn_smoke.c	2026-06-26 22:17:38.443157832 -0500
-@@ -0,0 +1,25902 @@
++++ linux-7.0.12-hdn/tools/testing/selftests/hardening/hdn_smoke.c	2026-06-26 22:26:34.167102214 -0500
+@@ -0,0 +1,25977 @@
 +// SPDX-License-Identifier: GPL-2.0-only
 +
 +#define _GNU_SOURCE
@@ -36377,6 +36415,12 @@ diff -ruN --exclude .git linux-7.0.12/tools/testing/selftests/hardening/hdn_smok
 +	HDN_OBJECT_CREATE_UNPROTECTED_DIR "/link-source-denied"
 +#define HDN_OBJECT_LINK_UNPROTECTED_TARGET \
 +	HDN_OBJECT_CREATE_UNPROTECTED_DIR "/link-source-allowed"
++#define HDN_OBJECT_LINK_TARGET_PROTECTED_DIR \
++	"/hdn-object-link-target-protected"
++#define HDN_OBJECT_LINK_TARGET_PROTECTED_PATH \
++	HDN_OBJECT_LINK_TARGET_PROTECTED_DIR "/linked-in"
++#define HDN_OBJECT_LINK_TARGET_CREATE_PATH \
++	HDN_OBJECT_LINK_TARGET_PROTECTED_DIR "/ordinary-create"
 +#define HDN_OBJECT_TREE_PROTECTED_DIR "/hdn-object-tree-protected"
 +#define HDN_OBJECT_TREE_UNPROTECTED_DIR "/hdn-object-tree-unprotected"
 +#define HDN_OBJECT_TREE_PROTECTED_READ \
@@ -39128,6 +39172,30 @@ diff -ruN --exclude .git linux-7.0.12/tools/testing/selftests/hardening/hdn_smok
 +	return child_exit_result(child);
 +}
 +
++static int event_decoder_finds_object_link_target_denial(void)
++{
++	pid_t child;
++
++	if (access(HDN_EVENT_DECODE_EXEC, X_OK))
++		return KSFT_SKIP;
++
++	child = fork();
++	if (child < 0)
++		return 2;
++
++	if (!child) {
++		execl(HDN_EVENT_DECODE_EXEC, "hdn-event-decode", "--quiet",
++		      "--expect", "authority=OBJECT_LINK_TARGET",
++		      "--expect", "transition=OBJECT_LINK_TARGET",
++		      "--expect", "action=DENY_AUDIT", NULL);
++		fprintf(stderr, "event decoder exec failed: %s\n",
++			strerror(errno));
++		_exit(2);
++	}
++
++	return child_exit_result(child);
++}
++
 +static int event_decoder_read_output(int fd, char *buf, size_t size)
 +{
 +	size_t offset = 0;
@@ -39301,7 +39369,7 @@ diff -ruN --exclude .git linux-7.0.12/tools/testing/selftests/hardening/hdn_smok
 +static int status_helper_decodes_audit_flood_fixture(void)
 +{
 +	static const char fixture[] =
-+		"abi_version: 83\n"
++		"abi_version: 84\n"
 +		"phase: runtime\n"
 +		"phase_id: 3\n"
 +		"policy_loaded: 1\n"
@@ -42179,6 +42247,36 @@ diff -ruN --exclude .git linux-7.0.12/tools/testing/selftests/hardening/hdn_smok
 +		return 2;
 +
 +	return unlink(HDN_OBJECT_LINK_UNPROTECTED_TARGET) ? 2 : 0;
++}
++
++static int object_link_target_denied(void)
++{
++	int ret;
++
++	unlink(HDN_OBJECT_LINK_TARGET_PROTECTED_PATH);
++	ret = link(HDN_OBJECT_LINK_UNPROTECTED,
++		   HDN_OBJECT_LINK_TARGET_PROTECTED_PATH);
++	if (!ret) {
++		unlink(HDN_OBJECT_LINK_TARGET_PROTECTED_PATH);
++		return 1;
++	}
++
++	return errno_is_denial(errno) ? 0 : 2;
++}
++
++static int object_link_target_create_allowed(void)
++{
++	int ret;
++
++	unlink(HDN_OBJECT_LINK_TARGET_CREATE_PATH);
++	ret = write_created_text_file(HDN_OBJECT_LINK_TARGET_CREATE_PATH,
++				      "ordinary create under link-target policy\n");
++	if (ret)
++		return 2;
++	if (unlink(HDN_OBJECT_LINK_TARGET_CREATE_PATH))
++		return 2;
++
++	return 0;
 +}
 +
 +static int object_creat_denied(void)
@@ -55482,9 +55580,11 @@ diff -ruN --exclude .git linux-7.0.12/tools/testing/selftests/hardening/hdn_smok
 +			ksft_test_result_skip("object append-only policy denies truncate\n");
 +			ksft_test_result_skip("object append-only policy denies preopened ftruncate\n");
 +			ksft_test_result_skip("object append-only policy denies fallocate\n");
-+			ksft_test_result_skip("object link policy denies protected source hardlink\n");
-+			ksft_test_result_skip("object link policy allows unmatched source hardlink\n");
-+			ksft_test_result_skip("object attr policy denies protected chmod\n");
++				ksft_test_result_skip("object link policy denies protected source hardlink\n");
++				ksft_test_result_skip("object link policy allows unmatched source hardlink\n");
++				ksft_test_result_skip("object link-target policy denies protected target\n");
++				ksft_test_result_skip("object link-target policy allows ordinary create\n");
++				ksft_test_result_skip("object attr policy denies protected chmod\n");
 +			ksft_test_result_skip("object attr policy denies protected chown\n");
 +			ksft_test_result_skip("object attr policy denies protected timestamps\n");
 +			ksft_test_result_skip("object attr policy denies protected setxattr\n");
@@ -55644,6 +55744,8 @@ diff -ruN --exclude .git linux-7.0.12/tools/testing/selftests/hardening/hdn_smok
 +				ksft_test_result_skip("hardening events report object rename denial\n");
 +				ksft_test_result_skip("hardening events report object rename-target denial\n");
 +				ksft_test_result_skip("event decoder names object rename-target denial\n");
++				ksft_test_result_skip("hardening events report object link-target denial\n");
++				ksft_test_result_skip("event decoder names object link-target denial\n");
 +				ksft_test_result_skip("hardening events report object unix-connect denial\n");
 +				ksft_test_result_skip("hardening events report object unix-bind denial\n");
 +				ksft_test_result_skip("hardening events report object unix-listen denial\n");
@@ -58363,7 +58465,7 @@ diff -ruN --exclude .git linux-7.0.12/tools/testing/selftests/hardening/hdn_smok
 +		ksft_test_result(object_policy_committed,
 +				 "object-write hardening policy commits\n");
 +		ksft_test_result(object_policy_committed &&
-+							 securityfs_status_has_line("object_rule_count: 94"),
++							 securityfs_status_has_line("object_rule_count: 95"),
 +						 "object-write policy reports object rule count\n");
 +	report_child_result(object_policy_committed ?
 +			    object_protected_write_denied() : 2,
@@ -58417,6 +58519,12 @@ diff -ruN --exclude .git linux-7.0.12/tools/testing/selftests/hardening/hdn_smok
 +	report_child_result(object_policy_committed ?
 +			    object_rename_target_create_allowed() : 2,
 +			    "object rename-target policy allows ordinary create");
++	report_child_result(object_policy_committed ?
++			    object_link_target_denied() : 2,
++			    "object link-target policy denies protected target");
++	report_child_result(object_policy_committed ?
++			    object_link_target_create_allowed() : 2,
++			    "object link-target policy allows ordinary create");
 +	report_child_result(object_policy_committed ?
 +			    object_unix_connect_denied() : 2,
 +			    "object unix-connect policy denies protected socket connect");
@@ -59263,13 +59371,18 @@ diff -ruN --exclude .git linux-7.0.12/tools/testing/selftests/hardening/hdn_smok
 +						"hardening events report object truncate denial");
 +		test_securityfs_events_contains("authority=65",
 +						"hardening events report object rename denial");
-+		test_securityfs_events_line_contains("authority=85 transition=97",
-+						     "reason=52",
-+						     "hardening events report object rename-target denial");
-+		report_child_result(event_decoder_finds_object_rename_target_denial(),
-+				    "event decoder names object rename-target denial");
-+			test_securityfs_events_contains("authority=66",
-+							"hardening events report object unix-connect denial");
++			test_securityfs_events_line_contains("authority=85 transition=97",
++							     "reason=52",
++							     "hardening events report object rename-target denial");
++			report_child_result(event_decoder_finds_object_rename_target_denial(),
++					    "event decoder names object rename-target denial");
++			test_securityfs_events_line_contains("authority=86 transition=98",
++							     "reason=52",
++							     "hardening events report object link-target denial");
++			report_child_result(event_decoder_finds_object_link_target_denial(),
++					    "event decoder names object link-target denial");
++				test_securityfs_events_contains("authority=66",
++								"hardening events report object unix-connect denial");
 +			test_securityfs_events_contains("authority=79",
 +							"hardening events report object unix-bind denial");
 +			test_securityfs_events_contains("authority=80",
@@ -61403,11 +61516,11 @@ diff -ruN --exclude .git linux-7.0.12/tools/testing/selftests/hardening/hdn_smok
 +	if (access(HDN_STATUS, R_OK))
 +		ksft_exit_skip("hardening securityfs status not present\n");
 +
-+	ksft_set_plan(909);
++	ksft_set_plan(913);
 +	test_securityfs_status();
 +	test_symbol_test_module_load();
-+	test_securityfs_status_contains("abi_version: 83",
-+					"hardening status reports policy ABI 83");
++	test_securityfs_status_contains("abi_version: 84",
++					"hardening status reports policy ABI 84");
 +	test_securityfs_status_contains("phase:",
 +					"hardening status reports sealing phase");
 +	test_securityfs_status_contains("policy_staged:",
@@ -61970,10 +62083,10 @@ diff -ruN --exclude .git linux-7.0.12/tools/testing/selftests/hardening/namespac
 +allow 2 POLICY_ADMIN CRED_CHANGE PTRACE NAMESPACE_ADMIN PROC_TASK_VIEW
 diff -ruN --exclude .git linux-7.0.12/tools/testing/selftests/hardening/object-write.policy linux-7.0.12-hdn/tools/testing/selftests/hardening/object-write.policy
 --- linux-7.0.12/tools/testing/selftests/hardening/object-write.policy	1969-12-31 18:00:00.000000000 -0600
-+++ linux-7.0.12-hdn/tools/testing/selftests/hardening/object-write.policy	2026-06-26 22:05:55.039219997 -0500
-@@ -0,0 +1,110 @@
++++ linux-7.0.12-hdn/tools/testing/selftests/hardening/object-write.policy	2026-06-26 22:24:23.371068017 -0500
+@@ -0,0 +1,111 @@
 +# Root-profile policy used by the QEMU smoke test to prove object
-+# read/write/delete/create/creat/mkdir/mknod/symlink/unlink/rmdir/exec/link/attr/chmod/chown/utime/xattr/setxattr/removexattr/access/stat/list/find/ioctl/lock/watch/receive/fcntl/chdir/mount/umount/truncate/rename/rename-target/unix-connect/unix-bind/unix-listen/unix-accept/unix-send/unix-recv denial,
++# read/write/delete/create/creat/mkdir/mknod/symlink/unlink/rmdir/exec/link/link-target/attr/chmod/chown/utime/xattr/setxattr/removexattr/access/stat/list/find/ioctl/lock/watch/receive/fcntl/chdir/mount/umount/truncate/rename/rename-target/unix-connect/unix-bind/unix-listen/unix-accept/unix-send/unix-recv denial,
 +# recursive tree denial, recursive tree denial for descriptor and IPC
 +# operations, recursive split-operation and split metadata tree denial, and
 +# append-only enforcement
@@ -62009,6 +62122,7 @@ diff -ruN --exclude .git linux-7.0.12/tools/testing/selftests/hardening/object-w
 +object 2 deny-exec path /hdn-object-exec-protected
 +object 2 append-only path /hdn-object-append-protected
 +object 2 deny-link path /hdn-object-link-protected
++object 2 deny-link-target path /hdn-object-link-target-protected
 +object 2 deny-attr path /hdn-object-attr-protected
 +object 2 deny-attr path /hdn-object-fileattr-tmpfs/protected
 +object 2 deny-chmod path /hdn-object-chmod-protected
@@ -62172,8 +62286,8 @@ diff -ruN --exclude .git linux-7.0.12/tools/testing/selftests/hardening/role.pol
 +use-role 2 desktop-admin
 diff -ruN --exclude .git linux-7.0.12/tools/testing/selftests/hardening/run-qemu-smoke.sh linux-7.0.12-hdn/tools/testing/selftests/hardening/run-qemu-smoke.sh
 --- linux-7.0.12/tools/testing/selftests/hardening/run-qemu-smoke.sh	1969-12-31 18:00:00.000000000 -0600
-+++ linux-7.0.12-hdn/tools/testing/selftests/hardening/run-qemu-smoke.sh	2026-06-26 22:07:32.679211370 -0500
-@@ -0,0 +1,1199 @@
++++ linux-7.0.12-hdn/tools/testing/selftests/hardening/run-qemu-smoke.sh	2026-06-26 22:24:33.075066718 -0500
+@@ -0,0 +1,1201 @@
 +#!/bin/sh
 +# SPDX-License-Identifier: GPL-2.0
 +
@@ -62207,7 +62321,7 @@ diff -ruN --exclude .git linux-7.0.12/tools/testing/selftests/hardening/run-qemu
 +QEMU_MEMORY=${QEMU_MEMORY:-1024M}
 +QEMU_SMP=${QEMU_SMP:-2}
 +QEMU_MACHINE=${QEMU_MACHINE:-q35,accel=tcg}
-+HDN_SMOKE_EXPECTED_PASS=${HDN_SMOKE_EXPECTED_PASS:-909}
++HDN_SMOKE_EXPECTED_PASS=${HDN_SMOKE_EXPECTED_PASS:-913}
 +WORK=${HDN_QEMU_WORK:-"${TMPDIR:-/tmp}/hdn-qemu-smoke.$$"}
 +LOG=${HDN_QEMU_LOG:-"$WORK/qemu.log"}
 +QMP=${HDN_QEMU_QMP:-"$WORK/qmp.sock"}
@@ -63234,6 +63348,8 @@ diff -ruN --exclude .git linux-7.0.12/tools/testing/selftests/hardening/run-qemu
 +chmod 0777 "$WORK/initramfs/hdn-object-create-unprotected"
 +mkdir -p "$WORK/initramfs/hdn-object-rename-target-protected"
 +chmod 0777 "$WORK/initramfs/hdn-object-rename-target-protected"
++mkdir -p "$WORK/initramfs/hdn-object-link-target-protected"
++chmod 0777 "$WORK/initramfs/hdn-object-link-target-protected"
 +mkdir -p "$WORK/initramfs/hdn-object-creat-protected"
 +chmod 0777 "$WORK/initramfs/hdn-object-creat-protected"
 +mkdir -p "$WORK/initramfs/hdn-object-mkdir-protected"

@@ -935,6 +935,7 @@ can declare `object PROFILE deny-write path PATH`,
 `object PROFILE deny-read path PATH`, `object PROFILE deny-delete path PATH`,
 `object PROFILE deny-create path PATH`, `object PROFILE deny-exec path PATH`,
 `object PROFILE append-only path PATH`, `object PROFILE deny-link path PATH`,
+`object PROFILE deny-link-target path PATH`,
 `object PROFILE deny-attr path PATH`, `object PROFILE deny-chmod path PATH`,
 `object PROFILE deny-chown path PATH`, `object PROFILE deny-utime path PATH`,
 `object PROFILE deny-xattr path PATH`,
@@ -962,7 +963,7 @@ can declare `object PROFILE deny-write path PATH`,
 	`object PROFILE OP inode MAJOR MINOR INO` rules for the same object
 	operations. Path and tree declarations are resolved to file
 	or directory identity when the signed policy is staged, and VFS
-	read/write/delete/create/creat/mkdir/mknod/symlink/unlink/rmdir/exec/link/attr/chmod/chown/utime/xattr/setxattr/removexattr/access/stat/list/find/ioctl/lock/watch/receive/fcntl/chdir/mount/umount/truncate/rename/rename-target/unix-connect/unix-bind/unix-listen/unix-accept/unix-send/unix-recv paths check compiled identity under RCU.
+	read/write/delete/create/creat/mkdir/mknod/symlink/unlink/rmdir/exec/link/link-target/attr/chmod/chown/utime/xattr/setxattr/removexattr/access/stat/list/find/ioctl/lock/watch/receive/fcntl/chdir/mount/umount/truncate/rename/rename-target/unix-connect/unix-bind/unix-listen/unix-accept/unix-send/unix-recv paths check compiled identity under RCU.
 Tree declarations must resolve to directories and match that directory plus
 descendants by dentry ancestry. This
 slice covers recursive denial rules, recursive split create/delete operation
@@ -984,7 +985,8 @@ rename into a protected directory. Split `creat`, `mkdir`, `mknod`, and
 `symlink` object rules gate their named creation operations before falling back
 to aggregate create policy. It covers `execve(2)` and file-backed executable
 `mmap(2)`/`mprotect(2)` transitions for protected executable objects, plus
-hardlink attempts from protected regular-file sources. It also covers aggregate
+hardlink attempts from protected regular-file sources and incoming hardlinks by
+target directory identity. It also covers aggregate
 mode, ownership, size, explicit timestamp changes through the common setattr
 path, VFS file-attribute flag changes through the common fileattr path, and
 extended attribute set/remove operations through the common VFS xattr paths,
@@ -1368,7 +1370,7 @@ fs/namespace.c, fs/fsopen.c, fs/super.c:
   bypasses
 
 fs/namei.c, fs/open.c, fs/read_write.c, fs/attr.c, fs/xattr.c, fs/stat.c, fs/readdir.c, fs/fhandle.c, fs/namespace.c, net/unix/af_unix.c, security/security.c:
-  enforce signed object read/write/delete/create/creat/mkdir/mknod/symlink/unlink/rmdir/exec/link/attr/chmod/chown/utime/xattr/setxattr/removexattr/access/stat/list/find/ioctl/lock/watch/receive/fcntl/chdir/mount/umount/truncate/rename/unix-connect/unix-bind/unix-listen/unix-accept/unix-send/unix-recv
+  enforce signed object read/write/delete/create/creat/mkdir/mknod/symlink/unlink/rmdir/exec/link/link-target/attr/chmod/chown/utime/xattr/setxattr/removexattr/access/stat/list/find/ioctl/lock/watch/receive/fcntl/chdir/mount/umount/truncate/rename/rename-target/unix-connect/unix-bind/unix-listen/unix-accept/unix-send/unix-recv
   denial, append-only, recursive split-operation tree, recursive descriptor,
   operation-tree and preopened-descriptor unmatched checks, fd-receive, mount topology with unmatched-target checks, split metadata/xattr, and filesystem-socket IPC operation tree, and recursive
   append-only tree rules by compiled identity
@@ -1856,7 +1858,7 @@ Core oracle groups:
 - unsigned user binary gets user profile
 - compiler roles expand inherited reusable grants into sealed profiles
 - UID/GID subject rules select account profiles
-- signed object read/write/delete/create/creat/mkdir/mknod/symlink/unlink/rmdir/exec/link/attr/chmod/chown/utime/xattr/setxattr/removexattr/access/stat/list/find/ioctl/lock/watch/receive/fcntl/chdir/mount/umount/truncate/rename/unix-connect/unix-bind/unix-listen/unix-accept/unix-send/unix-recv, append-only, recursive split-operation tree, recursive descriptor, operation-tree and preopened-descriptor unmatched checks, fd-receive, mount topology with unmatched-target checks, split metadata/xattr, and filesystem-socket IPC operation tree, and recursive append-only tree rules constrain protected file, executable, metadata, extended-attribute, directory-entry, fd-passing, descriptor-control, working-directory, mount topology, size/extent mutation, move access, and filesystem socket IPC by resolved identity
+- signed object read/write/delete/create/creat/mkdir/mknod/symlink/unlink/rmdir/exec/link/link-target/attr/chmod/chown/utime/xattr/setxattr/removexattr/access/stat/list/find/ioctl/lock/watch/receive/fcntl/chdir/mount/umount/truncate/rename/rename-target/unix-connect/unix-bind/unix-listen/unix-accept/unix-send/unix-recv, append-only, recursive split-operation tree, recursive descriptor, operation-tree and preopened-descriptor unmatched checks, fd-receive, mount topology with unmatched-target checks, split metadata/xattr, and filesystem-socket IPC operation tree, and recursive append-only tree rules constrain protected file, executable, metadata, extended-attribute, directory-entry, fd-passing, descriptor-control, working-directory, mount topology, size/extent mutation, move access, and filesystem socket IPC by resolved identity
 - script inherits correct interpreter-chain profile
 - non-root TPE denies execution from unsafe executable directories
 - setuid transition gets privileged profile only when valid
