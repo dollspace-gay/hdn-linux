@@ -83,6 +83,9 @@ log consumers do not need to unpack those raw integers themselves. A new
 `hdn-status` helper gives desktop daemons, settings panels, support tools, and
 recovery UI stable product-facing `key=value` status with policy readiness,
 mitigation counts, audit-flood state, and decoded audit-flood names.
+Its optional compatibility view reports stable `compat_*` hardening-family keys
+derived from sealed HDN status bits for distro tooling that wants coarse
+feature-state checks without depending on raw kernel labels.
 `hdn-control-center` now gives settings panels and desktop shells one
 product-facing status/action entry point above `hdn-status` and
 `hdn-desktop-daemon`. `hdn-policy-workflow` now gives settings panels, support
@@ -127,16 +130,16 @@ The hardening smoke suite in the development tree is run under QEMU. Latest
 local result before this publication checkpoint:
 
 ```text
-QEMU hardening smoke: 950/950 pass
+QEMU hardening smoke: 952/952 pass
 ```
 
 Patch artifact at this checkpoint:
 
 ```text
 patch: patches/hdn-linux-7.0.12.patch
-lines: 65,278
-bytes: 1,943,148
-sha256: a688f5de1eab0e8948bbe027658fccc4d79f9fb3a40618a93946a7fe3b24971b
+lines: 65,564
+bytes: 1,950,995
+sha256: e1780cb47b19edcaa6a23b69acf44c4e3aad9177c0c46dd1d4527133588ea053
 ```
 
 ## Development Rule

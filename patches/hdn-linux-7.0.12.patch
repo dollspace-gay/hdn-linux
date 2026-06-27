@@ -19151,8 +19151,8 @@ diff -ruN --exclude .git linux-7.0.12/tools/hardening/Makefile linux-7.0.12-hdn/
 +.PHONY: all clean install
 diff -ruN --exclude .git linux-7.0.12/tools/hardening/README.rst linux-7.0.12-hdn/tools/hardening/README.rst
 --- linux-7.0.12/tools/hardening/README.rst	1969-12-31 18:00:00.000000000 -0600
-+++ linux-7.0.12-hdn/tools/hardening/README.rst	2026-06-27 01:05:41.738243696 -0500
-@@ -0,0 +1,1457 @@
++++ linux-7.0.12-hdn/tools/hardening/README.rst	2026-06-27 01:27:00.614122872 -0500
+@@ -0,0 +1,1461 @@
 +.. SPDX-License-Identifier: GPL-2.0-only
 +
 +Linux Hardening Policy Tools
@@ -19341,7 +19341,11 @@ diff -ruN --exclude .git linux-7.0.12/tools/hardening/README.rst linux-7.0.12-hd
 +UI code to parse raw kernel status labels directly. It also decodes
 +``audit_flood_last_action``, ``audit_flood_last_authority``,
 +``audit_flood_last_transition``, and ``audit_flood_last_reason`` to UAPI names
-+and supports ``--expect KEY=VALUE`` for harnesses.
++and supports ``--expect KEY=VALUE`` for harnesses. The optional ``--compat``
++view adds ``compat_*`` feature-family keys derived from sealed HDN status bits
++so installers, support tools, and settings panels can test familiar hardening
++families without depending on raw kernel status labels or lower-level policy
++internals.
 +
 +``hdn-policy-learn`` consumes the same event records and emits a reviewable
 +policy fragment for settings UI, support tools, and developer-mode workflows.
@@ -23526,7 +23530,6 @@ diff -ruN --exclude .git linux-7.0.12/tools/hardening/hdn-desktop-daemon.c linux
 +	free_config(&config);
 +	return ret ? 1 : 0;
 +}
-Binary files linux-7.0.12/tools/hardening/hdn-event-decode and linux-7.0.12-hdn/tools/hardening/hdn-event-decode differ
 diff -ruN --exclude .git linux-7.0.12/tools/hardening/hdn-event-decode.c linux-7.0.12-hdn/tools/hardening/hdn-event-decode.c
 --- linux-7.0.12/tools/hardening/hdn-event-decode.c	1969-12-31 18:00:00.000000000 -0600
 +++ linux-7.0.12-hdn/tools/hardening/hdn-event-decode.c	2026-06-26 23:49:56.602654226 -0500
@@ -25304,8 +25307,6 @@ diff -ruN --exclude .git linux-7.0.12/tools/hardening/hdn-package-hook.c linux-7
 +	free_config(&config);
 +	return ret ? 1 : 0;
 +}
-Binary files linux-7.0.12/tools/hardening/hdn-policy and linux-7.0.12-hdn/tools/hardening/hdn-policy differ
-Binary files linux-7.0.12/tools/hardening/hdn-policy-learn and linux-7.0.12-hdn/tools/hardening/hdn-policy-learn differ
 diff -ruN --exclude .git linux-7.0.12/tools/hardening/hdn-policy-learn.c linux-7.0.12-hdn/tools/hardening/hdn-policy-learn.c
 --- linux-7.0.12/tools/hardening/hdn-policy-learn.c	1969-12-31 18:00:00.000000000 -0600
 +++ linux-7.0.12-hdn/tools/hardening/hdn-policy-learn.c	2026-06-26 23:50:13.438652688 -0500
@@ -26189,7 +26190,6 @@ diff -ruN --exclude .git linux-7.0.12/tools/hardening/hdn-policy-learn.c linux-7
 +	usage(argv[0]);
 +	return 2;
 +}
-Binary files linux-7.0.12/tools/hardening/hdn-policy-merge and linux-7.0.12-hdn/tools/hardening/hdn-policy-merge differ
 diff -ruN --exclude .git linux-7.0.12/tools/hardening/hdn-policy-merge.c linux-7.0.12-hdn/tools/hardening/hdn-policy-merge.c
 --- linux-7.0.12/tools/hardening/hdn-policy-merge.c	1969-12-31 18:00:00.000000000 -0600
 +++ linux-7.0.12-hdn/tools/hardening/hdn-policy-merge.c	2026-06-26 22:05:18.595221838 -0500
@@ -34574,11 +34574,10 @@ diff -ruN --exclude .git linux-7.0.12/tools/hardening/hdn-rofs-transaction.c lin
 +
 +	return command_status;
 +}
-Binary files linux-7.0.12/tools/hardening/hdn-status and linux-7.0.12-hdn/tools/hardening/hdn-status differ
 diff -ruN --exclude .git linux-7.0.12/tools/hardening/hdn-status.c linux-7.0.12-hdn/tools/hardening/hdn-status.c
 --- linux-7.0.12/tools/hardening/hdn-status.c	1969-12-31 18:00:00.000000000 -0600
-+++ linux-7.0.12-hdn/tools/hardening/hdn-status.c	2026-06-26 23:50:40.846650243 -0500
-@@ -0,0 +1,942 @@
++++ linux-7.0.12-hdn/tools/hardening/hdn-status.c	2026-06-27 01:26:09.962129595 -0500
+@@ -0,0 +1,1126 @@
 +// SPDX-License-Identifier: GPL-2.0-only
 +
 +#define _GNU_SOURCE
@@ -34899,7 +34898,7 @@ diff -ruN --exclude .git linux-7.0.12/tools/hardening/hdn-status.c linux-7.0.12-
 +static void usage(const char *prog)
 +{
 +	fprintf(stderr,
-+		"Usage: %s [--status-path PATH] [--raw] [--quiet] [--expect KEY=VALUE]...\n"
++		"Usage: %s [--status-path PATH] [--raw] [--compat] [--quiet] [--expect KEY=VALUE]...\n"
 +		"\n"
 +		"Prints stable product-facing key=value status from hardening securityfs.\n",
 +		prog);
@@ -35184,8 +35183,181 @@ diff -ruN --exclude .git linux-7.0.12/tools/hardening/hdn-status.c linux-7.0.12-
 +	return output_add(outputs, key, "%s", value ? value : fallback);
 +}
 +
++static bool status_all_enabled(const struct hdn_status *status,
++			       const char * const *keys, size_t count)
++{
++	size_t i;
++
++	for (i = 0; i < count; i++) {
++		if (!status_bool(status, keys[i]))
++			return false;
++	}
++
++	return true;
++}
++
++static int output_compat_bool(struct hdn_outputs *outputs,
++			      const char *key, bool enabled)
++{
++	return output_add(outputs, key, "%u", enabled ? 1 : 0);
++}
++
++static int output_compat_all(struct hdn_outputs *outputs,
++			     const struct hdn_status *status, const char *key,
++			     const char * const *required, size_t count)
++{
++	return output_compat_bool(outputs, key,
++				  status_all_enabled(status, required, count));
++}
++
++static int build_compat_outputs(const struct hdn_status *status,
++				struct hdn_outputs *outputs)
++{
++	static const char * const hidesym[] = {
++		"mitigation_kernel_symbol_lookup_gate",
++		"mitigation_kptr_restrict",
++	};
++	static const char * const proc_memmap[] = {
++		"mitigation_proc_mem_restrict",
++		"mitigation_proc_memmap_redact",
++	};
++	static const char * const bpf[] = {
++		"mitigation_unpriv_bpf_lockdown",
++		"mitigation_bpf_jit_harden",
++	};
++	static const char * const module[] = {
++		"mitigation_module_load_disable",
++		"mitigation_module_autoload",
++		"mitigation_module_autoload_path",
++		"mitigation_module_request_name",
++		"mitigation_module_autoload_context",
++	};
++	static const char * const usb[] = {
++		"mitigation_usb_restrict",
++		"mitigation_usb_monitor_restrict",
++	};
++	static const char * const net_blackhole[] = {
++		"mitigation_net_blackhole",
++		"mitigation_tcp_no_simult_connect",
++	};
++	static const char * const ipc[] = {
++		"mitigation_sysvipc_harden",
++		"mitigation_posix_mqueue_harden",
++	};
++	static const char * const resource[] = {
++		"mitigation_resource_admin",
++		"mitigation_resource_audit",
++	};
++	static const char * const audit[] = {
++		"mitigation_audit_flood_control",
++		"mitigation_exec_audit",
++		"mitigation_chdir_audit",
++		"mitigation_mount_audit",
++		"mitigation_time_audit",
++		"mitigation_resource_audit",
++		"mitigation_fork_audit",
++		"mitigation_forkfail_audit",
++		"mitigation_fs_protection_audit",
++		"mitigation_ptrace_audit",
++		"mitigation_signal_audit",
++		"mitigation_rwxmap_audit",
++	};
++	int ret;
++
++	ret = output_add(outputs, "compat_status_v1", "1");
++	if (ret)
++		return ret;
++	ret = output_compat_bool(outputs, "compat_dmesg",
++				 status_bool(status,
++					     "mitigation_dmesg_restrict"));
++	if (ret)
++		return ret;
++	ret = output_compat_all(outputs, status, "compat_hidesym",
++				hidesym, ARRAY_SIZE(hidesym));
++	if (ret)
++		return ret;
++	ret = output_compat_bool(outputs, "compat_proc",
++				 status_bool(status, "mitigation_proc_hide"));
++	if (ret)
++		return ret;
++	ret = output_compat_all(outputs, status, "compat_proc_memmap",
++				proc_memmap, ARRAY_SIZE(proc_memmap));
++	if (ret)
++		return ret;
++	ret = output_compat_bool(outputs, "compat_sysfs",
++				 status_bool(status,
++					     "mitigation_sysfs_restrict"));
++	if (ret)
++		return ret;
++	ret = output_compat_all(outputs, status, "compat_bpf",
++				bpf, ARRAY_SIZE(bpf));
++	if (ret)
++		return ret;
++	ret = output_compat_bool(outputs, "compat_perf",
++				 status_bool(status,
++					     "mitigation_unpriv_perf_lockdown"));
++	if (ret)
++		return ret;
++	ret = output_compat_bool(outputs, "compat_memfd_noexec",
++				 status_bool(status,
++					     "mitigation_memfd_noexec"));
++	if (ret)
++		return ret;
++	ret = output_compat_bool(outputs, "compat_threadstack",
++				 status_bool(status,
++					     "mitigation_rand_threadstack"));
++	if (ret)
++		return ret;
++	ret = output_compat_all(outputs, status, "compat_module",
++				module, ARRAY_SIZE(module));
++	if (ret)
++		return ret;
++	ret = output_compat_bool(outputs, "compat_rofs",
++				 status_bool(status, "mitigation_rofs_harden"));
++	if (ret)
++		return ret;
++	ret = output_compat_bool(outputs, "compat_fuse",
++				 status_bool(status,
++					     "mitigation_fuse_restrict"));
++	if (ret)
++		return ret;
++	ret = output_compat_all(outputs, status, "compat_usb",
++				usb, ARRAY_SIZE(usb));
++	if (ret)
++		return ret;
++	ret = output_compat_bool(outputs, "compat_socket",
++				 status_bool(status,
++					     "mitigation_socket_restrict"));
++	if (ret)
++		return ret;
++	ret = output_compat_all(outputs, status, "compat_net_blackhole",
++				net_blackhole, ARRAY_SIZE(net_blackhole));
++	if (ret)
++		return ret;
++	ret = output_compat_all(outputs, status, "compat_ipc",
++				ipc, ARRAY_SIZE(ipc));
++	if (ret)
++		return ret;
++	ret = output_compat_bool(outputs, "compat_tty",
++				 status_bool(status,
++					     "mitigation_tty_injection_harden"));
++	if (ret)
++		return ret;
++	ret = output_compat_all(outputs, status, "compat_resource",
++				resource, ARRAY_SIZE(resource));
++	if (ret)
++		return ret;
++	ret = output_compat_bool(outputs, "compat_block_device",
++				 status_bool(status,
++					     "mitigation_block_device_restrict"));
++	if (ret)
++		return ret;
++	return output_compat_all(outputs, status, "compat_audit",
++				 audit, ARRAY_SIZE(audit));
++}
++
 +static int build_outputs(const struct hdn_status *status, const char *source,
-+			 bool raw, struct hdn_outputs *outputs)
++			 bool raw, bool compat, struct hdn_outputs *outputs)
 +{
 +	unsigned long long audit_last_action;
 +	unsigned long long audit_last_authority;
@@ -35345,6 +35517,12 @@ diff -ruN --exclude .git linux-7.0.12/tools/hardening/hdn-status.c linux-7.0.12-
 +	if (ret)
 +		return ret;
 +
++	if (compat) {
++		ret = build_compat_outputs(status, outputs);
++		if (ret)
++			return ret;
++	}
++
 +	if (!raw)
 +		return 0;
 +
@@ -35453,6 +35631,7 @@ diff -ruN --exclude .git linux-7.0.12/tools/hardening/hdn-status.c linux-7.0.12-
 +	struct hdn_status status;
 +	const char *status_path = HDN_STATUS_PATH;
 +	bool quiet = false;
++	bool compat = false;
 +	bool raw = false;
 +	int ret;
 +	int i;
@@ -35472,6 +35651,10 @@ diff -ruN --exclude .git linux-7.0.12/tools/hardening/hdn-status.c linux-7.0.12-
 +		}
 +		if (!strcmp(argv[i], "--raw")) {
 +			raw = true;
++			continue;
++		}
++		if (!strcmp(argv[i], "--compat")) {
++			compat = true;
 +			continue;
 +		}
 +		if (!strcmp(argv[i], "--quiet")) {
@@ -35497,7 +35680,7 @@ diff -ruN --exclude .git linux-7.0.12/tools/hardening/hdn-status.c linux-7.0.12-
 +		return 2;
 +	}
 +
-+	ret = build_outputs(&status, status_path, raw, &outputs);
++	ret = build_outputs(&status, status_path, raw, compat, &outputs);
 +	if (ret) {
 +		free_status(&status);
 +		free_expectations(expectations, expectation_count);
@@ -36387,7 +36570,6 @@ diff -ruN --exclude .git linux-7.0.12/tools/testing/selftests/hardening/firmware
 +audit 2 FIRMWARE_LOAD
 +
 +firmware 2 name hdn-allowed-fw.bin
-Binary files linux-7.0.12/tools/testing/selftests/hardening/hdn_elfnote_jit and linux-7.0.12-hdn/tools/testing/selftests/hardening/hdn_elfnote_jit differ
 diff -ruN --exclude .git linux-7.0.12/tools/testing/selftests/hardening/hdn_elfnote_jit.c linux-7.0.12-hdn/tools/testing/selftests/hardening/hdn_elfnote_jit.c
 --- linux-7.0.12/tools/testing/selftests/hardening/hdn_elfnote_jit.c	1969-12-31 18:00:00.000000000 -0600
 +++ linux-7.0.12-hdn/tools/testing/selftests/hardening/hdn_elfnote_jit.c	2026-06-26 11:12:01.046968436 -0500
@@ -36710,11 +36892,10 @@ diff -ruN --exclude .git linux-7.0.12/tools/testing/selftests/hardening/hdn_elfn
 +
 +	return 2;
 +}
-Binary files linux-7.0.12/tools/testing/selftests/hardening/hdn_smoke and linux-7.0.12-hdn/tools/testing/selftests/hardening/hdn_smoke differ
 diff -ruN --exclude .git linux-7.0.12/tools/testing/selftests/hardening/hdn_smoke.c linux-7.0.12-hdn/tools/testing/selftests/hardening/hdn_smoke.c
 --- linux-7.0.12/tools/testing/selftests/hardening/hdn_smoke.c	1969-12-31 18:00:00.000000000 -0600
-+++ linux-7.0.12-hdn/tools/testing/selftests/hardening/hdn_smoke.c	2026-06-27 01:05:48.514243197 -0500
-@@ -0,0 +1,26768 @@
++++ linux-7.0.12-hdn/tools/testing/selftests/hardening/hdn_smoke.c	2026-06-27 01:26:39.142126511 -0500
+@@ -0,0 +1,26873 @@
 +// SPDX-License-Identifier: GPL-2.0-only
 +
 +#define _GNU_SOURCE
@@ -40252,6 +40433,107 @@ diff -ruN --exclude .git linux-7.0.12/tools/testing/selftests/hardening/hdn_smok
 +	}
 +
 +	return child_exit_result(child);
++}
++
++static int status_helper_reports_live_compat_state(void)
++{
++	pid_t child;
++
++	if (access(HDN_STATUS_HELPER_EXEC, X_OK))
++		return KSFT_SKIP;
++
++	child = fork();
++	if (child < 0)
++		return 2;
++
++	if (!child) {
++		execl(HDN_STATUS_HELPER_EXEC, "hdn-status", "--compat",
++		      "--quiet",
++		      "--expect", "compat_status_v1=1",
++		      "--expect", "compat_hidesym=1",
++		      "--expect", "compat_proc=1",
++		      "--expect", "compat_proc_memmap=1",
++		      "--expect", "compat_sysfs=1",
++		      "--expect", "compat_bpf=1",
++		      "--expect", "compat_perf=1",
++		      "--expect", "compat_module=1",
++		      "--expect", "compat_rofs=1",
++		      "--expect", "compat_usb=1",
++		      "--expect", "compat_socket=1",
++		      "--expect", "compat_net_blackhole=1",
++		      "--expect", "compat_ipc=1",
++		      "--expect", "compat_tty=1",
++		      "--expect", "compat_resource=1",
++		      "--expect", "compat_block_device=1",
++		      "--expect", "compat_audit=1", NULL);
++		fprintf(stderr, "status helper compat exec failed: %s\n",
++			strerror(errno));
++		_exit(2);
++	}
++
++	return child_exit_result(child);
++}
++
++static int status_helper_reports_compat_fixture(void)
++{
++	static const char fixture[] =
++		"phase: runtime\n"
++		"policy_loaded: 1\n"
++		"policy_sealed: 1\n"
++		"mitigations_sealed: 1\n"
++		"mitigation_dmesg_restrict: 1\n"
++		"mitigation_kernel_symbol_lookup_gate: 1\n"
++		"mitigation_kptr_restrict: 0\n"
++		"mitigation_proc_hide: 1\n"
++		"mitigation_proc_mem_restrict: 0\n"
++		"mitigation_proc_memmap_redact: 1\n"
++		"mitigation_sysfs_restrict: 1\n"
++		"mitigation_unpriv_bpf_lockdown: 1\n"
++		"mitigation_bpf_jit_harden: 1\n"
++		"mitigation_net_blackhole: 1\n"
++		"mitigation_tcp_no_simult_connect: 0\n"
++		"mitigation_usb_restrict: 1\n"
++		"mitigation_usb_monitor_restrict: 1\n"
++		"mitigation_resource_admin: 1\n"
++		"mitigation_resource_audit: 0\n";
++	pid_t child;
++	int ret;
++
++	if (access(HDN_STATUS_HELPER_EXEC, X_OK))
++		return KSFT_SKIP;
++
++	ret = write_created_text_file(HDN_STATUS_HELPER_FIXTURE, fixture);
++	if (ret)
++		return 2;
++
++	child = fork();
++	if (child < 0) {
++		unlink(HDN_STATUS_HELPER_FIXTURE);
++		return 2;
++	}
++
++	if (!child) {
++		execl(HDN_STATUS_HELPER_EXEC, "hdn-status",
++		      "--status-path", HDN_STATUS_HELPER_FIXTURE, "--compat",
++		      "--quiet",
++		      "--expect", "compat_status_v1=1",
++		      "--expect", "compat_dmesg=1",
++		      "--expect", "compat_hidesym=0",
++		      "--expect", "compat_proc=1",
++		      "--expect", "compat_proc_memmap=0",
++		      "--expect", "compat_sysfs=1",
++		      "--expect", "compat_bpf=1",
++		      "--expect", "compat_net_blackhole=0",
++		      "--expect", "compat_usb=1",
++		      "--expect", "compat_resource=0", NULL);
++		fprintf(stderr, "status helper compat fixture exec failed: %s\n",
++			strerror(errno));
++		_exit(2);
++	}
++
++	ret = child_exit_result(child);
++	unlink(HDN_STATUS_HELPER_FIXTURE);
++	return ret;
 +}
 +
 +static int status_helper_decodes_audit_flood_fixture(void)
@@ -63092,7 +63374,7 @@ diff -ruN --exclude .git linux-7.0.12/tools/testing/selftests/hardening/hdn_smok
 +	if (access(HDN_STATUS, R_OK))
 +		ksft_exit_skip("hardening securityfs status not present\n");
 +
-+	ksft_set_plan(950);
++	ksft_set_plan(952);
 +	test_securityfs_status();
 +	test_symbol_test_module_load();
 +	test_securityfs_status_contains("abi_version: 89",
@@ -63347,6 +63629,10 @@ diff -ruN --exclude .git linux-7.0.12/tools/testing/selftests/hardening/hdn_smok
 +			    "event decoder names packed event object details");
 +	report_child_result(status_helper_reports_live_state(),
 +			    "status helper reports live hardening state");
++	report_child_result(status_helper_reports_live_compat_state(),
++			    "status helper reports compatibility status families");
++	report_child_result(status_helper_reports_compat_fixture(),
++			    "status helper composes compatibility status families");
 +	report_child_result(status_helper_decodes_audit_flood_fixture(),
 +			    "status helper decodes audit flood status names");
 +	report_child_result(control_center_status_fixture_passes(),
@@ -63876,7 +64162,7 @@ diff -ruN --exclude .git linux-7.0.12/tools/testing/selftests/hardening/role.pol
 +use-role 2 desktop-admin
 diff -ruN --exclude .git linux-7.0.12/tools/testing/selftests/hardening/run-qemu-smoke.sh linux-7.0.12-hdn/tools/testing/selftests/hardening/run-qemu-smoke.sh
 --- linux-7.0.12/tools/testing/selftests/hardening/run-qemu-smoke.sh	1969-12-31 18:00:00.000000000 -0600
-+++ linux-7.0.12-hdn/tools/testing/selftests/hardening/run-qemu-smoke.sh	2026-06-27 01:05:53.650242729 -0500
++++ linux-7.0.12-hdn/tools/testing/selftests/hardening/run-qemu-smoke.sh	2026-06-27 01:26:45.298124303 -0500
 @@ -0,0 +1,1221 @@
 +#!/bin/sh
 +# SPDX-License-Identifier: GPL-2.0
@@ -63911,7 +64197,7 @@ diff -ruN --exclude .git linux-7.0.12/tools/testing/selftests/hardening/run-qemu
 +QEMU_MEMORY=${QEMU_MEMORY:-1024M}
 +QEMU_SMP=${QEMU_SMP:-2}
 +QEMU_MACHINE=${QEMU_MACHINE:-q35,accel=tcg}
-+HDN_SMOKE_EXPECTED_PASS=${HDN_SMOKE_EXPECTED_PASS:-950}
++HDN_SMOKE_EXPECTED_PASS=${HDN_SMOKE_EXPECTED_PASS:-952}
 +WORK=${HDN_QEMU_WORK:-"${TMPDIR:-/tmp}/hdn-qemu-smoke.$$"}
 +LOG=${HDN_QEMU_LOG:-"$WORK/qemu.log"}
 +QMP=${HDN_QEMU_QMP:-"$WORK/qmp.sock"}

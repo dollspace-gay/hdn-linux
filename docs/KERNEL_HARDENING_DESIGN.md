@@ -479,6 +479,11 @@ counters; policy learning and rich presentation still belong to userspace.
 into stable `key=value` state for settings panels, desktop daemons, support
 bundles, and recovery UI, including decoded audit-flood action, authority,
 transition, and reason names.
+Its optional compatibility view reports `compat_*` feature-family keys derived
+from sealed HDN status bits, giving distro tooling a stable way to ask whether
+covered hardening families such as symbol hiding, proc/sysfs restriction,
+BPF/perf lockdown, ROFS, USB, sockets, IPC, and audit are active without
+depending on raw kernel labels or cloning lower-level control names.
 `hdn-control-center status` is the stable settings-shell entry point above that
 facade, so product UI can ask for status through one branded helper without
 parsing securityfs or depending on the raw status helper path.
