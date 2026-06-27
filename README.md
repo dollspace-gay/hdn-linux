@@ -26,7 +26,8 @@ This is not a finished distro kernel yet. Current rough parity estimates:
 
 Recent coverage includes signed/sealed HDN policy, authority-gated BPF/perf/proc
 disclosure, module admission hardening, read-only mount controls, object policy
-rules including AF_UNIX connect, bind, listen, accept, and datagram send controls, chroot
+rules including AF_UNIX connect, bind, listen, accept, datagram send, and
+datagram receive controls, chroot
 restrictions, TPE-style execution controls, IPC/socket/device hardening,
 privileged-exec restrictions, RWX/textrel/exec-stack controls, thread-stack
 placement randomization, proc-visible kernel symbol redaction, expanded BPF
@@ -113,16 +114,16 @@ The hardening smoke suite in the development tree is run under QEMU. Latest
 local result before this publication checkpoint:
 
 ```text
-QEMU hardening smoke: 822/822 pass
+QEMU hardening smoke: 825/825 pass
 ```
 
 Patch artifact at this checkpoint:
 
 ```text
 patch: patches/hdn-linux-7.0.12.patch
-lines: 61,302
-bytes: 1,807,125
-sha256: 929b4cd978ed69bea77938a1c0b4aed8be4bbde8ca1960d3d0d56c05383e1d64
+lines: 61,492
+bytes: 1,812,894
+sha256: c7f42558bf92548c18f9f1fccbce5ca84e227d1d6a9ddca4c04658526ce0b57b
 ```
 
 ## Development Rule
