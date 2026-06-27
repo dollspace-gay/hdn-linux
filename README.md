@@ -28,9 +28,9 @@ Recent coverage includes signed/sealed HDN policy, authority-gated BPF/perf/proc
 disclosure, module admission hardening, read-only mount controls, object policy
 rules including split incoming rename-target and hardlink target controls plus
 AF_UNIX connect, bind, listen, accept, datagram send, and datagram receive
-controls, recursive tree false-positive proofs for operation
-rules, preopened descriptors, fd receive, and mount topology, chroot
-restrictions, TPE-style execution controls, IPC/socket/device hardening,
+controls, recursive tree false-positive proofs for operation and
+target-directory rules, preopened descriptors, fd receive, and mount topology,
+chroot restrictions, TPE-style execution controls, IPC/socket/device hardening,
 privileged-exec restrictions, RWX/textrel/exec-stack controls, thread-stack
 placement randomization, proc-visible kernel symbol redaction, expanded BPF
 metadata/query gating, and broad audit/event decoding.
@@ -119,16 +119,16 @@ The hardening smoke suite in the development tree is run under QEMU. Latest
 local result before this publication checkpoint:
 
 ```text
-QEMU hardening smoke: 913/913 pass
+QEMU hardening smoke: 919/919 pass
 ```
 
 Patch artifact at this checkpoint:
 
 ```text
 patch: patches/hdn-linux-7.0.12.patch
-lines: 63,667
-bytes: 1,890,618
-sha256: 9f958b4db5f9d739b98d979274c10ff0994ac86613a6be5c3f2406b2d50d8e83
+lines: 63,809
+bytes: 1,912,840
+sha256: 4407456c7fdc1f8de254a12f33af9504dc0ed7de6a67385e21b6cfb7d9c0d70c
 ```
 
 ## Development Rule

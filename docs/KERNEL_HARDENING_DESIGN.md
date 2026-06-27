@@ -968,7 +968,7 @@ Tree declarations must resolve to directories and match that directory plus
 descendants by dentry ancestry. This
 slice covers recursive denial rules, recursive split create/delete operation
 rules, recursive append-only rules, recursive descriptor-control,
-operation-tree and preopened-descriptor unmatched checks, fd-receive, mount topology with unmatched-target checks, split metadata/xattr, and filesystem-socket IPC operation rules, regular-file write opens, `write(2)`, `writev(2)`,
+operation-tree, target-tree, and preopened-descriptor unmatched checks, fd-receive, mount topology with unmatched-target checks, split metadata/xattr, and filesystem-socket IPC operation rules, regular-file write opens, `write(2)`, `writev(2)`,
 pipe-to-file `splice(2)`, `copy_file_range(2)` destination writes,
 truncate/ftruncate, and fallocate; append-only files allow
 `O_APPEND`/`RWF_APPEND` writes while denying non-append writes through
@@ -1372,7 +1372,7 @@ fs/namespace.c, fs/fsopen.c, fs/super.c:
 fs/namei.c, fs/open.c, fs/read_write.c, fs/attr.c, fs/xattr.c, fs/stat.c, fs/readdir.c, fs/fhandle.c, fs/namespace.c, net/unix/af_unix.c, security/security.c:
   enforce signed object read/write/delete/create/creat/mkdir/mknod/symlink/unlink/rmdir/exec/link/link-target/attr/chmod/chown/utime/xattr/setxattr/removexattr/access/stat/list/find/ioctl/lock/watch/receive/fcntl/chdir/mount/umount/truncate/rename/rename-target/unix-connect/unix-bind/unix-listen/unix-accept/unix-send/unix-recv
   denial, append-only, recursive split-operation tree, recursive descriptor,
-  operation-tree and preopened-descriptor unmatched checks, fd-receive, mount topology with unmatched-target checks, split metadata/xattr, and filesystem-socket IPC operation tree, and recursive
+  operation-tree, target-tree, and preopened-descriptor unmatched checks, fd-receive, mount topology with unmatched-target checks, split metadata/xattr, and filesystem-socket IPC operation tree, and recursive
   append-only tree rules by compiled identity
 
 tools/hardening/hdn-rofs-apply:
@@ -1858,7 +1858,7 @@ Core oracle groups:
 - unsigned user binary gets user profile
 - compiler roles expand inherited reusable grants into sealed profiles
 - UID/GID subject rules select account profiles
-- signed object read/write/delete/create/creat/mkdir/mknod/symlink/unlink/rmdir/exec/link/link-target/attr/chmod/chown/utime/xattr/setxattr/removexattr/access/stat/list/find/ioctl/lock/watch/receive/fcntl/chdir/mount/umount/truncate/rename/rename-target/unix-connect/unix-bind/unix-listen/unix-accept/unix-send/unix-recv, append-only, recursive split-operation tree, recursive descriptor, operation-tree and preopened-descriptor unmatched checks, fd-receive, mount topology with unmatched-target checks, split metadata/xattr, and filesystem-socket IPC operation tree, and recursive append-only tree rules constrain protected file, executable, metadata, extended-attribute, directory-entry, fd-passing, descriptor-control, working-directory, mount topology, size/extent mutation, move access, and filesystem socket IPC by resolved identity
+- signed object read/write/delete/create/creat/mkdir/mknod/symlink/unlink/rmdir/exec/link/link-target/attr/chmod/chown/utime/xattr/setxattr/removexattr/access/stat/list/find/ioctl/lock/watch/receive/fcntl/chdir/mount/umount/truncate/rename/rename-target/unix-connect/unix-bind/unix-listen/unix-accept/unix-send/unix-recv, append-only, recursive split-operation tree, recursive descriptor, operation-tree, target-tree, and preopened-descriptor unmatched checks, fd-receive, mount topology with unmatched-target checks, split metadata/xattr, and filesystem-socket IPC operation tree, and recursive append-only tree rules constrain protected file, executable, metadata, extended-attribute, directory-entry, fd-passing, descriptor-control, working-directory, mount topology, size/extent mutation, move access, and filesystem socket IPC by resolved identity
 - script inherits correct interpreter-chain profile
 - non-root TPE denies execution from unsafe executable directories
 - setuid transition gets privileged profile only when valid
