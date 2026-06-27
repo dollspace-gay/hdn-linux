@@ -35810,8 +35810,8 @@ diff -ruN --exclude .git linux-7.0.12/tools/testing/selftests/hardening/hdn_elfn
 +}
 diff -ruN --exclude .git linux-7.0.12/tools/testing/selftests/hardening/hdn_smoke.c linux-7.0.12-hdn/tools/testing/selftests/hardening/hdn_smoke.c
 --- linux-7.0.12/tools/testing/selftests/hardening/hdn_smoke.c	1969-12-31 18:00:00.000000000 -0600
-+++ linux-7.0.12-hdn/tools/testing/selftests/hardening/hdn_smoke.c	2026-06-26 20:37:45.803888902 -0500
-@@ -0,0 +1,24871 @@
++++ linux-7.0.12-hdn/tools/testing/selftests/hardening/hdn_smoke.c	2026-06-26 20:52:56.671804755 -0500
+@@ -0,0 +1,25004 @@
 +// SPDX-License-Identifier: GPL-2.0-only
 +
 +#define _GNU_SOURCE
@@ -36314,6 +36314,22 @@ diff -ruN --exclude .git linux-7.0.12/tools/testing/selftests/hardening/hdn_smok
 +	HDN_OBJECT_TREE_PROTECTED_DIR "/nested/find-target"
 +#define HDN_OBJECT_TREE_UNPROTECTED_WRITE \
 +	HDN_OBJECT_TREE_UNPROTECTED_DIR "/nested/write-target"
++#define HDN_OBJECT_TREE_SPLIT_DIR "/hdn-object-tree-split"
++#define HDN_OBJECT_TREE_SPLIT_NESTED HDN_OBJECT_TREE_SPLIT_DIR "/nested"
++#define HDN_OBJECT_TREE_SPLIT_CREAT \
++	HDN_OBJECT_TREE_SPLIT_NESTED "/creat-target"
++#define HDN_OBJECT_TREE_SPLIT_MKDIR \
++	HDN_OBJECT_TREE_SPLIT_NESTED "/mkdir-target"
++#define HDN_OBJECT_TREE_SPLIT_MKNOD \
++	HDN_OBJECT_TREE_SPLIT_NESTED "/mknod-target"
++#define HDN_OBJECT_TREE_SPLIT_SYMLINK \
++	HDN_OBJECT_TREE_SPLIT_NESTED "/symlink-target"
++#define HDN_OBJECT_TREE_SPLIT_UNLINK \
++	HDN_OBJECT_TREE_SPLIT_NESTED "/unlink-target"
++#define HDN_OBJECT_TREE_SPLIT_RMDIR \
++	HDN_OBJECT_TREE_SPLIT_NESTED "/rmdir-target"
++#define HDN_OBJECT_TREE_APPEND_FILE \
++	"/hdn-object-tree-append/nested/append-target"
 +#define HDN_ROFS_UPDATER_EXEC "/hdn-rofs-updater"
 +#define HDN_ROFS_APPLY_EXEC "/hdn-rofs-apply"
 +#define HDN_ROFS_TRANSACTION_EXEC "/hdn-rofs-transaction"
@@ -41355,20 +41371,43 @@ diff -ruN --exclude .git linux-7.0.12/tools/testing/selftests/hardening/hdn_smok
 +	return 0;
 +}
 +
-+static int object_append_only_append_allowed(void)
++static int object_append_only_append_allowed_path(const char *path)
 +{
 +	const char text[] = "allowed append\n";
 +	ssize_t len;
 +	int fd;
 +
-+	fd = open(HDN_OBJECT_APPEND_PROTECTED,
-+		  O_WRONLY | O_APPEND | O_CLOEXEC);
++	fd = open(path, O_WRONLY | O_APPEND | O_CLOEXEC);
 +	if (fd < 0)
 +		return 2;
 +
 +	len = write(fd, text, sizeof(text) - 1);
 +	close(fd);
 +	return len == (ssize_t)(sizeof(text) - 1) ? 0 : 2;
++}
++
++static int object_append_only_append_allowed(void)
++{
++	return object_append_only_append_allowed_path(HDN_OBJECT_APPEND_PROTECTED);
++}
++
++static int object_tree_append_only_append_allowed(void)
++{
++	return object_append_only_append_allowed_path(HDN_OBJECT_TREE_APPEND_FILE);
++}
++
++static int object_tree_append_only_rewrite_open_denied(void)
++{
++	int fd;
++
++	errno = 0;
++	fd = open(HDN_OBJECT_TREE_APPEND_FILE, O_RDWR | O_CLOEXEC);
++	if (fd >= 0) {
++		close(fd);
++		return 1;
++	}
++
++	return errno_is_denial(errno) ? 0 : 2;
 +}
 +
 +static int object_append_only_preopened_write_denied(int fd)
@@ -43066,6 +43105,68 @@ diff -ruN --exclude .git linux-7.0.12/tools/testing/selftests/hardening/hdn_smok
 +	}
 +
 +	return errno_is_denial(-ret) ? 0 : 2;
++}
++
++static int object_tree_creat_denied(void)
++{
++	int ret;
++
++	unlink(HDN_OBJECT_TREE_SPLIT_CREAT);
++	ret = create_file_exclusive(HDN_OBJECT_TREE_SPLIT_CREAT);
++	if (!ret) {
++		unlink(HDN_OBJECT_TREE_SPLIT_CREAT);
++		return 1;
++	}
++
++	return errno_is_denial(-ret) ? 0 : 2;
++}
++
++static int object_tree_mkdir_denied(void)
++{
++	rmdir(HDN_OBJECT_TREE_SPLIT_MKDIR);
++	if (!mkdir(HDN_OBJECT_TREE_SPLIT_MKDIR, 0700)) {
++		rmdir(HDN_OBJECT_TREE_SPLIT_MKDIR);
++		return 1;
++	}
++
++	return errno_is_denial(errno) ? 0 : 2;
++}
++
++static int object_tree_mknod_denied(void)
++{
++	unlink(HDN_OBJECT_TREE_SPLIT_MKNOD);
++	if (!mkfifo(HDN_OBJECT_TREE_SPLIT_MKNOD, 0600)) {
++		unlink(HDN_OBJECT_TREE_SPLIT_MKNOD);
++		return 1;
++	}
++
++	return errno_is_denial(errno) ? 0 : 2;
++}
++
++static int object_tree_symlink_denied(void)
++{
++	unlink(HDN_OBJECT_TREE_SPLIT_SYMLINK);
++	if (!symlink(HDN_OBJECT_READ_UNPROTECTED,
++		     HDN_OBJECT_TREE_SPLIT_SYMLINK)) {
++		unlink(HDN_OBJECT_TREE_SPLIT_SYMLINK);
++		return 1;
++	}
++
++	return errno_is_denial(errno) ? 0 : 2;
++}
++
++static int object_tree_unlink_denied(void)
++{
++	if (!unlink(HDN_OBJECT_TREE_SPLIT_UNLINK))
++		return 1;
++	return errno_is_denial(errno) ? 0 : 2;
++}
++
++static int object_tree_split_rmdir_denied(void)
++{
++	if (!rmdir(HDN_OBJECT_TREE_SPLIT_RMDIR))
++		return 1;
++	return errno_is_denial(errno) ? 0 : 2;
 +}
 +
 +static int object_tree_unmatched_write_allowed(void)
@@ -54803,6 +54904,14 @@ diff -ruN --exclude .git linux-7.0.12/tools/testing/selftests/hardening/hdn_smok
 +				ksft_test_result_skip("object tree policy denies nested stat\n");
 +				ksft_test_result_skip("object tree policy denies nested readdir\n");
 +				ksft_test_result_skip("object tree policy denies nested O_PATH lookup\n");
++				ksft_test_result_skip("object tree split policy denies nested file create\n");
++				ksft_test_result_skip("object tree split policy denies nested directory create\n");
++				ksft_test_result_skip("object tree split policy denies nested FIFO create\n");
++				ksft_test_result_skip("object tree split policy denies nested symlink create\n");
++				ksft_test_result_skip("object tree split policy denies nested file unlink\n");
++				ksft_test_result_skip("object tree split policy denies nested directory rmdir\n");
++				ksft_test_result_skip("object tree append-only policy allows nested append write\n");
++				ksft_test_result_skip("object tree append-only policy denies nested rewrite open\n");
 +				ksft_test_result_skip("object tree policy allows unmatched nested write\n");
 +				ksft_test_result_skip("hardening events report object find denial\n");
 +				ksft_test_result_skip("hardening events report object ioctl denial\n");
@@ -57487,7 +57596,7 @@ diff -ruN --exclude .git linux-7.0.12/tools/testing/selftests/hardening/hdn_smok
 +		ksft_test_result(object_policy_committed,
 +				 "object-write hardening policy commits\n");
 +		ksft_test_result(object_policy_committed &&
-+							 securityfs_status_has_line("object_rule_count: 62"),
++							 securityfs_status_has_line("object_rule_count: 69"),
 +						 "object-write policy reports object rule count\n");
 +	report_child_result(object_policy_committed ?
 +			    object_protected_write_denied() : 2,
@@ -58185,6 +58294,30 @@ diff -ruN --exclude .git linux-7.0.12/tools/testing/selftests/hardening/hdn_smok
 +	report_child_result(object_policy_committed ?
 +			    object_tree_find_denied() : 2,
 +			    "object tree policy denies nested O_PATH lookup");
++	report_child_result(object_policy_committed ?
++			    object_tree_creat_denied() : 2,
++			    "object tree split policy denies nested file create");
++	report_child_result(object_policy_committed ?
++			    object_tree_mkdir_denied() : 2,
++			    "object tree split policy denies nested directory create");
++	report_child_result(object_policy_committed ?
++			    object_tree_mknod_denied() : 2,
++			    "object tree split policy denies nested FIFO create");
++	report_child_result(object_policy_committed ?
++			    object_tree_symlink_denied() : 2,
++			    "object tree split policy denies nested symlink create");
++	report_child_result(object_policy_committed ?
++			    object_tree_unlink_denied() : 2,
++			    "object tree split policy denies nested file unlink");
++	report_child_result(object_policy_committed ?
++			    object_tree_split_rmdir_denied() : 2,
++			    "object tree split policy denies nested directory rmdir");
++	report_child_result(object_policy_committed ?
++			    object_tree_append_only_append_allowed() : 2,
++			    "object tree append-only policy allows nested append write");
++	report_child_result(object_policy_committed ?
++			    object_tree_append_only_rewrite_open_denied() : 2,
++			    "object tree append-only policy denies nested rewrite open");
 +		report_child_result(object_policy_committed ?
 +				    object_tree_unmatched_write_allowed() : 2,
 +				    "object tree policy allows unmatched nested write");
@@ -60298,7 +60431,7 @@ diff -ruN --exclude .git linux-7.0.12/tools/testing/selftests/hardening/hdn_smok
 +	if (access(HDN_STATUS, R_OK))
 +		ksft_exit_skip("hardening securityfs status not present\n");
 +
-+	ksft_set_plan(849);
++	ksft_set_plan(857);
 +	test_securityfs_status();
 +	test_symbol_test_module_load();
 +	test_securityfs_status_contains("abi_version: 81",
@@ -60865,11 +60998,12 @@ diff -ruN --exclude .git linux-7.0.12/tools/testing/selftests/hardening/namespac
 +allow 2 POLICY_ADMIN CRED_CHANGE PTRACE NAMESPACE_ADMIN PROC_TASK_VIEW
 diff -ruN --exclude .git linux-7.0.12/tools/testing/selftests/hardening/object-write.policy linux-7.0.12-hdn/tools/testing/selftests/hardening/object-write.policy
 --- linux-7.0.12/tools/testing/selftests/hardening/object-write.policy	1969-12-31 18:00:00.000000000 -0600
-+++ linux-7.0.12-hdn/tools/testing/selftests/hardening/object-write.policy	2026-06-26 20:16:17.960004962 -0500
-@@ -0,0 +1,76 @@
++++ linux-7.0.12-hdn/tools/testing/selftests/hardening/object-write.policy	2026-06-26 20:50:36.323818238 -0500
+@@ -0,0 +1,84 @@
 +# Root-profile policy used by the QEMU smoke test to prove object
 +# read/write/delete/create/creat/mkdir/mknod/symlink/unlink/rmdir/exec/link/attr/chmod/chown/utime/xattr/setxattr/removexattr/access/stat/list/find/ioctl/lock/watch/receive/fcntl/chdir/mount/umount/truncate/rename/unix-connect/unix-bind/unix-listen/unix-accept/unix-send/unix-recv denial,
-+# recursive tree denial, and append-only enforcement
++# recursive tree denial, recursive split-operation tree denial, and
++# append-only enforcement
 +# by signed file or directory identity.
 +generation 1
 +base 0
@@ -60943,6 +61077,13 @@ diff -ruN --exclude .git linux-7.0.12/tools/testing/selftests/hardening/object-w
 +object 2 deny-list tree /hdn-object-tree-protected
 +object 2 deny-find tree /hdn-object-tree-protected
 +object 2 deny-find tree /hdn-object-find-tree
++object 2 deny-creat tree /hdn-object-tree-split
++object 2 deny-mkdir tree /hdn-object-tree-split
++object 2 deny-mknod tree /hdn-object-tree-split
++object 2 deny-symlink tree /hdn-object-tree-split
++object 2 deny-unlink tree /hdn-object-tree-split
++object 2 deny-rmdir tree /hdn-object-tree-split
++object 2 append-only tree /hdn-object-tree-append
 diff -ruN --exclude .git linux-7.0.12/tools/testing/selftests/hardening/privexec-deny.policy linux-7.0.12-hdn/tools/testing/selftests/hardening/privexec-deny.policy
 --- linux-7.0.12/tools/testing/selftests/hardening/privexec-deny.policy	1969-12-31 18:00:00.000000000 -0600
 +++ linux-7.0.12-hdn/tools/testing/selftests/hardening/privexec-deny.policy	2026-06-25 07:01:22.208724766 -0500
@@ -61033,8 +61174,8 @@ diff -ruN --exclude .git linux-7.0.12/tools/testing/selftests/hardening/role.pol
 +use-role 2 desktop-admin
 diff -ruN --exclude .git linux-7.0.12/tools/testing/selftests/hardening/run-qemu-smoke.sh linux-7.0.12-hdn/tools/testing/selftests/hardening/run-qemu-smoke.sh
 --- linux-7.0.12/tools/testing/selftests/hardening/run-qemu-smoke.sh	1969-12-31 18:00:00.000000000 -0600
-+++ linux-7.0.12-hdn/tools/testing/selftests/hardening/run-qemu-smoke.sh	2026-06-26 20:41:04.115870252 -0500
-@@ -0,0 +1,1060 @@
++++ linux-7.0.12-hdn/tools/testing/selftests/hardening/run-qemu-smoke.sh	2026-06-26 20:50:36.323818238 -0500
+@@ -0,0 +1,1074 @@
 +#!/bin/sh
 +# SPDX-License-Identifier: GPL-2.0
 +
@@ -61068,7 +61209,7 @@ diff -ruN --exclude .git linux-7.0.12/tools/testing/selftests/hardening/run-qemu
 +QEMU_MEMORY=${QEMU_MEMORY:-1024M}
 +QEMU_SMP=${QEMU_SMP:-2}
 +QEMU_MACHINE=${QEMU_MACHINE:-q35,accel=tcg}
-+HDN_SMOKE_EXPECTED_PASS=${HDN_SMOKE_EXPECTED_PASS:-849}
++HDN_SMOKE_EXPECTED_PASS=${HDN_SMOKE_EXPECTED_PASS:-857}
 +WORK=${HDN_QEMU_WORK:-"${TMPDIR:-/tmp}/hdn-qemu-smoke.$$"}
 +LOG=${HDN_QEMU_LOG:-"$WORK/qemu.log"}
 +QMP=${HDN_QEMU_QMP:-"$WORK/qmp.sock"}
@@ -61952,6 +62093,20 @@ diff -ruN --exclude .git linux-7.0.12/tools/testing/selftests/hardening/run-qemu
 +printf '%s\n' 'unprotected object tree write target' \
 +	> "$WORK/initramfs/hdn-object-tree-unprotected/nested/write-target"
 +chmod 0644 "$WORK/initramfs/hdn-object-tree-unprotected/nested/write-target"
++mkdir -p "$WORK/initramfs/hdn-object-tree-split/nested"
++chmod 0777 "$WORK/initramfs/hdn-object-tree-split"
++chmod 0777 "$WORK/initramfs/hdn-object-tree-split/nested"
++printf '%s\n' 'protected split tree unlink target' \
++	> "$WORK/initramfs/hdn-object-tree-split/nested/unlink-target"
++chmod 0644 "$WORK/initramfs/hdn-object-tree-split/nested/unlink-target"
++mkdir -p "$WORK/initramfs/hdn-object-tree-split/nested/rmdir-target"
++chmod 0755 "$WORK/initramfs/hdn-object-tree-split/nested/rmdir-target"
++mkdir -p "$WORK/initramfs/hdn-object-tree-append/nested"
++chmod 0777 "$WORK/initramfs/hdn-object-tree-append"
++chmod 0777 "$WORK/initramfs/hdn-object-tree-append/nested"
++printf '%s\n' 'protected append tree target' \
++	> "$WORK/initramfs/hdn-object-tree-append/nested/append-target"
++chmod 0644 "$WORK/initramfs/hdn-object-tree-append/nested/append-target"
 +mkdir -p "$WORK/initramfs/hdn-object-create-protected"
 +chmod 0777 "$WORK/initramfs/hdn-object-create-protected"
 +mkdir -p "$WORK/initramfs/hdn-object-create-unprotected"
