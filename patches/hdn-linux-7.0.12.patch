@@ -4759,15 +4759,15 @@ diff -ruN --exclude .git linux-7.0.12/include/trace/events/mmap.h linux-7.0.12-h
  TRACE_EVENT(exit_mmap,
 diff -ruN --exclude .git linux-7.0.12/include/uapi/linux/hardening.h linux-7.0.12-hdn/include/uapi/linux/hardening.h
 --- linux-7.0.12/include/uapi/linux/hardening.h	1969-12-31 18:00:00.000000000 -0600
-+++ linux-7.0.12-hdn/include/uapi/linux/hardening.h	2026-06-26 18:57:22.836434278 -0500
-@@ -0,0 +1,608 @@
++++ linux-7.0.12-hdn/include/uapi/linux/hardening.h	2026-06-26 21:49:39.015309432 -0500
+@@ -0,0 +1,611 @@
 +/* SPDX-License-Identifier: GPL-2.0 WITH Linux-syscall-note */
 +#ifndef _UAPI_LINUX_HARDENING_H
 +#define _UAPI_LINUX_HARDENING_H
 +
 +#include <linux/types.h>
 +
-+#define HDN_POLICY_ABI_VERSION 81
++#define HDN_POLICY_ABI_VERSION 82
 +#define HDN_POLICY_MAGIC 0x48444e50 /* "HDNP" */
 +#define HDN_PROFILE_NAME_LEN 32
 +#define HDN_POLICY_PATH_LEN 256
@@ -4881,6 +4881,7 @@ diff -ruN --exclude .git linux-7.0.12/include/uapi/linux/hardening.h linux-7.0.1
 +	HDN_AUTH_OBJECT_UNIX_ACCEPT = 81,
 +	HDN_AUTH_OBJECT_UNIX_SEND = 82,
 +	HDN_AUTH_OBJECT_UNIX_RECV = 83,
++	HDN_AUTH_KERNEL_LOG_WRITE = 84,
 +	HDN_AUTH__MAX,
 +};
 +
@@ -4981,6 +4982,7 @@ diff -ruN --exclude .git linux-7.0.12/include/uapi/linux/hardening.h linux-7.0.1
 +	HDN_TRANS_OBJECT_UNIX_ACCEPT = 93,
 +	HDN_TRANS_OBJECT_UNIX_SEND = 94,
 +	HDN_TRANS_OBJECT_UNIX_RECV = 95,
++	HDN_TRANS_KERNEL_LOG_WRITE = 96,
 +	HDN_TRANS__MAX,
 +};
 +
@@ -5081,6 +5083,7 @@ diff -ruN --exclude .git linux-7.0.12/include/uapi/linux/hardening.h linux-7.0.1
 +	HDN_EVENT_ID_OBJECT_UNIX_ACCEPT = HDN_TRANS_OBJECT_UNIX_ACCEPT,
 +	HDN_EVENT_ID_OBJECT_UNIX_SEND = HDN_TRANS_OBJECT_UNIX_SEND,
 +	HDN_EVENT_ID_OBJECT_UNIX_RECV = HDN_TRANS_OBJECT_UNIX_RECV,
++	HDN_EVENT_ID_KERNEL_LOG_WRITE = HDN_TRANS_KERNEL_LOG_WRITE,
 +};
 +
 +enum hdn_decision_action {
@@ -7355,7 +7358,7 @@ diff -ruN --exclude .git linux-7.0.12/kernel/pid_sysctl.h linux-7.0.12-hdn/kerne
  
 diff -ruN --exclude .git linux-7.0.12/kernel/printk/printk.c linux-7.0.12-hdn/kernel/printk/printk.c
 --- linux-7.0.12/kernel/printk/printk.c	2026-06-09 05:32:51.000000000 -0500
-+++ linux-7.0.12-hdn/kernel/printk/printk.c	2026-06-22 18:24:58.409509259 -0500
++++ linux-7.0.12-hdn/kernel/printk/printk.c	2026-06-26 21:50:06.299305984 -0500
 @@ -39,6 +39,7 @@
  #include <linux/ratelimit.h>
  #include <linux/kmsg_dump.h>
@@ -7364,7 +7367,21 @@ diff -ruN --exclude .git linux-7.0.12/kernel/printk/printk.c linux-7.0.12-hdn/ke
  #include <linux/cpu.h>
  #include <linux/rculist.h>
  #include <linux/poll.h>
-@@ -808,6 +809,12 @@
+@@ -745,6 +746,13 @@
+ 	struct devkmsg_user *user = file->private_data;
+ 	size_t len = iov_iter_count(from);
+ 	ssize_t ret = len;
++	int auth_ret;
++
++	auth_ret = hdn_authorize(HDN_AUTH_KERNEL_LOG_WRITE,
++				 HDN_TRANS_KERNEL_LOG_WRITE,
++				 HDN_REASON_PROFILE_DENIED, -EPERM);
++	if (auth_ret)
++		return auth_ret;
+ 
+ 	if (len > PRINTKRB_RECORD_MAX)
+ 		return -EINVAL;
+@@ -808,6 +816,12 @@
  	};
  	ssize_t ret;
  
@@ -7377,7 +7394,7 @@ diff -ruN --exclude .git linux-7.0.12/kernel/printk/printk.c linux-7.0.12-hdn/ke
  	ret = mutex_lock_interruptible(&user->lock);
  	if (ret)
  		return ret;
-@@ -931,6 +938,11 @@
+@@ -931,6 +945,11 @@
  					       SYSLOG_FROM_READER);
  		if (err)
  			return err;
@@ -7389,7 +7406,7 @@ diff -ruN --exclude .git linux-7.0.12/kernel/printk/printk.c linux-7.0.12-hdn/ke
  	}
  
  	user = kvmalloc_obj(struct devkmsg_user);
-@@ -1760,6 +1772,11 @@
+@@ -1760,6 +1779,11 @@
  			return 0;
  		if (!access_ok(buf, len))
  			return -EFAULT;
@@ -7401,7 +7418,7 @@ diff -ruN --exclude .git linux-7.0.12/kernel/printk/printk.c linux-7.0.12-hdn/ke
  		error = syslog_print(buf, len);
  		break;
  	/* Read/clear last kernel messages */
-@@ -1774,6 +1791,11 @@
+@@ -1774,6 +1798,11 @@
  			return 0;
  		if (!access_ok(buf, len))
  			return -EFAULT;
@@ -7413,7 +7430,7 @@ diff -ruN --exclude .git linux-7.0.12/kernel/printk/printk.c linux-7.0.12-hdn/ke
  		error = syslog_print_all(buf, len, clear);
  		break;
  	/* Clear ring buffer */
-@@ -1805,6 +1827,11 @@
+@@ -1805,6 +1834,11 @@
  		break;
  	/* Number of chars in the log buffer */
  	case SYSLOG_ACTION_SIZE_UNREAD:
@@ -10734,8 +10751,8 @@ diff -ruN --exclude .git linux-7.0.12/security/hardening/Makefile linux-7.0.12-h
 +obj-$(CONFIG_SECURITY_HARDENING) += core.o
 diff -ruN --exclude .git linux-7.0.12/security/hardening/core.c linux-7.0.12-hdn/security/hardening/core.c
 --- linux-7.0.12/security/hardening/core.c	1969-12-31 18:00:00.000000000 -0600
-+++ linux-7.0.12-hdn/security/hardening/core.c	2026-06-26 19:48:58.840152920 -0500
-@@ -0,0 +1,7483 @@
++++ linux-7.0.12-hdn/security/hardening/core.c	2026-06-26 21:49:47.855308066 -0500
+@@ -0,0 +1,7485 @@
 +// SPDX-License-Identifier: GPL-2.0-only
 +
 +#include <linux/binfmts.h>
@@ -11022,7 +11039,8 @@ diff -ruN --exclude .git linux-7.0.12/security/hardening/core.c linux-7.0.12-hdn
 +			HDN_AUTHORITY_MASK(HDN_AUTH_MEMORY_MIGRATE) |
 +			HDN_AUTHORITY_MASK(HDN_AUTH_PROCESS_FD),
 +		.authority_allow_hi =
-+			HDN_AUTHORITY_MASK(HDN_AUTH_USB_MONITOR),
++			HDN_AUTHORITY_MASK(HDN_AUTH_USB_MONITOR) |
++			HDN_AUTHORITY_MASK(HDN_AUTH_KERNEL_LOG_WRITE),
 +		.name = "privileged",
 +	},
 +};
@@ -11581,11 +11599,12 @@ diff -ruN --exclude .git linux-7.0.12/security/hardening/core.c linux-7.0.12-hdn
 +	case HDN_AUTH_SYSFS_MUTATE:
 +	case HDN_AUTH_SYSFS_READ:
 +	case HDN_AUTH_KEXEC_LOAD:
-+	case HDN_AUTH_FIRMWARE_LOAD:
-+	case HDN_AUTH_IO_URING_RESTRICTED_OP:
-+	case HDN_AUTH_KERNEL_LOG_READ:
-+	case HDN_AUTH_RAW_IO:
-+	case HDN_AUTH_MOUNT_ADMIN:
++		case HDN_AUTH_FIRMWARE_LOAD:
++		case HDN_AUTH_IO_URING_RESTRICTED_OP:
++		case HDN_AUTH_KERNEL_LOG_READ:
++		case HDN_AUTH_KERNEL_LOG_WRITE:
++		case HDN_AUTH_RAW_IO:
++		case HDN_AUTH_MOUNT_ADMIN:
 +	case HDN_AUTH_NAMESPACE_ADMIN:
 +	case HDN_AUTH_CHROOT_ADMIN:
 +	case HDN_AUTH_IPC_ADMIN:
@@ -18594,8 +18613,8 @@ diff -ruN --exclude .git linux-7.0.12/tools/hardening/Makefile linux-7.0.12-hdn/
 +.PHONY: all clean install
 diff -ruN --exclude .git linux-7.0.12/tools/hardening/README.rst linux-7.0.12-hdn/tools/hardening/README.rst
 --- linux-7.0.12/tools/hardening/README.rst	1969-12-31 18:00:00.000000000 -0600
-+++ linux-7.0.12-hdn/tools/hardening/README.rst	2026-06-26 21:40:54.943344537 -0500
-@@ -0,0 +1,1394 @@
++++ linux-7.0.12-hdn/tools/hardening/README.rst	2026-06-26 21:58:35.147254129 -0500
+@@ -0,0 +1,1396 @@
 +.. SPDX-License-Identifier: GPL-2.0-only
 +
 +Linux Hardening Policy Tools
@@ -18968,7 +18987,7 @@ diff -ruN --exclude .git linux-7.0.12/tools/hardening/README.rst linux-7.0.12-hd
 +  allow 2 BPF_LOAD PERF_OPEN USERNS_CREATE MODULE_LOAD MODULE_AUTOLOAD
 +  allow 2 PTRACE PROC_DISCLOSE PROC_TASK_VIEW DEBUGFS SYSFS_MUTATE SYSFS_READ
 +  allow 2 KEXEC_LOAD FIRMWARE_LOAD IO_URING_RESTRICTED_OP
-+  allow 2 KERNEL_LOG_READ RAW_IO MOUNT_ADMIN POLICY_ADMIN
++  allow 2 KERNEL_LOG_READ KERNEL_LOG_WRITE RAW_IO MOUNT_ADMIN POLICY_ADMIN
 +  allow 2 NAMESPACE_ADMIN CRED_CHANGE CHROOT_ADMIN TRUSTED_EXEC_BYPASS
 +  allow 2 IPC_ADMIN TTY_INJECT FUSE_MOUNT ROFS_RELAX USB_ATTACH USB_MONITOR
 +  allow 2 SOCKET_CREATE SOCKET_CONNECT SOCKET_SERVER TIME_ADMIN RESOURCE_ADMIN
@@ -19099,7 +19118,8 @@ diff -ruN --exclude .git linux-7.0.12/tools/hardening/README.rst linux-7.0.12-hd
 +``READ_IMPLIES_EXEC`` rewrites that become denials. ``KILL_KERNEL_SURFACE``
 +kills after denied access to gated kernel attack surfaces such as BPF, perf,
 +module loading, ptrace, ptrace execute-only reads, proc disclosure, debugfs,
-+owner-only sysfs reads, sysfs mutation, kexec, firmware loading, kernel logs,
++owner-only sysfs reads, sysfs mutation, kexec, firmware loading, kernel log
++reads and writes,
 +raw I/O, mount administration, namespace administration, chroot administration,
 +USB attachment, USB monitor capture, and non-local socket
 +creation/client/server operations.
@@ -19583,9 +19603,10 @@ diff -ruN --exclude .git linux-7.0.12/tools/hardening/README.rst linux-7.0.12-hd
 +``/proc/sys/kernel/dmesg_restrict`` at level ``1``. Kernel log reads remain
 +restricted after boot even if a later admin path attempts to lower the sysctl.
 +HDN still keeps direct kernel log reads behind the ``KERNEL_LOG_READ`` profile
-+authority for privileged service policy. QEMU proves the locked sysctl value,
-+failed lowering attempts, unprivileged kernel log denial, and sealed status
-+reporting.
++authority and ``/dev/kmsg`` writes behind ``KERNEL_LOG_WRITE`` so log injection
++does not require log-read disclosure. QEMU proves the locked sysctl value,
++failed lowering attempts, unprivileged kernel log denial, restricted-profile
++kernel log write denial and event decoding, and sealed status reporting.
 +
 +``CONFIG_SECURITY_HARDENING_UNPRIV_BPF`` locks
 +``/proc/sys/kernel/unprivileged_bpf_disabled`` to ``1``. That is the upstream
@@ -20026,7 +20047,7 @@ diff -ruN --exclude .git linux-7.0.12/tools/hardening/admin-broker.conf linux-7.
 +allow-policy-rollback
 diff -ruN --exclude .git linux-7.0.12/tools/hardening/default.policy linux-7.0.12-hdn/tools/hardening/default.policy
 --- linux-7.0.12/tools/hardening/default.policy	1969-12-31 18:00:00.000000000 -0600
-+++ linux-7.0.12-hdn/tools/hardening/default.policy	2026-06-26 14:00:44.542042427 -0500
++++ linux-7.0.12-hdn/tools/hardening/default.policy	2026-06-26 21:50:26.263304069 -0500
 @@ -0,0 +1,19 @@
 +# Built-in-style starter policy for the hardening profile loader.
 +
@@ -20041,7 +20062,7 @@ diff -ruN --exclude .git linux-7.0.12/tools/hardening/default.policy linux-7.0.1
 +allow 2 BPF_LOAD PERF_OPEN USERNS_CREATE MODULE_LOAD MODULE_AUTOLOAD
 +allow 2 PTRACE PROC_DISCLOSE PROC_TASK_VIEW DEBUGFS SYSFS_MUTATE SYSFS_READ
 +allow 2 KEXEC_LOAD FIRMWARE_LOAD IO_URING_RESTRICTED_OP
-+allow 2 KERNEL_LOG_READ RAW_IO MOUNT_ADMIN POLICY_ADMIN
++allow 2 KERNEL_LOG_READ KERNEL_LOG_WRITE RAW_IO MOUNT_ADMIN POLICY_ADMIN
 +allow 2 NAMESPACE_ADMIN CRED_CHANGE CHROOT_ADMIN TRUSTED_EXEC_BYPASS
 +allow 2 IPC_ADMIN TTY_INJECT FUSE_MOUNT ROFS_RELAX USB_ATTACH USB_MONITOR
 +allow 2 SOCKET_CREATE SOCKET_CONNECT SOCKET_SERVER TIME_ADMIN RESOURCE_ADMIN
@@ -22908,8 +22929,8 @@ diff -ruN --exclude .git linux-7.0.12/tools/hardening/hdn-desktop-daemon.c linux
 +}
 diff -ruN --exclude .git linux-7.0.12/tools/hardening/hdn-event-decode.c linux-7.0.12-hdn/tools/hardening/hdn-event-decode.c
 --- linux-7.0.12/tools/hardening/hdn-event-decode.c	1969-12-31 18:00:00.000000000 -0600
-+++ linux-7.0.12-hdn/tools/hardening/hdn-event-decode.c	2026-06-26 18:59:25.164420052 -0500
-@@ -0,0 +1,917 @@
++++ linux-7.0.12-hdn/tools/hardening/hdn-event-decode.c	2026-06-26 21:50:18.155304923 -0500
+@@ -0,0 +1,919 @@
 +// SPDX-License-Identifier: GPL-2.0-only
 +
 +#define _GNU_SOURCE
@@ -22985,6 +23006,7 @@ diff -ruN --exclude .git linux-7.0.12/tools/hardening/hdn-event-decode.c linux-7
 +	{ HDN_AUTH_FIRMWARE_LOAD, "FIRMWARE_LOAD" },
 +	{ HDN_AUTH_IO_URING_RESTRICTED_OP, "IO_URING_RESTRICTED_OP" },
 +	{ HDN_AUTH_KERNEL_LOG_READ, "KERNEL_LOG_READ" },
++	{ HDN_AUTH_KERNEL_LOG_WRITE, "KERNEL_LOG_WRITE" },
 +	{ HDN_AUTH_RAW_IO, "RAW_IO" },
 +	{ HDN_AUTH_MOUNT_ADMIN, "MOUNT_ADMIN" },
 +	{ HDN_AUTH_POLICY_ADMIN, "POLICY_ADMIN" },
@@ -23073,6 +23095,7 @@ diff -ruN --exclude .git linux-7.0.12/tools/hardening/hdn-event-decode.c linux-7
 +	{ HDN_TRANS_PROCFS_READ, "PROCFS_READ" },
 +	{ HDN_TRANS_SYSFS_WRITE, "SYSFS_WRITE" },
 +	{ HDN_TRANS_KERNEL_LOG_READ, "KERNEL_LOG_READ" },
++	{ HDN_TRANS_KERNEL_LOG_WRITE, "KERNEL_LOG_WRITE" },
 +	{ HDN_TRANS_RAW_IO, "RAW_IO" },
 +	{ HDN_TRANS_DEBUGFS_ACCESS, "DEBUGFS_ACCESS" },
 +	{ HDN_TRANS_POLICY_LOAD, "POLICY_LOAD" },
@@ -26705,8 +26728,8 @@ diff -ruN --exclude .git linux-7.0.12/tools/hardening/hdn-policy-workflow.c linu
 +}
 diff -ruN --exclude .git linux-7.0.12/tools/hardening/hdn-policy.c linux-7.0.12-hdn/tools/hardening/hdn-policy.c
 --- linux-7.0.12/tools/hardening/hdn-policy.c	1969-12-31 18:00:00.000000000 -0600
-+++ linux-7.0.12-hdn/tools/hardening/hdn-policy.c	2026-06-26 18:59:18.272417177 -0500
-@@ -0,0 +1,2062 @@
++++ linux-7.0.12-hdn/tools/hardening/hdn-policy.c	2026-06-26 21:50:11.399305499 -0500
+@@ -0,0 +1,2063 @@
 +// SPDX-License-Identifier: GPL-2.0-only
 +
 +#include <ctype.h>
@@ -26804,6 +26827,7 @@ diff -ruN --exclude .git linux-7.0.12/tools/hardening/hdn-policy.c linux-7.0.12-
 +	{ "FIRMWARE_LOAD", HDN_AUTH_FIRMWARE_LOAD },
 +	{ "IO_URING_RESTRICTED_OP", HDN_AUTH_IO_URING_RESTRICTED_OP },
 +	{ "KERNEL_LOG_READ", HDN_AUTH_KERNEL_LOG_READ },
++	{ "KERNEL_LOG_WRITE", HDN_AUTH_KERNEL_LOG_WRITE },
 +	{ "RAW_IO", HDN_AUTH_RAW_IO },
 +	{ "MOUNT_ADMIN", HDN_AUTH_MOUNT_ADMIN },
 +	{ "POLICY_ADMIN", HDN_AUTH_POLICY_ADMIN },
@@ -35812,8 +35836,8 @@ diff -ruN --exclude .git linux-7.0.12/tools/testing/selftests/hardening/hdn_elfn
 +}
 diff -ruN --exclude .git linux-7.0.12/tools/testing/selftests/hardening/hdn_smoke.c linux-7.0.12-hdn/tools/testing/selftests/hardening/hdn_smoke.c
 --- linux-7.0.12/tools/testing/selftests/hardening/hdn_smoke.c	1969-12-31 18:00:00.000000000 -0600
-+++ linux-7.0.12-hdn/tools/testing/selftests/hardening/hdn_smoke.c	2026-06-26 21:41:56.055337684 -0500
-@@ -0,0 +1,25742 @@
++++ linux-7.0.12-hdn/tools/testing/selftests/hardening/hdn_smoke.c	2026-06-26 21:52:39.195289390 -0500
+@@ -0,0 +1,25808 @@
 +// SPDX-License-Identifier: GPL-2.0-only
 +
 +#define _GNU_SOURCE
@@ -36018,6 +36042,7 @@ diff -ruN --exclude .git linux-7.0.12/tools/testing/selftests/hardening/hdn_smok
 +#define HDN_PERF_EVENT_PARANOID "/proc/sys/kernel/perf_event_paranoid"
 +#define HDN_YAMA_PTRACE_SCOPE "/proc/sys/kernel/yama/ptrace_scope"
 +#define HDN_DMESG_RESTRICT "/proc/sys/kernel/dmesg_restrict"
++#define HDN_DEV_KMSG "/dev/kmsg"
 +#define HDN_IO_URING_DISABLED "/proc/sys/kernel/io_uring_disabled"
 +#define HDN_KPTR_RESTRICT "/proc/sys/kernel/kptr_restrict"
 +#define HDN_MEMFD_NOEXEC "/proc/sys/vm/memfd_noexec"
@@ -38999,6 +39024,30 @@ diff -ruN --exclude .git linux-7.0.12/tools/testing/selftests/hardening/hdn_smok
 +	return child_exit_result(child);
 +}
 +
++static int event_decoder_finds_kernel_log_write_denial(void)
++{
++	pid_t child;
++
++	if (access(HDN_EVENT_DECODE_EXEC, X_OK))
++		return KSFT_SKIP;
++
++	child = fork();
++	if (child < 0)
++		return 2;
++
++	if (!child) {
++		execl(HDN_EVENT_DECODE_EXEC, "hdn-event-decode", "--quiet",
++		      "--expect", "authority=KERNEL_LOG_WRITE",
++		      "--expect", "transition=KERNEL_LOG_WRITE",
++		      "--expect", "action=DENY_AUDIT", NULL);
++		fprintf(stderr, "event decoder exec failed: %s\n",
++			strerror(errno));
++		_exit(2);
++	}
++
++	return child_exit_result(child);
++}
++
 +static int event_decoder_read_output(int fd, char *buf, size_t size)
 +{
 +	size_t offset = 0;
@@ -39172,7 +39221,7 @@ diff -ruN --exclude .git linux-7.0.12/tools/testing/selftests/hardening/hdn_smok
 +static int status_helper_decodes_audit_flood_fixture(void)
 +{
 +	static const char fixture[] =
-+		"abi_version: 81\n"
++		"abi_version: 82\n"
 +		"phase: runtime\n"
 +		"phase_id: 3\n"
 +		"policy_loaded: 1\n"
@@ -45157,6 +45206,37 @@ diff -ruN --exclude .git linux-7.0.12/tools/testing/selftests/hardening/hdn_smok
 +	if (!errno_is_denial(-ret))
 +		return 2;
 +	return securityfs_events_count("authority=37 transition=43") > before ?
++	       0 : 2;
++}
++
++static int kernel_log_write_without_authority_denied(void)
++{
++	static const char msg[] = "hdn restricted kernel log write probe\n";
++	unsigned int before;
++	int saved_errno;
++	ssize_t written;
++	int fd;
++
++	before = securityfs_events_count("authority=84 transition=96");
++
++	fd = open(HDN_DEV_KMSG, O_WRONLY | O_CLOEXEC);
++	if (fd < 0) {
++		if (errno == ENOENT || errno == ENODEV)
++			return KSFT_SKIP;
++		return 2;
++	}
++
++	errno = 0;
++	written = write(fd, msg, sizeof(msg) - 1);
++	saved_errno = errno;
++	close(fd);
++
++	if (written >= 0)
++		return 1;
++	if (!errno_is_denial(saved_errno))
++		return 2;
++
++	return securityfs_events_count("authority=84 transition=96") > before ?
 +	       0 : 2;
 +}
 +
@@ -54962,10 +55042,11 @@ diff -ruN --exclude .git linux-7.0.12/tools/testing/selftests/hardening/hdn_smok
 +		ksft_test_result_skip("restricted profile hides boot params sysfs entry\n");
 +			ksft_test_result_skip("restricted profile denies proc disclosure\n");
 +			ksft_test_result_skip("restricted profile redacts proc memmap addresses\n");
-+			ksft_test_result_skip("restricted profile redacts proc resource-map addresses\n");
-+			ksft_test_result_skip("restricted profile redacts vmalloc caller symbols\n");
-+			ksft_test_result_skip("restricted profile denies modprobe helper path write\n");
-+			ksft_test_result_skip("restricted profile hides kallsyms symbols\n");
++				ksft_test_result_skip("restricted profile redacts proc resource-map addresses\n");
++				ksft_test_result_skip("restricted profile redacts vmalloc caller symbols\n");
++				ksft_test_result_skip("restricted profile denies modprobe helper path write\n");
++				ksft_test_result_skip("restricted profile denies kernel log write\n");
++				ksft_test_result_skip("restricted profile hides kallsyms symbols\n");
 +		ksft_test_result_skip("restricted profile hides module base addresses\n");
 +		ksft_test_result_skip("restricted profile denies debugfs access\n");
 +		ksft_test_result_skip("restricted profile denies tracefs access\n");
@@ -55502,9 +55583,10 @@ diff -ruN --exclude .git linux-7.0.12/tools/testing/selftests/hardening/hdn_smok
 +		ksft_test_result_skip("hardening events report restricted ptrace denial\n");
 +		ksft_test_result_skip("hardening events report restricted kexec denial\n");
 +		ksft_test_result_skip("hardening events report restricted BPF denial\n");
-+		ksft_test_result_skip("hardening events report restricted mount denial\n");
-+		ksft_test_result_skip("hardening events report restricted raw I/O denial\n");
-+		ksft_test_result_skip("hardening events report restricted namespace denial\n");
++			ksft_test_result_skip("hardening events report restricted mount denial\n");
++			ksft_test_result_skip("hardening events report restricted raw I/O denial\n");
++			ksft_test_result_skip("hardening events report restricted kernel log write denial\n");
++			ksft_test_result_skip("hardening events report restricted namespace denial\n");
 +		ksft_test_result_skip("hardening events report restricted sysfs denial\n");
 +		ksft_test_result_skip("hardening events report restricted sysfs read denial\n");
 +		ksft_test_result_skip("hardening events report restricted proc denial\n");
@@ -55530,7 +55612,8 @@ diff -ruN --exclude .git linux-7.0.12/tools/testing/selftests/hardening/hdn_smok
 +			ksft_test_result_skip("hardening events report chroot file-handle denial\n");
 +			ksft_test_result_skip("hardening events report chroot sysctl denial\n");
 +			ksft_test_result_skip("hardening events report chroot exec audit flag\n");
-+		ksft_test_result_skip("hardening events report brute throttle denial\n");
++			ksft_test_result_skip("event decoder names kernel log write denial\n");
++			ksft_test_result_skip("hardening events report brute throttle denial\n");
 +		ksft_test_result_skip("recovery test hardening policy stages\n");
 +		ksft_test_result_skip("recovery test hardening policy commits\n");
 +		ksft_test_result_skip("runtime hardening phase can be set\n");
@@ -55910,12 +55993,15 @@ diff -ruN --exclude .git linux-7.0.12/tools/testing/selftests/hardening/hdn_smok
 +	report_child_result(restricted_committed ?
 +			    proc_vmallocinfo_symbols_hidden() : 2,
 +			    "restricted profile redacts vmalloc caller symbols");
-+	report_child_result(restricted_committed ?
-+			    module_helper_path_write_without_authority_denied() : 2,
-+			    "restricted profile denies modprobe helper path write");
-+	report_child_result(restricted_committed ?
-+			    proc_kallsyms_symbols_hidden() : 2,
-+			    "restricted profile hides kallsyms symbols");
++		report_child_result(restricted_committed ?
++				    module_helper_path_write_without_authority_denied() : 2,
++				    "restricted profile denies modprobe helper path write");
++		report_child_result(restricted_committed ?
++				    kernel_log_write_without_authority_denied() : 2,
++				    "restricted profile denies kernel log write");
++		report_child_result(restricted_committed ?
++				    proc_kallsyms_symbols_hidden() : 2,
++				    "restricted profile hides kallsyms symbols");
 +	report_child_result(restricted_committed ?
 +			    proc_modules_symbol_address_hidden() : 2,
 +			    "restricted profile hides module base addresses");
@@ -59486,10 +59572,12 @@ diff -ruN --exclude .git linux-7.0.12/tools/testing/selftests/hardening/hdn_smok
 +			 "hardening events report restricted BPF denial\n");
 +	ksft_test_result(securityfs_events_contains("authority=17"),
 +			 "hardening events report restricted mount denial\n");
-+	ksft_test_result(securityfs_events_contains("authority=16"),
-+			 "hardening events report restricted raw I/O denial\n");
-+	ksft_test_result(securityfs_events_contains("authority=19"),
-+			 "hardening events report restricted namespace denial\n");
++		ksft_test_result(securityfs_events_contains("authority=16"),
++				 "hardening events report restricted raw I/O denial\n");
++		ksft_test_result(securityfs_events_contains("authority=84 transition=96"),
++				 "hardening events report restricted kernel log write denial\n");
++		ksft_test_result(securityfs_events_contains("authority=19"),
++				 "hardening events report restricted namespace denial\n");
 +	ksft_test_result(securityfs_events_contains("authority=11"),
 +			 "hardening events report restricted sysfs denial\n");
 +	ksft_test_result(securityfs_events_contains("authority=35"),
@@ -59560,10 +59648,12 @@ diff -ruN --exclude .git linux-7.0.12/tools/testing/selftests/hardening/hdn_smok
 +						     "hardening events report chroot sysctl denial");
 +		report_child_result(event_decoder_finds_chroot_file_handle_denial(),
 +				    "event decoder names chroot file-handle denial reason");
-+		report_child_result(event_decoder_finds_chroot_sysctl_denial(),
-+				    "event decoder names chroot sysctl denial reason");
-+	ksft_test_result(securityfs_events_contains("authority=20"),
-+			 "hardening events report credential transition denial\n");
++			report_child_result(event_decoder_finds_chroot_sysctl_denial(),
++					    "event decoder names chroot sysctl denial reason");
++		report_child_result(event_decoder_finds_kernel_log_write_denial(),
++				    "event decoder names kernel log write denial");
++		ksft_test_result(securityfs_events_contains("authority=20"),
++				 "hardening events report credential transition denial\n");
 +	ksft_test_result(securityfs_events_contains("reason=23"),
 +			 "hardening events report brute throttle denial\n");
 +
@@ -61171,11 +61261,11 @@ diff -ruN --exclude .git linux-7.0.12/tools/testing/selftests/hardening/hdn_smok
 +	if (access(HDN_STATUS, R_OK))
 +		ksft_exit_skip("hardening securityfs status not present\n");
 +
-+	ksft_set_plan(902);
++	ksft_set_plan(905);
 +	test_securityfs_status();
 +	test_symbol_test_module_load();
-+	test_securityfs_status_contains("abi_version: 81",
-+					"hardening status reports policy ABI 81");
++	test_securityfs_status_contains("abi_version: 82",
++					"hardening status reports policy ABI 82");
 +	test_securityfs_status_contains("phase:",
 +					"hardening status reports sealing phase");
 +	test_securityfs_status_contains("policy_staged:",
@@ -61558,7 +61648,7 @@ diff -ruN --exclude .git linux-7.0.12/tools/testing/selftests/hardening/hdn_smok
 +}
 diff -ruN --exclude .git linux-7.0.12/tools/testing/selftests/hardening/identity.policy linux-7.0.12-hdn/tools/testing/selftests/hardening/identity.policy
 --- linux-7.0.12/tools/testing/selftests/hardening/identity.policy	1969-12-31 18:00:00.000000000 -0600
-+++ linux-7.0.12-hdn/tools/testing/selftests/hardening/identity.policy	2026-06-26 14:00:44.546042427 -0500
++++ linux-7.0.12-hdn/tools/testing/selftests/hardening/identity.policy	2026-06-26 21:50:26.263304069 -0500
 @@ -0,0 +1,25 @@
 +# SPDX-License-Identifier: GPL-2.0-only
 +# Policy used by the QEMU smoke test to prove runtime path resolution for
@@ -61577,7 +61667,7 @@ diff -ruN --exclude .git linux-7.0.12/tools/testing/selftests/hardening/identity
 +allow 2 BPF_LOAD PERF_OPEN USERNS_CREATE MODULE_LOAD MODULE_AUTOLOAD
 +allow 2 PTRACE PROC_DISCLOSE PROC_TASK_VIEW DEBUGFS SYSFS_MUTATE
 +allow 2 KEXEC_LOAD FIRMWARE_LOAD IO_URING_RESTRICTED_OP
-+allow 2 KERNEL_LOG_READ RAW_IO MOUNT_ADMIN POLICY_ADMIN
++allow 2 KERNEL_LOG_READ KERNEL_LOG_WRITE RAW_IO MOUNT_ADMIN POLICY_ADMIN
 +allow 2 NAMESPACE_ADMIN CRED_CHANGE CHROOT_ADMIN TRUSTED_EXEC_BYPASS
 +allow 2 IPC_ADMIN TTY_INJECT FUSE_MOUNT ROFS_RELAX USB_ATTACH USB_MONITOR
 +allow 2 SOCKET_CREATE SOCKET_CONNECT SOCKET_SERVER TIME_ADMIN RESOURCE_ADMIN
@@ -61623,7 +61713,7 @@ diff -ruN --exclude .git linux-7.0.12/tools/testing/selftests/hardening/kill.pol
 +response 2 KILL_MEMORY
 diff -ruN --exclude .git linux-7.0.12/tools/testing/selftests/hardening/module-path.policy linux-7.0.12-hdn/tools/testing/selftests/hardening/module-path.policy
 --- linux-7.0.12/tools/testing/selftests/hardening/module-path.policy	1969-12-31 18:00:00.000000000 -0600
-+++ linux-7.0.12-hdn/tools/testing/selftests/hardening/module-path.policy	2026-06-26 14:00:44.546042427 -0500
++++ linux-7.0.12-hdn/tools/testing/selftests/hardening/module-path.policy	2026-06-26 21:50:26.263304069 -0500
 @@ -0,0 +1,23 @@
 +# SPDX-License-Identifier: GPL-2.0-only
 +# Policy used by the QEMU smoke test to prove runtime path resolution for
@@ -61640,7 +61730,7 @@ diff -ruN --exclude .git linux-7.0.12/tools/testing/selftests/hardening/module-p
 +allow 2 BPF_LOAD PERF_OPEN USERNS_CREATE MODULE_LOAD MODULE_AUTOLOAD
 +allow 2 PTRACE PROC_DISCLOSE PROC_TASK_VIEW DEBUGFS SYSFS_MUTATE
 +allow 2 KEXEC_LOAD FIRMWARE_LOAD IO_URING_RESTRICTED_OP
-+allow 2 KERNEL_LOG_READ RAW_IO MOUNT_ADMIN POLICY_ADMIN
++allow 2 KERNEL_LOG_READ KERNEL_LOG_WRITE RAW_IO MOUNT_ADMIN POLICY_ADMIN
 +allow 2 NAMESPACE_ADMIN CRED_CHANGE CHROOT_ADMIN TRUSTED_EXEC_BYPASS
 +allow 2 IPC_ADMIN TTY_INJECT FUSE_MOUNT ROFS_RELAX USB_ATTACH USB_MONITOR
 +allow 2 SOCKET_CREATE SOCKET_CONNECT SOCKET_SERVER TIME_ADMIN RESOURCE_ADMIN
@@ -61939,7 +62029,7 @@ diff -ruN --exclude .git linux-7.0.12/tools/testing/selftests/hardening/role.pol
 +use-role 2 desktop-admin
 diff -ruN --exclude .git linux-7.0.12/tools/testing/selftests/hardening/run-qemu-smoke.sh linux-7.0.12-hdn/tools/testing/selftests/hardening/run-qemu-smoke.sh
 --- linux-7.0.12/tools/testing/selftests/hardening/run-qemu-smoke.sh	1969-12-31 18:00:00.000000000 -0600
-+++ linux-7.0.12-hdn/tools/testing/selftests/hardening/run-qemu-smoke.sh	2026-06-26 21:40:41.007349455 -0500
++++ linux-7.0.12-hdn/tools/testing/selftests/hardening/run-qemu-smoke.sh	2026-06-26 21:52:39.195289390 -0500
 @@ -0,0 +1,1197 @@
 +#!/bin/sh
 +# SPDX-License-Identifier: GPL-2.0
@@ -61974,7 +62064,7 @@ diff -ruN --exclude .git linux-7.0.12/tools/testing/selftests/hardening/run-qemu
 +QEMU_MEMORY=${QEMU_MEMORY:-1024M}
 +QEMU_SMP=${QEMU_SMP:-2}
 +QEMU_MACHINE=${QEMU_MACHINE:-q35,accel=tcg}
-+HDN_SMOKE_EXPECTED_PASS=${HDN_SMOKE_EXPECTED_PASS:-902}
++HDN_SMOKE_EXPECTED_PASS=${HDN_SMOKE_EXPECTED_PASS:-905}
 +WORK=${HDN_QEMU_WORK:-"${TMPDIR:-/tmp}/hdn-qemu-smoke.$$"}
 +LOG=${HDN_QEMU_LOG:-"$WORK/qemu.log"}
 +QMP=${HDN_QEMU_QMP:-"$WORK/qmp.sock"}

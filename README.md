@@ -50,8 +50,10 @@ authority alongside other high-risk io_uring registrations, and
 `kernel.io_uring_disabled` can only be tightened until reboot. Upstream protected
 path sysctls are now locked at hardened floors instead of merely defaulted on.
 The dmesg restriction sysctl is also locked at the restricted value, so kernel
-log disclosure cannot be re-enabled by a later sysctl write. Legacy TIOCSTI is
-forced off, line-discipline autoload is disabled, and neither TTY sysctl can be
+log disclosure cannot be re-enabled by a later sysctl write. Profile policy
+also gates `/dev/kmsg` writes separately from log reads, so services can be
+allowed to inject log records without receiving kernel-log disclosure. Legacy
+TIOCSTI is forced off, line-discipline autoload is disabled, and neither TTY sysctl can be
 turned back on while TTY injection hardening is active. Yama is now part of the
 baseline and `kernel.yama.ptrace_scope` cannot be lowered below relational
 mode. Setuid coredumps are locked off through `fs.suid_dumpable=0`, so
@@ -116,16 +118,16 @@ The hardening smoke suite in the development tree is run under QEMU. Latest
 local result before this publication checkpoint:
 
 ```text
-QEMU hardening smoke: 902/902 pass
+QEMU hardening smoke: 905/905 pass
 ```
 
 Patch artifact at this checkpoint:
 
 ```text
 patch: patches/hdn-linux-7.0.12.patch
-lines: 63,316
-bytes: 1,877,953
-sha256: 2b344b99a85477f5c944c0b96da6f4606ccd4c870d1f679c2da6c597d4b53352
+lines: 63,406
+bytes: 1,880,928
+sha256: 606ff655b3f036b147933ebb31413584c4d9eeb276c7659b8d5f46e94b0f37c3
 ```
 
 ## Development Rule

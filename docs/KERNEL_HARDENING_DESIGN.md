@@ -147,6 +147,7 @@ Dangerous features are not scattered sysctls. They are named authorities:
 - `AUTH_SYSFS_READ`
 - `AUTH_IO_URING_RESTRICTED_OP`
 - `AUTH_KERNEL_LOG_READ`
+- `AUTH_KERNEL_LOG_WRITE`
 - `AUTH_FIRMWARE_LOAD`
 - `AUTH_IPC_ADMIN`
 - `AUTH_TTY_INJECT`
@@ -450,7 +451,7 @@ Authority gates should cover:
   access.
 - procfs disclosure.
 - owner-only and sensitive sysfs disclosure plus sysfs mutation.
-- kernel log access.
+- kernel log read disclosure and `/dev/kmsg` write injection.
 - io_uring operations that expand attack surface, including SQPOLL setup and
   privileged registration families.
 - one-way tightening of `kernel.io_uring_disabled` for recovery or image policy.
@@ -663,7 +664,7 @@ Standard User:
   user namespaces: restricted
   ptrace: same-profile only
   debugfs: hidden
-  kernel logs: redacted
+  kernel logs: reads redacted, writes denied
   module load: deny
 
 Developer Mode On:
@@ -672,7 +673,7 @@ Developer Mode On:
   user namespaces: allow with resource limits
   ptrace: same-user developer sessions
   debugfs: metadata-only unless approved
-  kernel logs: rate-limited and redacted by default
+  kernel logs: rate-limited reads and brokered writes by default
   module load: signed local dev modules only with approval
 ```
 
@@ -1770,6 +1771,8 @@ Core oracle groups:
   that floor, and explicit `MFD_EXEC` memfd creation is rejected
 - `kernel.dmesg_restrict` starts at the restricted value and cannot be lowered
   below that floor while the exploit-mitigation baseline is enabled
+- `/dev/kmsg` writes require the separate kernel-log write authority, allowing
+  logging services without granting kernel-log read disclosure
 - `kernel.yama.ptrace_scope` starts at relational mode and cannot be lowered
   below that floor while the exploit-mitigation baseline is enabled
 - `fs.suid_dumpable` starts disabled and cannot be raised while the
@@ -1910,7 +1913,7 @@ Core oracle groups:
 ### Phase 1: Upstream-Hardening Baseline
 
 - Configure existing kernel hardening options.
-- Lock down BPF, perf, ptrace, user namespaces, debugfs, tracefs, procfs, module loading, kexec, and kernel logs through available upstream controls.
+- Lock down BPF, perf, ptrace, user namespaces, debugfs, tracefs, procfs, module loading, kexec, and kernel log reads/writes through available upstream controls and HDN authorities.
 - Integrate Secure Boot, module signing, fs-verity, IMA/IPE/AppArmor/SELinux/Landlock where appropriate.
 - Build the graphical prompt daemon and settings panel on top of the
   control-center and desktop-daemon contracts for normal desktop action
