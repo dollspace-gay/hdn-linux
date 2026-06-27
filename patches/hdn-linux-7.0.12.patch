@@ -18594,8 +18594,8 @@ diff -ruN --exclude .git linux-7.0.12/tools/hardening/Makefile linux-7.0.12-hdn/
 +.PHONY: all clean install
 diff -ruN --exclude .git linux-7.0.12/tools/hardening/README.rst linux-7.0.12-hdn/tools/hardening/README.rst
 --- linux-7.0.12/tools/hardening/README.rst	1969-12-31 18:00:00.000000000 -0600
-+++ linux-7.0.12-hdn/tools/hardening/README.rst	2026-06-26 21:35:52.455378600 -0500
-@@ -0,0 +1,1393 @@
++++ linux-7.0.12-hdn/tools/hardening/README.rst	2026-06-26 21:40:54.943344537 -0500
+@@ -0,0 +1,1394 @@
 +.. SPDX-License-Identifier: GPL-2.0-only
 +
 +Linux Hardening Policy Tools
@@ -19315,11 +19315,12 @@ diff -ruN --exclude .git linux-7.0.12/tools/hardening/README.rst linux-7.0.12-hd
 +nested attr, xattr, access-probe, stat, list, and find changes, and append-only rewrite and shared writable mapping paths are denied while unmatched files,
 +unmatched directories, unmatched link sources, unmatched attrs, unmatched
 +xattr reads and mutations, unmatched access probes, unmatched stat probes, unmatched list probes,
-+unmatched find probes, unmatched executable paths, unmatched ioctl targets,
-+unmatched advisory lock targets, unmatched FIFO, character-device, and block-device read/write opens, unmatched inotify/dnotify/fanotify watch targets, unmatched fd receive, fcntl
-+duplicate targets, chdir targets, truncate targets, rename sources, filesystem
-+socket connect targets, mount targets, move-mount targets, umount targets, unmatched trees, and append writes
-+remain usable.
++	unmatched find probes, unmatched executable paths, unmatched ioctl targets,
++	unmatched advisory lock targets, unmatched FIFO, character-device, and block-device read/write opens, unmatched inotify/dnotify/fanotify watch targets, unmatched fd receive, fcntl
++	duplicate targets, chdir targets and preopened chdir descriptors, truncate
++	targets and preopened truncate descriptors, rename sources, filesystem
++	socket connect targets, mount targets, move-mount targets, umount targets, unmatched trees, and append writes
++	remain usable.
 +
 +The exploit-mitigation baseline also forces upstream strict kernel RWX and
 +strict module RWX when the architecture supports them. Module text is made
@@ -35811,8 +35812,8 @@ diff -ruN --exclude .git linux-7.0.12/tools/testing/selftests/hardening/hdn_elfn
 +}
 diff -ruN --exclude .git linux-7.0.12/tools/testing/selftests/hardening/hdn_smoke.c linux-7.0.12-hdn/tools/testing/selftests/hardening/hdn_smoke.c
 --- linux-7.0.12/tools/testing/selftests/hardening/hdn_smoke.c	1969-12-31 18:00:00.000000000 -0600
-+++ linux-7.0.12-hdn/tools/testing/selftests/hardening/hdn_smoke.c	2026-06-26 21:33:54.219391855 -0500
-@@ -0,0 +1,25685 @@
++++ linux-7.0.12-hdn/tools/testing/selftests/hardening/hdn_smoke.c	2026-06-26 21:41:56.055337684 -0500
+@@ -0,0 +1,25742 @@
 +// SPDX-License-Identifier: GPL-2.0-only
 +
 +#define _GNU_SOURCE
@@ -46355,6 +46356,29 @@ diff -ruN --exclude .git linux-7.0.12/tools/testing/selftests/hardening/hdn_smok
 +	return object_preopened_fchdir_denied(fd);
 +}
 +
++static int object_tree_preopened_fchdir_unmatched_allowed(int fd)
++{
++	int rootfd;
++	int ret;
++
++	if (fd < 0)
++		return 2;
++
++	rootfd = open("/", O_RDONLY | O_DIRECTORY | O_CLOEXEC);
++	if (rootfd < 0)
++		return 2;
++
++	ret = fchdir(fd);
++	if (ret) {
++		close(rootfd);
++		return 2;
++	}
++
++	ret = fchdir(rootfd);
++	close(rootfd);
++	return ret ? 2 : 0;
++}
++
 +static int object_tree_truncate_denied(void)
 +{
 +	int saved_errno;
@@ -46378,6 +46402,14 @@ diff -ruN --exclude .git linux-7.0.12/tools/testing/selftests/hardening/hdn_smok
 +static int object_tree_preopened_ftruncate_denied(int fd)
 +{
 +	return object_truncate_ftruncate_denied(fd);
++}
++
++static int object_tree_preopened_ftruncate_unmatched_allowed(int fd)
++{
++	if (fd < 0)
++		return 2;
++
++	return ftruncate(fd, 0) ? 2 : 0;
 +}
 +
 +static int object_tree_rename_denied(void)
@@ -54762,10 +54794,12 @@ diff -ruN --exclude .git linux-7.0.12/tools/testing/selftests/hardening/hdn_smok
 +	int object_append_preopen_fd = -1;
 +	int object_truncate_preopen_fd = -1;
 +	int object_tree_truncate_preopen_fd = -1;
++	int object_tree_truncate_unmatched_preopen_fd = -1;
 +	int object_stat_preopen_fd = -1;
 +	int object_list_preopen_fd = -1;
 +	int object_chdir_preopen_fd = -1;
 +	int object_tree_chdir_preopen_fd = -1;
++	int object_tree_chdir_unmatched_preopen_fd = -1;
 +	int object_unix_connect_protected_fd = -1;
 +	int object_unix_connect_unprotected_fd = -1;
 +	int object_tree_unix_connect_fd = -1;
@@ -55339,21 +55373,23 @@ diff -ruN --exclude .git linux-7.0.12/tools/testing/selftests/hardening/hdn_smok
 +				ksft_test_result_skip("object tree ops policy denies nested inotify watch\n");
 +				ksft_test_result_skip("object tree ops policy denies nested fd duplication\n");
 +				ksft_test_result_skip("object tree ops policy denies nested chdir\n");
-+				ksft_test_result_skip("object tree ops policy denies preopened nested fchdir\n");
-+				ksft_test_result_skip("object tree ops policy denies nested truncate\n");
-+				ksft_test_result_skip("object tree ops policy denies preopened nested ftruncate\n");
-+				ksft_test_result_skip("object tree ops policy denies nested source rename\n");
-+				ksft_test_result_skip("object tree ops policy denies nested socket connect\n");
-+				ksft_test_result_skip("object tree ops policy allows unmatched exec\n");
-+				ksft_test_result_skip("object tree ops policy allows unmatched hardlink source\n");
-+				ksft_test_result_skip("object tree ops policy allows unmatched ioctl\n");
-+				ksft_test_result_skip("object tree ops policy allows unmatched lock\n");
-+				ksft_test_result_skip("object tree ops policy allows unmatched inotify watch\n");
-+				ksft_test_result_skip("object tree ops policy allows unmatched fd duplication\n");
-+				ksft_test_result_skip("object tree ops policy allows unmatched chdir\n");
-+				ksft_test_result_skip("object tree ops policy allows unmatched truncate\n");
-+				ksft_test_result_skip("object tree ops policy allows unmatched source rename\n");
-+				ksft_test_result_skip("object tree ops policy allows unmatched socket connect\n");
++					ksft_test_result_skip("object tree ops policy denies preopened nested fchdir\n");
++					ksft_test_result_skip("object tree ops policy denies nested truncate\n");
++					ksft_test_result_skip("object tree ops policy denies preopened nested ftruncate\n");
++					ksft_test_result_skip("object tree ops policy denies nested source rename\n");
++					ksft_test_result_skip("object tree ops policy denies nested socket connect\n");
++					ksft_test_result_skip("object tree ops policy allows unmatched exec\n");
++					ksft_test_result_skip("object tree ops policy allows unmatched hardlink source\n");
++					ksft_test_result_skip("object tree ops policy allows unmatched ioctl\n");
++					ksft_test_result_skip("object tree ops policy allows unmatched lock\n");
++					ksft_test_result_skip("object tree ops policy allows unmatched inotify watch\n");
++					ksft_test_result_skip("object tree ops policy allows unmatched fd duplication\n");
++					ksft_test_result_skip("object tree ops policy allows unmatched chdir\n");
++					ksft_test_result_skip("object tree ops policy allows preopened unmatched fchdir\n");
++					ksft_test_result_skip("object tree ops policy allows unmatched truncate\n");
++					ksft_test_result_skip("object tree ops policy allows preopened unmatched ftruncate\n");
++					ksft_test_result_skip("object tree ops policy allows unmatched source rename\n");
++					ksft_test_result_skip("object tree ops policy allows unmatched socket connect\n");
 +				ksft_test_result_skip("object tree receive policy denies nested fd receive\n");
 +				ksft_test_result_skip("object tree mount policy denies nested mount target\n");
 +				ksft_test_result_skip("object tree mount policy denies nested move_mount target\n");
@@ -58075,6 +58111,9 @@ diff -ruN --exclude .git linux-7.0.12/tools/testing/selftests/hardening/hdn_smok
 +		object_tree_truncate_preopen_fd = open(
 +			HDN_OBJECT_TREE_OPS_TRUNCATE, O_RDWR | O_CLOEXEC);
 +	if (object_policy_staged)
++		object_tree_truncate_unmatched_preopen_fd = open(
++			HDN_OBJECT_TREE_OPS_TRUNCATE_UNMATCHED, O_RDWR | O_CLOEXEC);
++	if (object_policy_staged)
 +		object_stat_preopen_fd = open(HDN_OBJECT_STAT_PROTECTED,
 +					      O_RDONLY | O_CLOEXEC);
 +	if (object_policy_staged)
@@ -58083,12 +58122,15 @@ diff -ruN --exclude .git linux-7.0.12/tools/testing/selftests/hardening/hdn_smok
 +					      O_CLOEXEC);
 +	if (object_policy_staged)
 +		object_chdir_preopen_fd = open(HDN_OBJECT_CHDIR_PROTECTED_DIR,
-+					       O_RDONLY | O_DIRECTORY |
-+					       O_CLOEXEC);
++					       O_RDONLY | O_DIRECTORY | O_CLOEXEC);
 +	if (object_policy_staged)
 +		object_tree_chdir_preopen_fd = open(HDN_OBJECT_TREE_OPS_CHDIR,
 +						    O_RDONLY | O_DIRECTORY |
 +						    O_CLOEXEC);
++	if (object_policy_staged)
++		object_tree_chdir_unmatched_preopen_fd = open(
++			HDN_OBJECT_TREE_OPS_CHDIR_UNMATCHED,
++			O_RDONLY | O_DIRECTORY | O_CLOEXEC);
 +	if (object_policy_staged)
 +		object_attr_xattr_prepared = !setup_object_attr_xattr();
 +	if (object_policy_staged)
@@ -58858,12 +58900,20 @@ diff -ruN --exclude .git linux-7.0.12/tools/testing/selftests/hardening/hdn_smok
 +	report_child_result(object_policy_committed ?
 +			    object_tree_fcntl_dup_unmatched_allowed() : 2,
 +			    "object tree ops policy allows unmatched fd duplication");
-+	report_child_result(object_policy_committed ?
-+			    object_tree_chdir_unmatched_allowed() : 2,
-+			    "object tree ops policy allows unmatched chdir");
-+	report_child_result(object_policy_committed ?
-+			    object_tree_truncate_unmatched_allowed() : 2,
-+			    "object tree ops policy allows unmatched truncate");
++		report_child_result(object_policy_committed ?
++				    object_tree_chdir_unmatched_allowed() : 2,
++				    "object tree ops policy allows unmatched chdir");
++		report_child_result(object_policy_committed ?
++				    object_tree_preopened_fchdir_unmatched_allowed(
++					    object_tree_chdir_unmatched_preopen_fd) : 2,
++				    "object tree ops policy allows preopened unmatched fchdir");
++		report_child_result(object_policy_committed ?
++				    object_tree_truncate_unmatched_allowed() : 2,
++				    "object tree ops policy allows unmatched truncate");
++		report_child_result(object_policy_committed ?
++				    object_tree_preopened_ftruncate_unmatched_allowed(
++					    object_tree_truncate_unmatched_preopen_fd) : 2,
++				    "object tree ops policy allows preopened unmatched ftruncate");
 +	report_child_result(object_policy_committed ?
 +			    object_tree_rename_unmatched_allowed() : 2,
 +			    "object tree ops policy allows unmatched source rename");
@@ -59040,10 +59090,14 @@ diff -ruN --exclude .git linux-7.0.12/tools/testing/selftests/hardening/hdn_smok
 +		close(object_truncate_preopen_fd);
 +		object_truncate_preopen_fd = -1;
 +	}
-+	if (object_tree_truncate_preopen_fd >= 0) {
-+		close(object_tree_truncate_preopen_fd);
-+		object_tree_truncate_preopen_fd = -1;
-+	}
++		if (object_tree_truncate_preopen_fd >= 0) {
++			close(object_tree_truncate_preopen_fd);
++			object_tree_truncate_preopen_fd = -1;
++		}
++		if (object_tree_truncate_unmatched_preopen_fd >= 0) {
++			close(object_tree_truncate_unmatched_preopen_fd);
++			object_tree_truncate_unmatched_preopen_fd = -1;
++		}
 +	if (object_stat_preopen_fd >= 0) {
 +		close(object_stat_preopen_fd);
 +		object_stat_preopen_fd = -1;
@@ -59056,10 +59110,14 @@ diff -ruN --exclude .git linux-7.0.12/tools/testing/selftests/hardening/hdn_smok
 +		close(object_chdir_preopen_fd);
 +		object_chdir_preopen_fd = -1;
 +	}
-+	if (object_tree_chdir_preopen_fd >= 0) {
-+		close(object_tree_chdir_preopen_fd);
-+		object_tree_chdir_preopen_fd = -1;
-+	}
++		if (object_tree_chdir_preopen_fd >= 0) {
++			close(object_tree_chdir_preopen_fd);
++			object_tree_chdir_preopen_fd = -1;
++		}
++		if (object_tree_chdir_unmatched_preopen_fd >= 0) {
++			close(object_tree_chdir_unmatched_preopen_fd);
++			object_tree_chdir_unmatched_preopen_fd = -1;
++		}
 +	if (object_unix_connect_protected_fd >= 0) {
 +		close(object_unix_connect_protected_fd);
 +		object_unix_connect_protected_fd = -1;
@@ -61113,7 +61171,7 @@ diff -ruN --exclude .git linux-7.0.12/tools/testing/selftests/hardening/hdn_smok
 +	if (access(HDN_STATUS, R_OK))
 +		ksft_exit_skip("hardening securityfs status not present\n");
 +
-+	ksft_set_plan(900);
++	ksft_set_plan(902);
 +	test_securityfs_status();
 +	test_symbol_test_module_load();
 +	test_securityfs_status_contains("abi_version: 81",
@@ -61881,7 +61939,7 @@ diff -ruN --exclude .git linux-7.0.12/tools/testing/selftests/hardening/role.pol
 +use-role 2 desktop-admin
 diff -ruN --exclude .git linux-7.0.12/tools/testing/selftests/hardening/run-qemu-smoke.sh linux-7.0.12-hdn/tools/testing/selftests/hardening/run-qemu-smoke.sh
 --- linux-7.0.12/tools/testing/selftests/hardening/run-qemu-smoke.sh	1969-12-31 18:00:00.000000000 -0600
-+++ linux-7.0.12-hdn/tools/testing/selftests/hardening/run-qemu-smoke.sh	2026-06-26 21:33:36.363389149 -0500
++++ linux-7.0.12-hdn/tools/testing/selftests/hardening/run-qemu-smoke.sh	2026-06-26 21:40:41.007349455 -0500
 @@ -0,0 +1,1197 @@
 +#!/bin/sh
 +# SPDX-License-Identifier: GPL-2.0
@@ -61916,7 +61974,7 @@ diff -ruN --exclude .git linux-7.0.12/tools/testing/selftests/hardening/run-qemu
 +QEMU_MEMORY=${QEMU_MEMORY:-1024M}
 +QEMU_SMP=${QEMU_SMP:-2}
 +QEMU_MACHINE=${QEMU_MACHINE:-q35,accel=tcg}
-+HDN_SMOKE_EXPECTED_PASS=${HDN_SMOKE_EXPECTED_PASS:-900}
++HDN_SMOKE_EXPECTED_PASS=${HDN_SMOKE_EXPECTED_PASS:-902}
 +WORK=${HDN_QEMU_WORK:-"${TMPDIR:-/tmp}/hdn-qemu-smoke.$$"}
 +LOG=${HDN_QEMU_LOG:-"$WORK/qemu.log"}
 +QMP=${HDN_QEMU_QMP:-"$WORK/qmp.sock"}
