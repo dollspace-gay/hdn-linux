@@ -35797,8 +35797,8 @@ diff -ruN --exclude .git linux-7.0.12/tools/testing/selftests/hardening/hdn_elfn
 +}
 diff -ruN --exclude .git linux-7.0.12/tools/testing/selftests/hardening/hdn_smoke.c linux-7.0.12-hdn/tools/testing/selftests/hardening/hdn_smoke.c
 --- linux-7.0.12/tools/testing/selftests/hardening/hdn_smoke.c	1969-12-31 18:00:00.000000000 -0600
-+++ linux-7.0.12-hdn/tools/testing/selftests/hardening/hdn_smoke.c	2026-06-26 20:03:50.204071493 -0500
-@@ -0,0 +1,24610 @@
++++ linux-7.0.12-hdn/tools/testing/selftests/hardening/hdn_smoke.c	2026-06-26 20:16:12.532005386 -0500
+@@ -0,0 +1,24658 @@
 +// SPDX-License-Identifier: GPL-2.0-only
 +
 +#define _GNU_SOURCE
@@ -45757,6 +45757,46 @@ diff -ruN --exclude .git linux-7.0.12/tools/testing/selftests/hardening/hdn_smok
 +					      true);
 +}
 +
++static int object_fcntl_setfl_result(const char *path, bool expect_allowed)
++{
++	int saved_errno = 0;
++	int flags;
++	int fd;
++	int ret;
++
++	fd = open(path, O_RDONLY | O_CLOEXEC);
++	if (fd < 0)
++		return 2;
++
++	flags = fcntl(fd, F_GETFL);
++	if (flags < 0) {
++		close(fd);
++		return 2;
++	}
++
++	errno = 0;
++	ret = fcntl(fd, F_SETFL, flags | O_NONBLOCK);
++	saved_errno = errno;
++	close(fd);
++
++	if (!ret)
++		return expect_allowed ? 0 : 1;
++
++	if (expect_allowed)
++		return 1;
++	return errno_is_denial(saved_errno) ? 0 : 2;
++}
++
++static int object_fcntl_setfl_denied(void)
++{
++	return object_fcntl_setfl_result(HDN_OBJECT_FCNTL_PROTECTED, false);
++}
++
++static int object_fcntl_setfl_unmatched_allowed(void)
++{
++	return object_fcntl_setfl_result(HDN_OBJECT_FCNTL_UNPROTECTED, true);
++}
++
 +static int object_fcntl_query_allowed(void)
 +{
 +	int fd;
@@ -54541,6 +54581,8 @@ diff -ruN --exclude .git linux-7.0.12/tools/testing/selftests/hardening/hdn_smok
 +					ksft_test_result_skip("object fcntl policy allows unmatched fd duplication\n");
 +					ksft_test_result_skip("object fcntl policy denies protected ioctl flag alias\n");
 +					ksft_test_result_skip("object fcntl policy allows unmatched ioctl flag alias\n");
++					ksft_test_result_skip("object fcntl policy denies protected direct flag change\n");
++					ksft_test_result_skip("object fcntl policy allows unmatched direct flag change\n");
 +					ksft_test_result_skip("object fcntl policy allows protected status query\n");
 +					ksft_test_result_skip("object chdir policy denies protected chdir\n");
 +					ksft_test_result_skip("object chdir policy allows unmatched chdir\n");
@@ -57242,9 +57284,9 @@ diff -ruN --exclude .git linux-7.0.12/tools/testing/selftests/hardening/hdn_smok
 +		object_policy_committed = !ret;
 +		ksft_test_result(object_policy_committed,
 +				 "object-write hardening policy commits\n");
-+	ksft_test_result(object_policy_committed &&
-+						 securityfs_status_has_line("object_rule_count: 62"),
-+					 "object-write policy reports object rule count\n");
++		ksft_test_result(object_policy_committed &&
++							 securityfs_status_has_line("object_rule_count: 62"),
++						 "object-write policy reports object rule count\n");
 +	report_child_result(object_policy_committed ?
 +			    object_protected_write_denied() : 2,
 +			    "object-write policy denies protected file write");
@@ -57835,12 +57877,18 @@ diff -ruN --exclude .git linux-7.0.12/tools/testing/selftests/hardening/hdn_smok
 +			report_child_result(object_policy_committed ?
 +					    object_fcntl_ioctl_flag_denied() : 2,
 +					    "object fcntl policy denies protected ioctl flag alias");
-+			report_child_result(object_policy_committed ?
-+					    object_fcntl_ioctl_flag_unmatched_allowed() : 2,
-+					    "object fcntl policy allows unmatched ioctl flag alias");
-+			report_child_result(object_policy_committed ?
-+					    object_fcntl_query_allowed() : 2,
-+					    "object fcntl policy allows protected status query");
++				report_child_result(object_policy_committed ?
++						    object_fcntl_ioctl_flag_unmatched_allowed() : 2,
++						    "object fcntl policy allows unmatched ioctl flag alias");
++				report_child_result(object_policy_committed ?
++						    object_fcntl_setfl_denied() : 2,
++						    "object fcntl policy denies protected direct flag change");
++				report_child_result(object_policy_committed ?
++						    object_fcntl_setfl_unmatched_allowed() : 2,
++						    "object fcntl policy allows unmatched direct flag change");
++				report_child_result(object_policy_committed ?
++						    object_fcntl_query_allowed() : 2,
++						    "object fcntl policy allows protected status query");
 +			report_child_result(object_policy_committed ?
 +					    object_chdir_denied() : 2,
 +					    "object chdir policy denies protected chdir");
@@ -60024,7 +60072,7 @@ diff -ruN --exclude .git linux-7.0.12/tools/testing/selftests/hardening/hdn_smok
 +	if (access(HDN_STATUS, R_OK))
 +		ksft_exit_skip("hardening securityfs status not present\n");
 +
-+	ksft_set_plan(837);
++	ksft_set_plan(839);
 +	test_securityfs_status();
 +	test_symbol_test_module_load();
 +	test_securityfs_status_contains("abi_version: 81",
@@ -60591,7 +60639,7 @@ diff -ruN --exclude .git linux-7.0.12/tools/testing/selftests/hardening/namespac
 +allow 2 POLICY_ADMIN CRED_CHANGE PTRACE NAMESPACE_ADMIN PROC_TASK_VIEW
 diff -ruN --exclude .git linux-7.0.12/tools/testing/selftests/hardening/object-write.policy linux-7.0.12-hdn/tools/testing/selftests/hardening/object-write.policy
 --- linux-7.0.12/tools/testing/selftests/hardening/object-write.policy	1969-12-31 18:00:00.000000000 -0600
-+++ linux-7.0.12-hdn/tools/testing/selftests/hardening/object-write.policy	2026-06-26 19:49:45.588148425 -0500
++++ linux-7.0.12-hdn/tools/testing/selftests/hardening/object-write.policy	2026-06-26 20:16:17.960004962 -0500
 @@ -0,0 +1,76 @@
 +# Root-profile policy used by the QEMU smoke test to prove object
 +# read/write/delete/create/creat/mkdir/mknod/symlink/unlink/rmdir/exec/link/attr/chmod/chown/utime/xattr/setxattr/removexattr/access/stat/list/find/ioctl/lock/watch/receive/fcntl/chdir/mount/umount/truncate/rename/unix-connect/unix-bind/unix-listen/unix-accept/unix-send/unix-recv denial,
@@ -60759,7 +60807,7 @@ diff -ruN --exclude .git linux-7.0.12/tools/testing/selftests/hardening/role.pol
 +use-role 2 desktop-admin
 diff -ruN --exclude .git linux-7.0.12/tools/testing/selftests/hardening/run-qemu-smoke.sh linux-7.0.12-hdn/tools/testing/selftests/hardening/run-qemu-smoke.sh
 --- linux-7.0.12/tools/testing/selftests/hardening/run-qemu-smoke.sh	1969-12-31 18:00:00.000000000 -0600
-+++ linux-7.0.12-hdn/tools/testing/selftests/hardening/run-qemu-smoke.sh	2026-06-26 20:03:50.208071492 -0500
++++ linux-7.0.12-hdn/tools/testing/selftests/hardening/run-qemu-smoke.sh	2026-06-26 20:16:26.264004848 -0500
 @@ -0,0 +1,1060 @@
 +#!/bin/sh
 +# SPDX-License-Identifier: GPL-2.0
@@ -60794,7 +60842,7 @@ diff -ruN --exclude .git linux-7.0.12/tools/testing/selftests/hardening/run-qemu
 +QEMU_MEMORY=${QEMU_MEMORY:-1024M}
 +QEMU_SMP=${QEMU_SMP:-2}
 +QEMU_MACHINE=${QEMU_MACHINE:-q35,accel=tcg}
-+HDN_SMOKE_EXPECTED_PASS=${HDN_SMOKE_EXPECTED_PASS:-837}
++HDN_SMOKE_EXPECTED_PASS=${HDN_SMOKE_EXPECTED_PASS:-839}
 +WORK=${HDN_QEMU_WORK:-"${TMPDIR:-/tmp}/hdn-qemu-smoke.$$"}
 +LOG=${HDN_QEMU_LOG:-"$WORK/qemu.log"}
 +QMP=${HDN_QEMU_QMP:-"$WORK/qmp.sock"}
