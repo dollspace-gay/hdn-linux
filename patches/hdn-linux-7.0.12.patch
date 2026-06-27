@@ -1739,7 +1739,7 @@ diff -ruN --exclude .git /home/doll/distro/linux-7.0.12/fs/namei.c /home/doll/di
  	if (error)
 diff -ruN --exclude .git /home/doll/distro/linux-7.0.12/fs/namespace.c /home/doll/distro/linux-7.0.12-hdn/fs/namespace.c
 --- /home/doll/distro/linux-7.0.12/fs/namespace.c	2026-06-09 05:32:51.000000000 -0500
-+++ /home/doll/distro/linux-7.0.12-hdn/fs/namespace.c	2026-06-26 07:28:16.781823093 -0500
++++ /home/doll/distro/linux-7.0.12-hdn/fs/namespace.c	2026-06-26 22:47:32.234995306 -0500
 @@ -16,6 +16,7 @@
  #include <linux/namei.h>
  #include <linux/security.h>
@@ -1851,7 +1851,18 @@ diff -ruN --exclude .git /home/doll/distro/linux-7.0.12/fs/namespace.c /home/dol
  	fc = fs_context_for_reconfigure(path->dentry, sb_flags, MS_RMT_MASK);
  	if (IS_ERR(fc))
  		return PTR_ERR(fc);
-@@ -3760,9 +3807,14 @@
+@@ -3713,6 +3760,10 @@
+ 	if (err)
+ 		return err;
+ 
++	err = hdn_authorize_object_mount_source(&old_path);
++	if (err)
++		return err;
++
+ 	return do_move_mount(&old_path, path, 0);
+ }
+ 
+@@ -3760,9 +3811,14 @@
  			   unsigned int mnt_flags)
  {
  	struct super_block *sb;
@@ -1867,7 +1878,7 @@ diff -ruN --exclude .git /home/doll/distro/linux-7.0.12/fs/namespace.c /home/dol
  	if (IS_ERR(mnt))
  		return PTR_ERR(mnt);
  
-@@ -3776,6 +3828,12 @@
+@@ -3776,6 +3832,12 @@
  		return -EPERM;
  	}
  
@@ -1880,7 +1891,7 @@ diff -ruN --exclude .git /home/doll/distro/linux-7.0.12/fs/namespace.c /home/dol
  	mnt_warn_timestamp_expiry(mountpoint, mnt);
  
  	LOCK_MOUNT(mp, mountpoint);
-@@ -3805,6 +3863,12 @@
+@@ -3805,6 +3867,12 @@
  	if (!type)
  		return -ENODEV;
  
@@ -1893,7 +1904,7 @@ diff -ruN --exclude .git /home/doll/distro/linux-7.0.12/fs/namespace.c /home/dol
  	if (type->fs_flags & FS_HAS_SUBTYPE) {
  		subtype = strchr(fstype, '.');
  		if (subtype) {
-@@ -4101,6 +4165,12 @@
+@@ -4101,6 +4169,12 @@
  	ret = security_sb_mount(dev_name, path, type_page, flags, data_page);
  	if (ret)
  		return ret;
@@ -1906,7 +1917,7 @@ diff -ruN --exclude .git /home/doll/distro/linux-7.0.12/fs/namespace.c /home/dol
  	if (!may_mount())
  		return -EPERM;
  	if (flags & SB_MANDLOCK)
-@@ -4146,18 +4216,22 @@
+@@ -4146,18 +4220,22 @@
  			    SB_I_VERSION);
  
  	if ((flags & (MS_REMOUNT | MS_BIND)) == (MS_REMOUNT | MS_BIND))
@@ -1940,7 +1951,7 @@ diff -ruN --exclude .git /home/doll/distro/linux-7.0.12/fs/namespace.c /home/dol
  }
  
  int do_mount(const char *dev_name, const char __user *dir_name,
-@@ -4182,6 +4256,35 @@
+@@ -4182,6 +4260,35 @@
  	dec_ucount(ucounts, UCOUNT_MNT_NAMESPACES);
  }
  
@@ -1976,7 +1987,7 @@ diff -ruN --exclude .git /home/doll/distro/linux-7.0.12/fs/namespace.c /home/dol
  static void free_mnt_ns(struct mnt_namespace *ns)
  {
  	if (!is_anon_ns(ns))
-@@ -4223,6 +4326,7 @@
+@@ -4223,6 +4330,7 @@
  	init_waitqueue_head(&new_ns->poll);
  	new_ns->user_ns = get_user_ns(user_ns);
  	new_ns->ucounts = ucounts;
@@ -1984,7 +1995,7 @@ diff -ruN --exclude .git /home/doll/distro/linux-7.0.12/fs/namespace.c /home/dol
  	return new_ns;
  }
  
-@@ -4414,6 +4518,9 @@
+@@ -4414,6 +4522,9 @@
  	unsigned int mnt_flags = 0;
  	long ret;
  
@@ -1994,7 +2005,7 @@ diff -ruN --exclude .git /home/doll/distro/linux-7.0.12/fs/namespace.c /home/dol
  	if (!may_mount())
  		return -EPERM;
  
-@@ -4452,6 +4559,10 @@
+@@ -4452,6 +4563,10 @@
  	if (ret)
  		return ret;
  
@@ -2005,7 +2016,7 @@ diff -ruN --exclude .git /home/doll/distro/linux-7.0.12/fs/namespace.c /home/dol
  	/* There must be a valid superblock or we can't mount it */
  	ret = -EINVAL;
  	if (!fc->root)
-@@ -4463,6 +4574,12 @@
+@@ -4463,6 +4578,12 @@
  		return ret;
  	}
  
@@ -2018,7 +2029,7 @@ diff -ruN --exclude .git /home/doll/distro/linux-7.0.12/fs/namespace.c /home/dol
  	ret = -EBUSY;
  	if (fc->phase != FS_CONTEXT_AWAITING_MOUNT)
  		return ret;
-@@ -4506,7 +4623,10 @@
+@@ -4506,7 +4627,10 @@
  	 * need to unmount it, not just simply put it.
  	 */
  	fd_prepare_file(fdf)->f_mode |= FMODE_NEED_UNMOUNT;
@@ -2030,11 +2041,14 @@ diff -ruN --exclude .git /home/doll/distro/linux-7.0.12/fs/namespace.c /home/dol
  }
  
  static inline int vfs_move_mount(const struct path *from_path,
-@@ -4519,10 +4639,21 @@
+@@ -4519,10 +4643,24 @@
  	if (ret)
  		return ret;
  
 +	ret = hdn_authorize_chroot_mount(to_path);
++	if (ret)
++		return ret;
++	ret = hdn_authorize_object_mount_source(from_path);
 +	if (ret)
 +		return ret;
 +	ret = hdn_authorize_object_mount(to_path);
@@ -2054,7 +2068,7 @@ diff -ruN --exclude .git /home/doll/distro/linux-7.0.12/fs/namespace.c /home/dol
  }
  
  /*
-@@ -4544,6 +4675,9 @@
+@@ -4544,6 +4682,9 @@
  	enum mnt_tree_flags_t mflags = 0;
  	int ret = 0;
  
@@ -2064,7 +2078,7 @@ diff -ruN --exclude .git /home/doll/distro/linux-7.0.12/fs/namespace.c /home/dol
  	if (!may_mount())
  		return -EPERM;
  
-@@ -4740,6 +4874,10 @@
+@@ -4740,6 +4881,10 @@
  	if (error)
  		return error;
  
@@ -2075,7 +2089,7 @@ diff -ruN --exclude .git /home/doll/distro/linux-7.0.12/fs/namespace.c /home/dol
  	return path_pivot_root(&new, &old);
  }
  
-@@ -4819,11 +4957,20 @@
+@@ -4819,11 +4964,20 @@
  	int err;
  
  	for (m = mnt; m; m = next_mnt(m, mnt)) {
@@ -2097,7 +2111,7 @@ diff -ruN --exclude .git /home/doll/distro/linux-7.0.12/fs/namespace.c /home/dol
  		err = can_idmap_mount(kattr, m);
  		if (err)
  			break;
-@@ -4940,6 +5087,8 @@
+@@ -4940,6 +5094,8 @@
  		namespace_unlock();
  	}
  
@@ -2106,7 +2120,7 @@ diff -ruN --exclude .git /home/doll/distro/linux-7.0.12/fs/namespace.c /home/dol
  	return err;
  }
  
-@@ -6134,6 +6283,7 @@
+@@ -6134,6 +6290,7 @@
  	.passive	= REFCOUNT_INIT(1),
  	.mounts		= RB_ROOT,
  	.poll		= __WAIT_QUEUE_HEAD_INITIALIZER(init_mnt_ns.poll),
@@ -2114,7 +2128,7 @@ diff -ruN --exclude .git /home/doll/distro/linux-7.0.12/fs/namespace.c /home/dol
  };
  
  static void __init init_mount_tree(void)
-@@ -6442,6 +6592,11 @@
+@@ -6442,6 +6599,11 @@
  	if (fs->users != 1)
  		return -EINVAL;
  
@@ -3596,8 +3610,8 @@ diff -ruN --exclude .git /home/doll/distro/linux-7.0.12/include/linux/btf.h /hom
  
 diff -ruN --exclude .git /home/doll/distro/linux-7.0.12/include/linux/hardening.h /home/doll/distro/linux-7.0.12-hdn/include/linux/hardening.h
 --- /home/doll/distro/linux-7.0.12/include/linux/hardening.h	1969-12-31 18:00:00.000000000 -0600
-+++ /home/doll/distro/linux-7.0.12-hdn/include/linux/hardening.h	2026-06-26 22:23:01.539128181 -0500
-@@ -0,0 +1,1000 @@
++++ /home/doll/distro/linux-7.0.12-hdn/include/linux/hardening.h	2026-06-26 22:47:32.222995307 -0500
+@@ -0,0 +1,1006 @@
 +/* SPDX-License-Identifier: GPL-2.0-only */
 +#ifndef _LINUX_HARDENING_H
 +#define _LINUX_HARDENING_H
@@ -3769,6 +3783,7 @@ diff -ruN --exclude .git /home/doll/distro/linux-7.0.12/include/linux/hardening.
 +int hdn_authorize_object_receive(struct file *file);
 +int hdn_authorize_object_fcntl(struct file *file, unsigned int cmd);
 +int hdn_authorize_object_mount(const struct path *path);
++int hdn_authorize_object_mount_source(const struct path *path);
 +int hdn_authorize_object_umount(const struct path *path);
 +int hdn_authorize_object_truncate(const struct path *path);
 +int hdn_authorize_object_unix_connect(const struct path *path);
@@ -4446,6 +4461,11 @@ diff -ruN --exclude .git /home/doll/distro/linux-7.0.12/include/linux/hardening.
 +	return 0;
 +}
 +
++static inline int hdn_authorize_object_mount_source(const struct path *path)
++{
++	return 0;
++}
++
 +static inline int hdn_authorize_object_umount(const struct path *path)
 +{
 +	return 0;
@@ -4784,15 +4804,15 @@ diff -ruN --exclude .git /home/doll/distro/linux-7.0.12/include/trace/events/mma
  TRACE_EVENT(exit_mmap,
 diff -ruN --exclude .git /home/doll/distro/linux-7.0.12/include/uapi/linux/hardening.h /home/doll/distro/linux-7.0.12-hdn/include/uapi/linux/hardening.h
 --- /home/doll/distro/linux-7.0.12/include/uapi/linux/hardening.h	1969-12-31 18:00:00.000000000 -0600
-+++ /home/doll/distro/linux-7.0.12-hdn/include/uapi/linux/hardening.h	2026-06-26 22:22:54.871128751 -0500
-@@ -0,0 +1,619 @@
++++ /home/doll/distro/linux-7.0.12-hdn/include/uapi/linux/hardening.h	2026-06-26 22:47:32.222995307 -0500
+@@ -0,0 +1,623 @@
 +/* SPDX-License-Identifier: GPL-2.0 WITH Linux-syscall-note */
 +#ifndef _UAPI_LINUX_HARDENING_H
 +#define _UAPI_LINUX_HARDENING_H
 +
 +#include <linux/types.h>
 +
-+#define HDN_POLICY_ABI_VERSION 84
++#define HDN_POLICY_ABI_VERSION 85
 +#define HDN_POLICY_MAGIC 0x48444e50 /* "HDNP" */
 +#define HDN_PROFILE_NAME_LEN 32
 +#define HDN_POLICY_PATH_LEN 256
@@ -4909,6 +4929,7 @@ diff -ruN --exclude .git /home/doll/distro/linux-7.0.12/include/uapi/linux/harde
 +	HDN_AUTH_KERNEL_LOG_WRITE = 84,
 +	HDN_AUTH_OBJECT_RENAME_TARGET = 85,
 +	HDN_AUTH_OBJECT_LINK_TARGET = 86,
++	HDN_AUTH_OBJECT_MOUNT_SOURCE = 87,
 +	HDN_AUTH__MAX,
 +};
 +
@@ -5012,6 +5033,7 @@ diff -ruN --exclude .git /home/doll/distro/linux-7.0.12/include/uapi/linux/harde
 +	HDN_TRANS_KERNEL_LOG_WRITE = 96,
 +	HDN_TRANS_OBJECT_RENAME_TARGET = 97,
 +	HDN_TRANS_OBJECT_LINK_TARGET = 98,
++	HDN_TRANS_OBJECT_MOUNT_SOURCE = 99,
 +	HDN_TRANS__MAX,
 +};
 +
@@ -5115,6 +5137,7 @@ diff -ruN --exclude .git /home/doll/distro/linux-7.0.12/include/uapi/linux/harde
 +	HDN_EVENT_ID_KERNEL_LOG_WRITE = HDN_TRANS_KERNEL_LOG_WRITE,
 +	HDN_EVENT_ID_OBJECT_RENAME_TARGET = HDN_TRANS_OBJECT_RENAME_TARGET,
 +	HDN_EVENT_ID_OBJECT_LINK_TARGET = HDN_TRANS_OBJECT_LINK_TARGET,
++	HDN_EVENT_ID_OBJECT_MOUNT_SOURCE = HDN_TRANS_OBJECT_MOUNT_SOURCE,
 +};
 +
 +enum hdn_decision_action {
@@ -5298,6 +5321,7 @@ diff -ruN --exclude .git /home/doll/distro/linux-7.0.12/include/uapi/linux/harde
 +	HDN_OBJECT_DENY_UNIX_RECV = 1ULL << 43,
 +	HDN_OBJECT_DENY_RENAME_TARGET = 1ULL << 44,
 +	HDN_OBJECT_DENY_LINK_TARGET = 1ULL << 45,
++	HDN_OBJECT_DENY_MOUNT_SOURCE = 1ULL << 46,
 +};
 +
 +struct hdn_event {
@@ -10784,8 +10808,8 @@ diff -ruN --exclude .git /home/doll/distro/linux-7.0.12/security/hardening/Makef
 +obj-$(CONFIG_SECURITY_HARDENING) += core.o
 diff -ruN --exclude .git /home/doll/distro/linux-7.0.12/security/hardening/core.c /home/doll/distro/linux-7.0.12-hdn/security/hardening/core.c
 --- /home/doll/distro/linux-7.0.12/security/hardening/core.c	1969-12-31 18:00:00.000000000 -0600
-+++ /home/doll/distro/linux-7.0.12-hdn/security/hardening/core.c	2026-06-26 22:23:09.151127541 -0500
-@@ -0,0 +1,7505 @@
++++ /home/doll/distro/linux-7.0.12-hdn/security/hardening/core.c	2026-06-26 22:47:32.230995306 -0500
+@@ -0,0 +1,7519 @@
 +// SPDX-License-Identifier: GPL-2.0-only
 +
 +#include <linux/binfmts.h>
@@ -13968,6 +13992,18 @@ diff -ruN --exclude .git /home/doll/distro/linux-7.0.12/security/hardening/core.
 +			       hdn_path_object_id(path));
 +}
 +
++int hdn_authorize_object_mount_source(const struct path *path)
++{
++	if (!hdn_object_access_denied(path, hdn_current_profile_id(),
++				      HDN_OBJECT_DENY_MOUNT_SOURCE))
++		return 0;
++
++	return hdn_deny_object(HDN_AUTH_OBJECT_MOUNT_SOURCE,
++			       HDN_TRANS_OBJECT_MOUNT_SOURCE,
++			       HDN_REASON_OBJECT_POLICY, -EACCES,
++			       hdn_path_object_id(path));
++}
++
 +int hdn_authorize_object_umount(const struct path *path)
 +{
 +	if (!hdn_object_access_denied(path, hdn_current_profile_id(),
@@ -16644,7 +16680,8 @@ diff -ruN --exclude .git /home/doll/distro/linux-7.0.12/security/hardening/core.
 +					 HDN_OBJECT_DENY_UNIX_SEND |
 +					 HDN_OBJECT_DENY_UNIX_RECV |
 +					 HDN_OBJECT_DENY_RENAME_TARGET |
-+					 HDN_OBJECT_DENY_LINK_TARGET;
++					 HDN_OBJECT_DENY_LINK_TARGET |
++					 HDN_OBJECT_DENY_MOUNT_SOURCE;
 +	u64 valid_module_flags = HDN_MODULE_MATCH_FILE_ID |
 +				 HDN_MODULE_MATCH_VERITY_DIGEST |
 +				 HDN_MODULE_RESOLVE_FILE_PATH;
@@ -16751,7 +16788,8 @@ diff -ruN --exclude .git /home/doll/distro/linux-7.0.12/security/hardening/core.
 +					     HDN_OBJECT_DENY_UNIX_SEND |
 +					     HDN_OBJECT_DENY_UNIX_RECV |
 +					     HDN_OBJECT_DENY_RENAME_TARGET |
-+					     HDN_OBJECT_DENY_LINK_TARGET)))
++					     HDN_OBJECT_DENY_LINK_TARGET |
++					     HDN_OBJECT_DENY_MOUNT_SOURCE)))
 +					return -EINVAL;
 +		if ((rule->flags & HDN_OBJECT_MATCH_FILE_ID) &&
 +		    (rule->flags & HDN_OBJECT_RESOLVE_FILE_PATH))
@@ -18666,8 +18704,8 @@ diff -ruN --exclude .git /home/doll/distro/linux-7.0.12/tools/hardening/Makefile
 +.PHONY: all clean install
 diff -ruN --exclude .git /home/doll/distro/linux-7.0.12/tools/hardening/README.rst /home/doll/distro/linux-7.0.12-hdn/tools/hardening/README.rst
 --- /home/doll/distro/linux-7.0.12/tools/hardening/README.rst	1969-12-31 18:00:00.000000000 -0600
-+++ /home/doll/distro/linux-7.0.12-hdn/tools/hardening/README.rst	2026-06-26 22:39:53.279033431 -0500
-@@ -0,0 +1,1407 @@
++++ /home/doll/distro/linux-7.0.12-hdn/tools/hardening/README.rst	2026-06-26 22:57:42.226934714 -0500
+@@ -0,0 +1,1412 @@
 +.. SPDX-License-Identifier: GPL-2.0-only
 +
 +Linux Hardening Policy Tools
@@ -19098,6 +19136,7 @@ diff -ruN --exclude .git /home/doll/distro/linux-7.0.12/tools/hardening/README.r
 +  object 2 deny-fcntl path /etc/hdn/descriptor-control-hidden.conf
 +  object 2 deny-chdir path /etc/hdn/no-cwd
 +  object 2 deny-mount path /etc/hdn/no-cover
++  object 2 deny-mount-source path /etc/hdn/no-move-source
 +  object 2 deny-umount path /etc/hdn/no-detach
 +  object 2 deny-truncate path /etc/hdn/no-size-change
 +  object 2 deny-rename path /etc/hdn/no-move
@@ -19228,6 +19267,7 @@ diff -ruN --exclude .git /home/doll/distro/linux-7.0.12/tools/hardening/README.r
 +``object <profile> deny-fcntl path <absolute-path>``,
 +``object <profile> deny-chdir path <absolute-path>``,
 +``object <profile> deny-mount path <absolute-path>``,
++``object <profile> deny-mount-source path <absolute-path>``,
 +``object <profile> deny-umount path <absolute-path>``,
 +``object <profile> deny-truncate path <absolute-path>``,
 +``object <profile> deny-rename path <absolute-path>``,
@@ -19345,7 +19385,9 @@ diff -ruN --exclude .git /home/doll/distro/linux-7.0.12/tools/hardening/README.r
 +including directory descriptors opened before policy commit. It enforces
 +deny-mount for mount-tree attachment through ``mount(2)`` and the
 +``move_mount(2)`` destination path, preventing protected objects from being
-+covered by a new mount. It enforces deny-umount for ``umount(2)`` and
++covered by a new mount. It enforces deny-mount-source for ``move_mount(2)``
++and legacy ``mount(2)`` ``MS_MOVE`` source paths, preventing protected mounted
++trees from being moved elsewhere. It enforces deny-umount for ``umount(2)`` and
 +``umount2(2)`` after normal VFS/capability validation and before the mounted
 +tree is detached. It enforces deny-truncate for path truncation, descriptor
 +truncation, ``O_TRUNC`` opens, and ``fallocate(2)`` extent mutation while
@@ -19365,7 +19407,7 @@ diff -ruN --exclude .git /home/doll/distro/linux-7.0.12/tools/hardening/README.r
 +	AF_UNIX datagram receives by bound socket identity.
 +QEMU stages a
 +dedicated object policy and proves protected
-+read/write/delete/create/creat/mkdir/mknod/symlink/unlink/rmdir/exec/link/link-target/attr/chmod/chown/utime/xattr/setxattr/removexattr/access/stat/list/find/ioctl/lock/watch/receive/fcntl/chdir/mount/umount/truncate/rename/rename-target/unix-connect/unix-bind/unix-listen/unix-accept/unix-send/unix-recv targets, protected
++read/write/delete/create/creat/mkdir/mknod/symlink/unlink/rmdir/exec/link/link-target/attr/chmod/chown/utime/xattr/setxattr/removexattr/access/stat/list/find/ioctl/lock/watch/receive/fcntl/chdir/mount/mount-source/umount/truncate/rename/rename-target/unix-connect/unix-bind/unix-listen/unix-accept/unix-send/unix-recv targets, protected
 +	file-capability xattr get/list/set/remove attempts, protected POSIX ACL xattr reads, preopened descriptor reads, readable mmap, and readable mprotect,
 +	unmatched readable mmap and mprotect,
 +		protected FIFO, character-device, and block-device read/write open denial,
@@ -19403,7 +19445,8 @@ diff -ruN --exclude .git /home/doll/distro/linux-7.0.12/tools/hardening/README.r
 +	duplicate targets, chdir targets and preopened chdir descriptors, truncate
 +	targets and preopened truncate descriptors, rename sources, rename targets,
 +	hardlink target directories, filesystem
-+socket connect targets, mount targets, move-mount targets, umount targets, unmatched trees, and append writes
++socket connect targets, mount targets, move-mount targets, move-mount source
++roots, umount targets, unmatched trees, and append writes
 +	remain usable.
 +
 +The exploit-mitigation baseline also forces upstream strict kernel RWX and
@@ -22993,8 +23036,8 @@ diff -ruN --exclude .git /home/doll/distro/linux-7.0.12/tools/hardening/hdn-desk
 +}
 diff -ruN --exclude .git /home/doll/distro/linux-7.0.12/tools/hardening/hdn-event-decode.c /home/doll/distro/linux-7.0.12-hdn/tools/hardening/hdn-event-decode.c
 --- /home/doll/distro/linux-7.0.12/tools/hardening/hdn-event-decode.c	1969-12-31 18:00:00.000000000 -0600
-+++ /home/doll/distro/linux-7.0.12-hdn/tools/hardening/hdn-event-decode.c	2026-06-26 22:23:40.535124642 -0500
-@@ -0,0 +1,923 @@
++++ /home/doll/distro/linux-7.0.12-hdn/tools/hardening/hdn-event-decode.c	2026-06-26 22:47:32.234995306 -0500
+@@ -0,0 +1,925 @@
 +// SPDX-License-Identifier: GPL-2.0-only
 +
 +#define _GNU_SOURCE
@@ -23119,6 +23162,7 @@ diff -ruN --exclude .git /home/doll/distro/linux-7.0.12/tools/hardening/hdn-even
 +	{ HDN_AUTH_OBJECT_FCNTL, "OBJECT_FCNTL" },
 +	{ HDN_AUTH_OBJECT_CHDIR, "OBJECT_CHDIR" },
 +	{ HDN_AUTH_OBJECT_MOUNT, "OBJECT_MOUNT" },
++	{ HDN_AUTH_OBJECT_MOUNT_SOURCE, "OBJECT_MOUNT_SOURCE" },
 +	{ HDN_AUTH_OBJECT_UMOUNT, "OBJECT_UMOUNT" },
 +	{ HDN_AUTH_OBJECT_TRUNCATE, "OBJECT_TRUNCATE" },
 +	{ HDN_AUTH_OBJECT_RENAME, "OBJECT_RENAME" },
@@ -23217,6 +23261,7 @@ diff -ruN --exclude .git /home/doll/distro/linux-7.0.12/tools/hardening/hdn-even
 +	{ HDN_TRANS_OBJECT_FCNTL, "OBJECT_FCNTL" },
 +	{ HDN_TRANS_OBJECT_CHDIR, "OBJECT_CHDIR" },
 +	{ HDN_TRANS_OBJECT_MOUNT, "OBJECT_MOUNT" },
++	{ HDN_TRANS_OBJECT_MOUNT_SOURCE, "OBJECT_MOUNT_SOURCE" },
 +	{ HDN_TRANS_OBJECT_UMOUNT, "OBJECT_UMOUNT" },
 +	{ HDN_TRANS_OBJECT_TRUNCATE, "OBJECT_TRUNCATE" },
 +	{ HDN_TRANS_OBJECT_RENAME, "OBJECT_RENAME" },
@@ -24765,8 +24810,8 @@ diff -ruN --exclude .git /home/doll/distro/linux-7.0.12/tools/hardening/hdn-pack
 +}
 diff -ruN --exclude .git /home/doll/distro/linux-7.0.12/tools/hardening/hdn-policy-learn.c /home/doll/distro/linux-7.0.12-hdn/tools/hardening/hdn-policy-learn.c
 --- /home/doll/distro/linux-7.0.12/tools/hardening/hdn-policy-learn.c	1969-12-31 18:00:00.000000000 -0600
-+++ /home/doll/distro/linux-7.0.12-hdn/tools/hardening/hdn-policy-learn.c	2026-06-26 22:23:58.963122991 -0500
-@@ -0,0 +1,869 @@
++++ /home/doll/distro/linux-7.0.12-hdn/tools/hardening/hdn-policy-learn.c	2026-06-26 22:47:32.238995306 -0500
+@@ -0,0 +1,872 @@
 +// SPDX-License-Identifier: GPL-2.0-only
 +
 +#define _GNU_SOURCE
@@ -24893,6 +24938,7 @@ diff -ruN --exclude .git /home/doll/distro/linux-7.0.12/tools/hardening/hdn-poli
 +	{ HDN_AUTH_OBJECT_FCNTL, "OBJECT_FCNTL" },
 +	{ HDN_AUTH_OBJECT_CHDIR, "OBJECT_CHDIR" },
 +	{ HDN_AUTH_OBJECT_MOUNT, "OBJECT_MOUNT" },
++	{ HDN_AUTH_OBJECT_MOUNT_SOURCE, "OBJECT_MOUNT_SOURCE" },
 +	{ HDN_AUTH_OBJECT_UMOUNT, "OBJECT_UMOUNT" },
 +	{ HDN_AUTH_OBJECT_TRUNCATE, "OBJECT_TRUNCATE" },
 +	{ HDN_AUTH_OBJECT_RENAME, "OBJECT_RENAME" },
@@ -24991,6 +25037,7 @@ diff -ruN --exclude .git /home/doll/distro/linux-7.0.12/tools/hardening/hdn-poli
 +	{ HDN_TRANS_OBJECT_FCNTL, "OBJECT_FCNTL" },
 +	{ HDN_TRANS_OBJECT_CHDIR, "OBJECT_CHDIR" },
 +	{ HDN_TRANS_OBJECT_MOUNT, "OBJECT_MOUNT" },
++	{ HDN_TRANS_OBJECT_MOUNT_SOURCE, "OBJECT_MOUNT_SOURCE" },
 +	{ HDN_TRANS_OBJECT_UMOUNT, "OBJECT_UMOUNT" },
 +	{ HDN_TRANS_OBJECT_TRUNCATE, "OBJECT_TRUNCATE" },
 +	{ HDN_TRANS_OBJECT_RENAME, "OBJECT_RENAME" },
@@ -25361,6 +25408,7 @@ diff -ruN --exclude .git /home/doll/distro/linux-7.0.12/tools/hardening/hdn-poli
 +	case HDN_AUTH_OBJECT_FCNTL:
 +	case HDN_AUTH_OBJECT_CHDIR:
 +	case HDN_AUTH_OBJECT_MOUNT:
++	case HDN_AUTH_OBJECT_MOUNT_SOURCE:
 +	case HDN_AUTH_OBJECT_UMOUNT:
 +	case HDN_AUTH_OBJECT_TRUNCATE:
 +	case HDN_AUTH_OBJECT_RENAME:
@@ -26805,8 +26853,8 @@ diff -ruN --exclude .git /home/doll/distro/linux-7.0.12/tools/hardening/hdn-poli
 +}
 diff -ruN --exclude .git /home/doll/distro/linux-7.0.12/tools/hardening/hdn-policy.c /home/doll/distro/linux-7.0.12-hdn/tools/hardening/hdn-policy.c
 --- /home/doll/distro/linux-7.0.12/tools/hardening/hdn-policy.c	1969-12-31 18:00:00.000000000 -0600
-+++ /home/doll/distro/linux-7.0.12-hdn/tools/hardening/hdn-policy.c	2026-06-26 22:23:33.459125327 -0500
-@@ -0,0 +1,2069 @@
++++ /home/doll/distro/linux-7.0.12-hdn/tools/hardening/hdn-policy.c	2026-06-26 22:47:32.234995306 -0500
+@@ -0,0 +1,2072 @@
 +// SPDX-License-Identifier: GPL-2.0-only
 +
 +#include <ctype.h>
@@ -27605,7 +27653,7 @@ diff -ruN --exclude .git /home/doll/distro/linux-7.0.12/tools/hardening/hdn-poli
 +	mode = strtok_r(NULL, " \t\r\n", &save);
 +	if (!profile_text || !action || !mode) {
 +		fprintf(stderr,
-+			"%u: object needs PROFILE deny-read|deny-write|deny-delete|deny-create|deny-creat|deny-mkdir|deny-mknod|deny-symlink|deny-unlink|deny-rmdir|deny-exec|append-only|deny-link|deny-link-target|deny-attr|deny-chmod|deny-chown|deny-utime|deny-xattr|deny-setxattr|deny-removexattr|deny-access|deny-stat|deny-list|deny-find|deny-ioctl|deny-lock|deny-watch|deny-receive|deny-fcntl|deny-chdir|deny-mount|deny-umount|deny-truncate|deny-rename|deny-rename-target|deny-unix-connect|deny-unix-bind|deny-unix-listen|deny-unix-accept|deny-unix-send|deny-unix-recv path|nofollow-path|tree|inode\n",
++			"%u: object needs PROFILE deny-read|deny-write|deny-delete|deny-create|deny-creat|deny-mkdir|deny-mknod|deny-symlink|deny-unlink|deny-rmdir|deny-exec|append-only|deny-link|deny-link-target|deny-attr|deny-chmod|deny-chown|deny-utime|deny-xattr|deny-setxattr|deny-removexattr|deny-access|deny-stat|deny-list|deny-find|deny-ioctl|deny-lock|deny-watch|deny-receive|deny-fcntl|deny-chdir|deny-mount|deny-mount-source|deny-umount|deny-truncate|deny-rename|deny-rename-target|deny-unix-connect|deny-unix-bind|deny-unix-listen|deny-unix-accept|deny-unix-send|deny-unix-recv path|nofollow-path|tree|inode\n",
 +			line);
 +		return -EINVAL;
 +	}
@@ -27652,6 +27700,7 @@ diff -ruN --exclude .git /home/doll/distro/linux-7.0.12/tools/hardening/hdn-poli
 +	    strcmp(action_name, "DENY_FCNTL") &&
 +	    strcmp(action_name, "DENY_CHDIR") &&
 +	    strcmp(action_name, "DENY_MOUNT") &&
++	    strcmp(action_name, "DENY_MOUNT_SOURCE") &&
 +	    strcmp(action_name, "DENY_UMOUNT") &&
 +		    strcmp(action_name, "DENY_TRUNCATE") &&
 +	    strcmp(action_name, "DENY_RENAME") &&
@@ -27734,6 +27783,8 @@ diff -ruN --exclude .git /home/doll/distro/linux-7.0.12/tools/hardening/hdn-poli
 +		rule->flags = HDN_OBJECT_DENY_CHDIR;
 +	else if (!strcmp(action_name, "DENY_MOUNT"))
 +		rule->flags = HDN_OBJECT_DENY_MOUNT;
++	else if (!strcmp(action_name, "DENY_MOUNT_SOURCE"))
++		rule->flags = HDN_OBJECT_DENY_MOUNT_SOURCE;
 +	else if (!strcmp(action_name, "DENY_UMOUNT"))
 +		rule->flags = HDN_OBJECT_DENY_UMOUNT;
 +	else if (!strcmp(action_name, "DENY_TRUNCATE"))
@@ -33797,8 +33848,8 @@ diff -ruN --exclude .git /home/doll/distro/linux-7.0.12/tools/hardening/hdn-rofs
 +}
 diff -ruN --exclude .git /home/doll/distro/linux-7.0.12/tools/hardening/hdn-status.c /home/doll/distro/linux-7.0.12-hdn/tools/hardening/hdn-status.c
 --- /home/doll/distro/linux-7.0.12/tools/hardening/hdn-status.c	1969-12-31 18:00:00.000000000 -0600
-+++ /home/doll/distro/linux-7.0.12-hdn/tools/hardening/hdn-status.c	2026-06-26 22:23:48.035123954 -0500
-@@ -0,0 +1,936 @@
++++ /home/doll/distro/linux-7.0.12-hdn/tools/hardening/hdn-status.c	2026-06-26 22:47:32.238995306 -0500
+@@ -0,0 +1,938 @@
 +// SPDX-License-Identifier: GPL-2.0-only
 +
 +#define _GNU_SOURCE
@@ -33916,6 +33967,7 @@ diff -ruN --exclude .git /home/doll/distro/linux-7.0.12/tools/hardening/hdn-stat
 +	{ HDN_AUTH_OBJECT_FCNTL, "OBJECT_FCNTL" },
 +	{ HDN_AUTH_OBJECT_CHDIR, "OBJECT_CHDIR" },
 +	{ HDN_AUTH_OBJECT_MOUNT, "OBJECT_MOUNT" },
++	{ HDN_AUTH_OBJECT_MOUNT_SOURCE, "OBJECT_MOUNT_SOURCE" },
 +	{ HDN_AUTH_OBJECT_UMOUNT, "OBJECT_UMOUNT" },
 +	{ HDN_AUTH_OBJECT_TRUNCATE, "OBJECT_TRUNCATE" },
 +	{ HDN_AUTH_OBJECT_RENAME, "OBJECT_RENAME" },
@@ -34014,6 +34066,7 @@ diff -ruN --exclude .git /home/doll/distro/linux-7.0.12/tools/hardening/hdn-stat
 +	{ HDN_TRANS_OBJECT_FCNTL, "OBJECT_FCNTL" },
 +	{ HDN_TRANS_OBJECT_CHDIR, "OBJECT_CHDIR" },
 +	{ HDN_TRANS_OBJECT_MOUNT, "OBJECT_MOUNT" },
++	{ HDN_TRANS_OBJECT_MOUNT_SOURCE, "OBJECT_MOUNT_SOURCE" },
 +	{ HDN_TRANS_OBJECT_UMOUNT, "OBJECT_UMOUNT" },
 +	{ HDN_TRANS_OBJECT_TRUNCATE, "OBJECT_TRUNCATE" },
 +	{ HDN_TRANS_OBJECT_RENAME, "OBJECT_RENAME" },
@@ -35925,8 +35978,8 @@ diff -ruN --exclude .git /home/doll/distro/linux-7.0.12/tools/testing/selftests/
 +}
 diff -ruN --exclude .git /home/doll/distro/linux-7.0.12/tools/testing/selftests/hardening/hdn_smoke.c /home/doll/distro/linux-7.0.12-hdn/tools/testing/selftests/hardening/hdn_smoke.c
 --- /home/doll/distro/linux-7.0.12/tools/testing/selftests/hardening/hdn_smoke.c	1969-12-31 18:00:00.000000000 -0600
-+++ /home/doll/distro/linux-7.0.12-hdn/tools/testing/selftests/hardening/hdn_smoke.c	2026-06-26 22:36:23.867054031 -0500
-@@ -0,0 +1,26114 @@
++++ /home/doll/distro/linux-7.0.12-hdn/tools/testing/selftests/hardening/hdn_smoke.c	2026-06-26 22:53:46.686959047 -0500
+@@ -0,0 +1,26234 @@
 +// SPDX-License-Identifier: GPL-2.0-only
 +
 +#define _GNU_SOURCE
@@ -36411,6 +36464,14 @@ diff -ruN --exclude .git /home/doll/distro/linux-7.0.12/tools/testing/selftests/
 +	"/hdn-object-move-mount-source-denied"
 +#define HDN_OBJECT_MOVE_MOUNT_SOURCE_ALLOWED \
 +	"/hdn-object-move-mount-source-allowed"
++#define HDN_OBJECT_MOUNT_SOURCE_PROTECTED \
++	"/hdn-object-mount-source-protected"
++#define HDN_OBJECT_MOUNT_SOURCE_UNPROTECTED \
++	"/hdn-object-mount-source-unprotected"
++#define HDN_OBJECT_MOVE_MOUNT_SOURCE_TARGET_DENIED \
++	"/hdn-object-move-mount-source-target-denied"
++#define HDN_OBJECT_MOVE_MOUNT_SOURCE_TARGET_ALLOWED \
++	"/hdn-object-move-mount-source-target-allowed"
 +#define HDN_OBJECT_FIND_DIR "/hdn-object-find-dir"
 +#define HDN_OBJECT_FIND_DIR_HIDDEN HDN_OBJECT_FIND_DIR "/hidden"
 +#define HDN_OBJECT_FIND_TREE_DIR "/hdn-object-find-tree"
@@ -39215,6 +39276,30 @@ diff -ruN --exclude .git /home/doll/distro/linux-7.0.12/tools/testing/selftests/
 +	return child_exit_result(child);
 +}
 +
++static int event_decoder_finds_object_mount_source_denial(void)
++{
++	pid_t child;
++
++	if (access(HDN_EVENT_DECODE_EXEC, X_OK))
++		return KSFT_SKIP;
++
++	child = fork();
++	if (child < 0)
++		return 2;
++
++	if (!child) {
++		execl(HDN_EVENT_DECODE_EXEC, "hdn-event-decode", "--quiet",
++		      "--expect", "authority=OBJECT_MOUNT_SOURCE",
++		      "--expect", "transition=OBJECT_MOUNT_SOURCE",
++		      "--expect", "action=DENY_AUDIT", NULL);
++		fprintf(stderr, "event decoder exec failed: %s\n",
++			strerror(errno));
++		_exit(2);
++	}
++
++	return child_exit_result(child);
++}
++
 +static int event_decoder_read_output(int fd, char *buf, size_t size)
 +{
 +	size_t offset = 0;
@@ -39388,7 +39473,7 @@ diff -ruN --exclude .git /home/doll/distro/linux-7.0.12/tools/testing/selftests/
 +static int status_helper_decodes_audit_flood_fixture(void)
 +{
 +	static const char fixture[] =
-+		"abi_version: 84\n"
++		"abi_version: 85\n"
 +		"phase: runtime\n"
 +		"phase_id: 3\n"
 +		"policy_loaded: 1\n"
@@ -47065,6 +47150,76 @@ diff -ruN --exclude .git /home/doll/distro/linux-7.0.12/tools/testing/selftests/
 +	return object_move_mount_path(HDN_OBJECT_MOVE_MOUNT_SOURCE_ALLOWED,
 +				      HDN_OBJECT_MOUNT_UNPROTECTED_DIR,
 +				      false);
++}
++
++static void cleanup_object_mount_source_fixtures(void)
++{
++	umount(HDN_OBJECT_MOVE_MOUNT_SOURCE_DENIED);
++	umount(HDN_OBJECT_MOVE_MOUNT_SOURCE_ALLOWED);
++	umount(HDN_OBJECT_MOUNT_SOURCE_PROTECTED);
++	umount(HDN_OBJECT_MOUNT_SOURCE_UNPROTECTED);
++	umount(HDN_OBJECT_MOVE_MOUNT_SOURCE_TARGET_DENIED);
++	umount(HDN_OBJECT_MOVE_MOUNT_SOURCE_TARGET_ALLOWED);
++}
++
++static int setup_object_mount_source_fixtures(void)
++{
++	cleanup_object_mount_source_fixtures();
++
++	if (mount("none", HDN_OBJECT_MOUNT_SOURCE_PROTECTED, "tmpfs", 0,
++		  "size=4k"))
++		return -errno;
++	if (mount("none", HDN_OBJECT_MOUNT_SOURCE_UNPROTECTED, "tmpfs", 0,
++		  "size=4k")) {
++		int saved_errno = errno;
++
++		umount(HDN_OBJECT_MOUNT_SOURCE_PROTECTED);
++		return -saved_errno;
++	}
++
++	return 0;
++}
++
++static int object_prepared_move_mount_path(const char *source,
++					   const char *target,
++					   bool expect_denied)
++{
++#ifdef __NR_move_mount
++	int saved_errno;
++	int ret;
++
++	umount(target);
++
++	errno = 0;
++	ret = syscall(__NR_move_mount, AT_FDCWD, source, AT_FDCWD, target, 0);
++	saved_errno = errno;
++	if (!ret) {
++		ret = umount(target);
++		if (ret)
++			return 2;
++		return expect_denied ? 1 : 0;
++	}
++
++	if (expect_denied)
++		return errno_is_denial(saved_errno) ? 0 : 2;
++	return 2;
++#else
++	return KSFT_SKIP;
++#endif
++}
++
++static int object_mount_source_denied(void)
++{
++	return object_prepared_move_mount_path(
++		HDN_OBJECT_MOUNT_SOURCE_PROTECTED,
++		HDN_OBJECT_MOVE_MOUNT_SOURCE_TARGET_DENIED, true);
++}
++
++static int object_mount_source_unmatched_allowed(void)
++{
++	return object_prepared_move_mount_path(
++		HDN_OBJECT_MOUNT_SOURCE_UNPROTECTED,
++		HDN_OBJECT_MOVE_MOUNT_SOURCE_TARGET_ALLOWED, false);
 +}
 +
 +static void cleanup_object_umount_fixtures(void)
@@ -55783,6 +55938,8 @@ diff -ruN --exclude .git /home/doll/distro/linux-7.0.12/tools/testing/selftests/
 +					ksft_test_result_skip("object mount policy allows unmatched mount target\n");
 +					ksft_test_result_skip("object mount policy denies protected move_mount target\n");
 +					ksft_test_result_skip("object mount policy allows unmatched move_mount target\n");
++					ksft_test_result_skip("object mount-source policy denies protected move_mount source\n");
++					ksft_test_result_skip("object mount-source policy allows unmatched move_mount source\n");
 +					ksft_test_result_skip("object umount policy denies protected mount\n");
 +					ksft_test_result_skip("object umount policy allows unmatched mount\n");
 +				ksft_test_result_skip("object find policy hides protected readdir entry\n");
@@ -55861,6 +56018,8 @@ diff -ruN --exclude .git /home/doll/distro/linux-7.0.12/tools/testing/selftests/
 +					ksft_test_result_skip("hardening events report object fcntl denial\n");
 +					ksft_test_result_skip("hardening events report object chdir denial\n");
 +					ksft_test_result_skip("hardening events report object mount denial\n");
++					ksft_test_result_skip("hardening events report object mount-source denial\n");
++					ksft_test_result_skip("event decoder names object mount-source denial\n");
 +			ksft_test_result_skip("hardening events report object umount denial\n");
 +				ksft_test_result_skip("hardening events report object truncate denial\n");
 +				ksft_test_result_skip("hardening events report object rename denial\n");
@@ -58529,6 +58688,8 @@ diff -ruN --exclude .git /home/doll/distro/linux-7.0.12/tools/testing/selftests/
 +			&object_unix_recv_protected_fd,
 +			&object_unix_recv_unprotected_fd);
 +	if (!ret)
++		ret = setup_object_mount_source_fixtures();
++	if (!ret)
 +		ret = setup_object_fileattr_fs();
 +	object_fileattr_prepared = !ret;
 +	if (!ret)
@@ -58587,7 +58748,7 @@ diff -ruN --exclude .git /home/doll/distro/linux-7.0.12/tools/testing/selftests/
 +		ksft_test_result(object_policy_committed,
 +				 "object-write hardening policy commits\n");
 +		ksft_test_result(object_policy_committed &&
-+							 securityfs_status_has_line("object_rule_count: 97"),
++							 securityfs_status_has_line("object_rule_count: 98"),
 +						 "object-write policy reports object rule count\n");
 +	report_child_result(object_policy_committed ?
 +			    object_protected_write_denied() : 2,
@@ -59253,6 +59414,12 @@ diff -ruN --exclude .git /home/doll/distro/linux-7.0.12/tools/testing/selftests/
 +					    object_move_mount_unmatched_allowed() : 2,
 +					    "object mount policy allows unmatched move_mount target");
 +			report_child_result(object_policy_committed ?
++					    object_mount_source_denied() : 2,
++					    "object mount-source policy denies protected move_mount source");
++			report_child_result(object_policy_committed ?
++					    object_mount_source_unmatched_allowed() : 2,
++					    "object mount-source policy allows unmatched move_mount source");
++			report_child_result(object_policy_committed ?
 +					    object_umount_denied() : 2,
 +					    "object umount policy denies protected mount");
 +			report_child_result(object_policy_committed ?
@@ -59505,6 +59672,11 @@ diff -ruN --exclude .git /home/doll/distro/linux-7.0.12/tools/testing/selftests/
 +						"hardening events report object chdir denial");
 +		test_securityfs_events_contains("authority=62",
 +						"hardening events report object mount denial");
++		test_securityfs_events_line_contains("authority=87 transition=99",
++						     "reason=52",
++						     "hardening events report object mount-source denial");
++		report_child_result(event_decoder_finds_object_mount_source_denial(),
++				    "event decoder names object mount-source denial");
 +		test_securityfs_events_contains("authority=63",
 +						"hardening events report object umount denial");
 +		test_securityfs_events_contains("authority=64",
@@ -59718,6 +59890,7 @@ diff -ruN --exclude .git /home/doll/distro/linux-7.0.12/tools/testing/selftests/
 +		rmdir(HDN_OBJECT_UNIX_BIND_PROTECTED_DIR);
 +		rmdir(HDN_OBJECT_UNIX_BIND_UNPROTECTED_DIR);
 +		cleanup_object_umount_fixtures();
++		cleanup_object_mount_source_fixtures();
 +		cleanup_object_tree_umount_fixture();
 +		cleanup_object_fileattr_fs();
 +
@@ -61656,11 +61829,11 @@ diff -ruN --exclude .git /home/doll/distro/linux-7.0.12/tools/testing/selftests/
 +	if (access(HDN_STATUS, R_OK))
 +		ksft_exit_skip("hardening securityfs status not present\n");
 +
-+	ksft_set_plan(919);
++	ksft_set_plan(923);
 +	test_securityfs_status();
 +	test_symbol_test_module_load();
-+	test_securityfs_status_contains("abi_version: 84",
-+					"hardening status reports policy ABI 84");
++	test_securityfs_status_contains("abi_version: 85",
++					"hardening status reports policy ABI 85");
 +	test_securityfs_status_contains("phase:",
 +					"hardening status reports sealing phase");
 +	test_securityfs_status_contains("policy_staged:",
@@ -62223,8 +62396,8 @@ diff -ruN --exclude .git /home/doll/distro/linux-7.0.12/tools/testing/selftests/
 +allow 2 POLICY_ADMIN CRED_CHANGE PTRACE NAMESPACE_ADMIN PROC_TASK_VIEW
 diff -ruN --exclude .git /home/doll/distro/linux-7.0.12/tools/testing/selftests/hardening/object-write.policy /home/doll/distro/linux-7.0.12-hdn/tools/testing/selftests/hardening/object-write.policy
 --- /home/doll/distro/linux-7.0.12/tools/testing/selftests/hardening/object-write.policy	1969-12-31 18:00:00.000000000 -0600
-+++ /home/doll/distro/linux-7.0.12-hdn/tools/testing/selftests/hardening/object-write.policy	2026-06-26 22:36:23.843054033 -0500
-@@ -0,0 +1,113 @@
++++ /home/doll/distro/linux-7.0.12-hdn/tools/testing/selftests/hardening/object-write.policy	2026-06-26 22:53:46.670959045 -0500
+@@ -0,0 +1,114 @@
 +# Root-profile policy used by the QEMU smoke test to prove object
 +# read/write/delete/create/creat/mkdir/mknod/symlink/unlink/rmdir/exec/link/link-target/attr/chmod/chown/utime/xattr/setxattr/removexattr/access/stat/list/find/ioctl/lock/watch/receive/fcntl/chdir/mount/umount/truncate/rename/rename-target/unix-connect/unix-bind/unix-listen/unix-accept/unix-send/unix-recv denial,
 +# recursive tree denial, recursive tree denial for descriptor and IPC
@@ -62284,6 +62457,7 @@ diff -ruN --exclude .git /home/doll/distro/linux-7.0.12/tools/testing/selftests/
 +object 2 deny-fcntl path /hdn-object-fcntl-protected
 +object 2 deny-chdir path /hdn-object-chdir-protected
 +object 2 deny-mount path /hdn-object-mount-protected
++object 2 deny-mount-source path /hdn-object-mount-source-protected
 +object 2 deny-umount path /hdn-object-umount-protected
 +object 2 deny-truncate path /hdn-object-truncate-protected
 +object 2 deny-rename path /hdn-object-rename-protected
@@ -62428,8 +62602,8 @@ diff -ruN --exclude .git /home/doll/distro/linux-7.0.12/tools/testing/selftests/
 +use-role 2 desktop-admin
 diff -ruN --exclude .git /home/doll/distro/linux-7.0.12/tools/testing/selftests/hardening/run-qemu-smoke.sh /home/doll/distro/linux-7.0.12-hdn/tools/testing/selftests/hardening/run-qemu-smoke.sh
 --- /home/doll/distro/linux-7.0.12/tools/testing/selftests/hardening/run-qemu-smoke.sh	1969-12-31 18:00:00.000000000 -0600
-+++ /home/doll/distro/linux-7.0.12-hdn/tools/testing/selftests/hardening/run-qemu-smoke.sh	2026-06-26 22:36:23.843054033 -0500
-@@ -0,0 +1,1201 @@
++++ /home/doll/distro/linux-7.0.12-hdn/tools/testing/selftests/hardening/run-qemu-smoke.sh	2026-06-26 22:53:46.670959045 -0500
+@@ -0,0 +1,1209 @@
 +#!/bin/sh
 +# SPDX-License-Identifier: GPL-2.0
 +
@@ -62463,7 +62637,7 @@ diff -ruN --exclude .git /home/doll/distro/linux-7.0.12/tools/testing/selftests/
 +QEMU_MEMORY=${QEMU_MEMORY:-1024M}
 +QEMU_SMP=${QEMU_SMP:-2}
 +QEMU_MACHINE=${QEMU_MACHINE:-q35,accel=tcg}
-+HDN_SMOKE_EXPECTED_PASS=${HDN_SMOKE_EXPECTED_PASS:-919}
++HDN_SMOKE_EXPECTED_PASS=${HDN_SMOKE_EXPECTED_PASS:-923}
 +WORK=${HDN_QEMU_WORK:-"${TMPDIR:-/tmp}/hdn-qemu-smoke.$$"}
 +LOG=${HDN_QEMU_LOG:-"$WORK/qemu.log"}
 +QMP=${HDN_QEMU_QMP:-"$WORK/qmp.sock"}
@@ -63299,6 +63473,14 @@ diff -ruN --exclude .git /home/doll/distro/linux-7.0.12/tools/testing/selftests/
 +chmod 0755 "$WORK/initramfs/hdn-object-move-mount-source-denied"
 +mkdir -p "$WORK/initramfs/hdn-object-move-mount-source-allowed"
 +chmod 0755 "$WORK/initramfs/hdn-object-move-mount-source-allowed"
++mkdir -p "$WORK/initramfs/hdn-object-mount-source-protected"
++chmod 0755 "$WORK/initramfs/hdn-object-mount-source-protected"
++mkdir -p "$WORK/initramfs/hdn-object-mount-source-unprotected"
++chmod 0755 "$WORK/initramfs/hdn-object-mount-source-unprotected"
++mkdir -p "$WORK/initramfs/hdn-object-move-mount-source-target-denied"
++chmod 0755 "$WORK/initramfs/hdn-object-move-mount-source-target-denied"
++mkdir -p "$WORK/initramfs/hdn-object-move-mount-source-target-allowed"
++chmod 0755 "$WORK/initramfs/hdn-object-move-mount-source-target-allowed"
 +mkdir -p "$WORK/initramfs/hdn-object-unix-bind-protected"
 +chmod 0777 "$WORK/initramfs/hdn-object-unix-bind-protected"
 +mkdir -p "$WORK/initramfs/hdn-object-unix-bind-unprotected"
