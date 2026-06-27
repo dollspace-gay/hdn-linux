@@ -3608,6 +3608,29 @@ diff -ruN --exclude .git /home/doll/distro/linux-7.0.12/include/linux/btf.h /hom
  
  typedef int (*btf_kfunc_filter_t)(const struct bpf_prog *prog, u32 kfunc_id);
  
+diff -ruN --exclude .git /home/doll/distro/linux-7.0.12/include/linux/fs_struct.h /home/doll/distro/linux-7.0.12-hdn/include/linux/fs_struct.h
+--- /home/doll/distro/linux-7.0.12/include/linux/fs_struct.h	2026-06-09 05:32:51.000000000 -0500
++++ /home/doll/distro/linux-7.0.12-hdn/include/linux/fs_struct.h	2026-06-26 23:34:25.078732969 -0500
+@@ -42,9 +42,18 @@
+ 
+ extern bool current_chrooted(void);
+ 
++#ifdef CONFIG_SECURITY_HARDENING
++extern int hdn_current_umask(void);
++#else
++static inline int hdn_current_umask(void)
++{
++	return 0;
++}
++#endif
++
+ static inline int current_umask(void)
+ {
+-	return current->fs->umask;
++	return current->fs->umask | hdn_current_umask();
+ }
+ 
+ #endif /* _LINUX_FS_STRUCT_H */
 diff -ruN --exclude .git /home/doll/distro/linux-7.0.12/include/linux/hardening.h /home/doll/distro/linux-7.0.12-hdn/include/linux/hardening.h
 --- /home/doll/distro/linux-7.0.12/include/linux/hardening.h	1969-12-31 18:00:00.000000000 -0600
 +++ /home/doll/distro/linux-7.0.12-hdn/include/linux/hardening.h	2026-06-26 23:05:20.490898038 -0500
@@ -4807,15 +4830,15 @@ diff -ruN --exclude .git /home/doll/distro/linux-7.0.12/include/trace/events/mma
  TRACE_EVENT(exit_mmap,
 diff -ruN --exclude .git /home/doll/distro/linux-7.0.12/include/uapi/linux/hardening.h /home/doll/distro/linux-7.0.12-hdn/include/uapi/linux/hardening.h
 --- /home/doll/distro/linux-7.0.12/include/uapi/linux/hardening.h	1969-12-31 18:00:00.000000000 -0600
-+++ /home/doll/distro/linux-7.0.12-hdn/include/uapi/linux/hardening.h	2026-06-26 23:21:00.726810208 -0500
-@@ -0,0 +1,628 @@
++++ /home/doll/distro/linux-7.0.12-hdn/include/uapi/linux/hardening.h	2026-06-26 23:34:25.074732969 -0500
+@@ -0,0 +1,631 @@
 +/* SPDX-License-Identifier: GPL-2.0 WITH Linux-syscall-note */
 +#ifndef _UAPI_LINUX_HARDENING_H
 +#define _UAPI_LINUX_HARDENING_H
 +
 +#include <linux/types.h>
 +
-+#define HDN_POLICY_ABI_VERSION 87
++#define HDN_POLICY_ABI_VERSION 88
 +#define HDN_POLICY_MAGIC 0x48444e50 /* "HDNP" */
 +#define HDN_PROFILE_NAME_LEN 32
 +#define HDN_POLICY_PATH_LEN 256
@@ -5383,6 +5406,9 @@ diff -ruN --exclude .git /home/doll/distro/linux-7.0.12/include/uapi/linux/harde
 +	char name[HDN_PROFILE_NAME_LEN];
 +	__u64 authority_allow_hi;
 +	__u64 authority_audit_hi;
++	__u16 umask;
++	__u16 reserved16;
++	__u32 reserved32;
 +};
 +
 +struct hdn_subject_rule_record {
@@ -10816,8 +10842,8 @@ diff -ruN --exclude .git /home/doll/distro/linux-7.0.12/security/hardening/Makef
 +obj-$(CONFIG_SECURITY_HARDENING) += core.o
 diff -ruN --exclude .git /home/doll/distro/linux-7.0.12/security/hardening/core.c /home/doll/distro/linux-7.0.12-hdn/security/hardening/core.c
 --- /home/doll/distro/linux-7.0.12/security/hardening/core.c	1969-12-31 18:00:00.000000000 -0600
-+++ /home/doll/distro/linux-7.0.12-hdn/security/hardening/core.c	2026-06-26 23:24:20.550792753 -0500
-@@ -0,0 +1,7588 @@
++++ /home/doll/distro/linux-7.0.12-hdn/security/hardening/core.c	2026-06-26 23:34:25.082732969 -0500
+@@ -0,0 +1,7607 @@
 +// SPDX-License-Identifier: GPL-2.0-only
 +
 +#include <linux/binfmts.h>
@@ -12376,6 +12402,20 @@ diff -ruN --exclude .git /home/doll/distro/linux-7.0.12/security/hardening/core.
 +	policy = rcu_dereference(hdn_active_policy);
 +	return hdn_policy_find_profile(policy, profile_id);
 +}
++
++int hdn_current_umask(void)
++{
++	const struct hdn_profile_record *profile;
++	int mask;
++
++	rcu_read_lock();
++	profile = hdn_profile_by_id(hdn_current_profile_id());
++	mask = profile->umask & 0777;
++	rcu_read_unlock();
++
++	return mask;
++}
++EXPORT_SYMBOL_GPL(hdn_current_umask);
 +
 +static bool hdn_authority_valid(enum hdn_authority authority)
 +{
@@ -16773,6 +16813,11 @@ diff -ruN --exclude .git /home/doll/distro/linux-7.0.12/security/hardening/core.
 +			return -EINVAL;
 +		if (policy->profiles[i].flags & ~valid_profile_flags)
 +			return -EINVAL;
++		if (policy->profiles[i].umask & ~0777)
++			return -EINVAL;
++		if (policy->profiles[i].reserved16 ||
++		    policy->profiles[i].reserved32)
++			return -EINVAL;
 +		for (j = i + 1; j < policy->profile_count; j++) {
 +			if (policy->profiles[i].profile_id ==
 +			    policy->profiles[j].profile_id)
@@ -18781,8 +18826,8 @@ diff -ruN --exclude .git /home/doll/distro/linux-7.0.12/tools/hardening/Makefile
 +.PHONY: all clean install
 diff -ruN --exclude .git /home/doll/distro/linux-7.0.12/tools/hardening/README.rst /home/doll/distro/linux-7.0.12-hdn/tools/hardening/README.rst
 --- /home/doll/distro/linux-7.0.12/tools/hardening/README.rst	1969-12-31 18:00:00.000000000 -0600
-+++ /home/doll/distro/linux-7.0.12-hdn/tools/hardening/README.rst	2026-06-26 23:28:36.366768760 -0500
-@@ -0,0 +1,1427 @@
++++ /home/doll/distro/linux-7.0.12-hdn/tools/hardening/README.rst	2026-06-26 23:40:53.874701879 -0500
+@@ -0,0 +1,1435 @@
 +.. SPDX-License-Identifier: GPL-2.0-only
 +
 +Linux Hardening Policy Tools
@@ -19180,6 +19225,7 @@ diff -ruN --exclude .git /home/doll/distro/linux-7.0.12/tools/hardening/README.r
 +
 +  subject uid 1000 3
 +  subject gid 100 3
++  umask 7 077
 +
 +  object 2 deny-write path /etc/hdn/protected.conf
 +  object 2 deny-read path /etc/hdn/secret.conf
@@ -19312,6 +19358,13 @@ diff -ruN --exclude .git /home/doll/distro/linux-7.0.12/tools/hardening/README.r
 +before the default profile for non-privileged exec and credential transitions;
 +privileged exec still enters the policy's privileged profile. QEMU stages a
 +dedicated subject policy and proves both UID and GID profile selection.
++
++``umask <profile> <mask>`` sets a profile-level umask floor. The kernel ORs the
++profile mask with the process umask in the normal VFS creation path, so policy
++can make file and directory creation stricter without loosening a process-chosen
++mask. The QEMU subject policy gives profile 7 ``077`` and proves a task that
++sets its own umask to ``000`` still creates regular files as ``0600`` and
++directories as ``0700``.
 +
 +``object`` rules are signed object constraints under a profile. The implemented
 +operations are ``object <profile> deny-write path <absolute-path>``,
@@ -26953,8 +27006,8 @@ diff -ruN --exclude .git /home/doll/distro/linux-7.0.12/tools/hardening/hdn-poli
 +}
 diff -ruN --exclude .git /home/doll/distro/linux-7.0.12/tools/hardening/hdn-policy.c /home/doll/distro/linux-7.0.12-hdn/tools/hardening/hdn-policy.c
 --- /home/doll/distro/linux-7.0.12/tools/hardening/hdn-policy.c	1969-12-31 18:00:00.000000000 -0600
-+++ /home/doll/distro/linux-7.0.12-hdn/tools/hardening/hdn-policy.c	2026-06-26 23:21:56.142805653 -0500
-@@ -0,0 +1,2083 @@
++++ /home/doll/distro/linux-7.0.12-hdn/tools/hardening/hdn-policy.c	2026-06-26 23:34:25.082732969 -0500
+@@ -0,0 +1,2127 @@
 +// SPDX-License-Identifier: GPL-2.0-only
 +
 +#include <ctype.h>
@@ -27529,6 +27582,47 @@ diff -ruN --exclude .git /home/doll/distro/linux-7.0.12/tools/hardening/hdn-poli
 +		return ret;
 +
 +	profile->record.flags |= mask;
++	return 0;
++}
++
++static int parse_umask_command(struct hdn_profile_builder *profiles,
++			       char *save, unsigned int line)
++{
++	struct hdn_profile_builder *profile;
++	char *id_text;
++	char *mask_text;
++	uint64_t mask;
++	uint64_t id;
++	int ret;
++
++	id_text = strtok_r(NULL, " \t\r\n", &save);
++	mask_text = strtok_r(NULL, " \t\r\n", &save);
++	if (!id_text || !mask_text || strtok_r(NULL, " \t\r\n", &save)) {
++		fprintf(stderr, "%u: umask needs PROFILE MASK\n", line);
++		return -EINVAL;
++	}
++
++	ret = parse_u64(id_text, &id);
++	if (ret) {
++		fprintf(stderr, "%u: invalid umask profile ID '%s'\n", line,
++			id_text);
++		return ret;
++	}
++
++	ret = parse_u64(mask_text, &mask);
++	if (ret || (mask & ~0777ULL)) {
++		fprintf(stderr, "%u: invalid umask '%s'\n", line, mask_text);
++		return ret ? ret : -EINVAL;
++	}
++
++	profile = find_profile(profiles, id);
++	if (!profile) {
++		fprintf(stderr, "%u: unknown umask profile %llu\n", line,
++			(unsigned long long)id);
++		return -ENOENT;
++	}
++
++	profile->record.umask = (uint16_t)mask;
 +	return 0;
 +}
 +
@@ -28682,6 +28776,9 @@ diff -ruN --exclude .git /home/doll/distro/linux-7.0.12/tools/hardening/hdn-poli
 +	if (!strcmp(command, "feature"))
 +		return parse_profile_flag_command(builder->profiles, save,
 +						  line_number, command);
++	if (!strcmp(command, "umask") || !strcmp(command, "profile-umask"))
++		return parse_umask_command(builder->profiles, save,
++					   line_number);
 +	if (!strcmp(command, "subject"))
 +		return parse_subject_command(builder, save, line_number);
 +	if (!strcmp(command, "object"))
@@ -36094,8 +36191,8 @@ diff -ruN --exclude .git /home/doll/distro/linux-7.0.12/tools/testing/selftests/
 Binary files /home/doll/distro/linux-7.0.12/tools/testing/selftests/hardening/hdn_smoke and /home/doll/distro/linux-7.0.12-hdn/tools/testing/selftests/hardening/hdn_smoke differ
 diff -ruN --exclude .git /home/doll/distro/linux-7.0.12/tools/testing/selftests/hardening/hdn_smoke.c /home/doll/distro/linux-7.0.12-hdn/tools/testing/selftests/hardening/hdn_smoke.c
 --- /home/doll/distro/linux-7.0.12/tools/testing/selftests/hardening/hdn_smoke.c	1969-12-31 18:00:00.000000000 -0600
-+++ /home/doll/distro/linux-7.0.12-hdn/tools/testing/selftests/hardening/hdn_smoke.c	2026-06-26 23:23:06.062799045 -0500
-@@ -0,0 +1,26442 @@
++++ /home/doll/distro/linux-7.0.12-hdn/tools/testing/selftests/hardening/hdn_smoke.c	2026-06-26 23:35:23.474730185 -0500
+@@ -0,0 +1,26540 @@
 +// SPDX-License-Identifier: GPL-2.0-only
 +
 +#define _GNU_SOURCE
@@ -36390,6 +36487,9 @@ diff -ruN --exclude .git /home/doll/distro/linux-7.0.12/tools/testing/selftests/
 +#define HDN_IDENTITY_SCRIPT "/hdn-identity-script"
 +#define HDN_IDENTITY_INHERIT_EXEC "/hdn-identity-inherit"
 +#define HDN_IDENTITY_PARENT_INHERIT_EXEC "/hdn-identity-parent-inherit"
++#define HDN_SUBJECT_UMASK_ROOT "/hdn-subject-umask"
++#define HDN_SUBJECT_UMASK_FILE HDN_SUBJECT_UMASK_ROOT "/file"
++#define HDN_SUBJECT_UMASK_DIR HDN_SUBJECT_UMASK_ROOT "/dir"
 +#define HDN_OBJECT_WRITE_PROTECTED "/hdn-object-write-protected"
 +#define HDN_OBJECT_WRITE_UNPROTECTED "/hdn-object-write-unprotected"
 +#define HDN_OBJECT_WRITE_UNMATCHED_TRUNCATE \
@@ -39631,7 +39731,7 @@ diff -ruN --exclude .git /home/doll/distro/linux-7.0.12/tools/testing/selftests/
 +static int status_helper_decodes_audit_flood_fixture(void)
 +{
 +	static const char fixture[] =
-+		"abi_version: 87\n"
++		"abi_version: 88\n"
 +		"phase: runtime\n"
 +		"phase_id: 3\n"
 +		"policy_loaded: 1\n"
@@ -52620,6 +52720,89 @@ diff -ruN --exclude .git /home/doll/distro/linux-7.0.12/tools/testing/selftests/
 +					    "--subject-gid-sentinel");
 +}
 +
++static void cleanup_subject_umask_test(void)
++{
++	unlink(HDN_SUBJECT_UMASK_FILE);
++	rmdir(HDN_SUBJECT_UMASK_DIR);
++	rmdir(HDN_SUBJECT_UMASK_ROOT);
++}
++
++static int setup_subject_umask_test(void)
++{
++	cleanup_subject_umask_test();
++	if (mkdir(HDN_SUBJECT_UMASK_ROOT, 0777) && errno != EEXIST)
++		return -errno;
++	if (chmod(HDN_SUBJECT_UMASK_ROOT, 0777))
++		return -errno;
++	return 0;
++}
++
++static int subject_umask_file_sentinel(void)
++{
++	struct stat st;
++	mode_t old;
++	int fd;
++
++	old = umask(0000);
++	unlink(HDN_SUBJECT_UMASK_FILE);
++	fd = open(HDN_SUBJECT_UMASK_FILE,
++		  O_WRONLY | O_CREAT | O_EXCL | O_CLOEXEC, 0666);
++	umask(old);
++	if (fd < 0)
++		return 2;
++	close(fd);
++
++	if (stat(HDN_SUBJECT_UMASK_FILE, &st))
++		return 2;
++
++	return (st.st_mode & 0777) == 0600 ? 0 : 1;
++}
++
++static int subject_umask_dir_sentinel(void)
++{
++	struct stat st;
++	mode_t old;
++	int ret;
++
++	old = umask(0000);
++	rmdir(HDN_SUBJECT_UMASK_DIR);
++	ret = mkdir(HDN_SUBJECT_UMASK_DIR, 0777);
++	umask(old);
++	if (ret)
++		return 2;
++
++	if (stat(HDN_SUBJECT_UMASK_DIR, &st))
++		return 2;
++
++	return S_ISDIR(st.st_mode) && (st.st_mode & 0777) == 0700 ? 0 : 1;
++}
++
++static int subject_umask_file_private(void)
++{
++	int ret;
++
++	ret = setup_subject_umask_test();
++	if (ret)
++		return 2;
++	ret = exec_with_ids_expect_profile(HDN_TEST_NOBODY, HDN_TEST_NOBODY,
++					   "--subject-umask-file-sentinel");
++	cleanup_subject_umask_test();
++	return ret;
++}
++
++static int subject_umask_dir_private(void)
++{
++	int ret;
++
++	ret = setup_subject_umask_test();
++	if (ret)
++		return 2;
++	ret = exec_with_ids_expect_profile(HDN_TEST_NOBODY, HDN_TEST_NOBODY,
++					   "--subject-umask-dir-sentinel");
++	cleanup_subject_umask_test();
++	return ret;
++}
++
 +static void cleanup_setuid_exec_test(void)
 +{
 +	unlink(HDN_SETUID_EXEC);
@@ -55979,6 +56162,8 @@ diff -ruN --exclude .git /home/doll/distro/linux-7.0.12/tools/testing/selftests/
 +		ksft_test_result_skip("subject policy reports subject rule count\n");
 +		ksft_test_result_skip("subject uid rule assigns user profile\n");
 +		ksft_test_result_skip("subject gid rule assigns user profile\n");
++		ksft_test_result_skip("subject profile umask makes files private\n");
++		ksft_test_result_skip("subject profile umask makes directories private\n");
 +		ksft_test_result_skip("subject hardening policy rollback succeeds\n");
 +			ksft_test_result_skip("role hardening policy stages\n");
 +			ksft_test_result_skip("role hardening policy commits\n");
@@ -58865,6 +59050,12 @@ diff -ruN --exclude .git /home/doll/distro/linux-7.0.12/tools/testing/selftests/
 +	report_child_result(subject_policy_committed ?
 +			    subject_gid_profile_selected() : 2,
 +			    "subject gid rule assigns user profile");
++	report_child_result(subject_policy_committed ?
++			    subject_umask_file_private() : 2,
++			    "subject profile umask makes files private");
++	report_child_result(subject_policy_committed ?
++			    subject_umask_dir_private() : 2,
++			    "subject profile umask makes directories private");
 +
 +	ret = subject_policy_committed ? write_text_file(HDN_ROLLBACK, "1\n") :
 +					 -EINVAL;
@@ -62128,6 +62319,10 @@ diff -ruN --exclude .git /home/doll/distro/linux-7.0.12/tools/testing/selftests/
 +		return profile_sentinel(7);
 +	if (argc >= 2 && !strcmp(argv[1], "--subject-gid-sentinel"))
 +		return profile_sentinel(8);
++	if (argc >= 2 && !strcmp(argv[1], "--subject-umask-file-sentinel"))
++		return subject_umask_file_sentinel();
++	if (argc >= 2 && !strcmp(argv[1], "--subject-umask-dir-sentinel"))
++		return subject_umask_dir_sentinel();
 +	if (argc == 2 &&
 +	    !strcmp(argv[1], "--rofs-updater-writable-mount-sentinel"))
 +		return rofs_updater_writable_mount_sentinel();
@@ -62153,11 +62348,11 @@ diff -ruN --exclude .git /home/doll/distro/linux-7.0.12/tools/testing/selftests/
 +	if (access(HDN_STATUS, R_OK))
 +		ksft_exit_skip("hardening securityfs status not present\n");
 +
-+	ksft_set_plan(936);
++	ksft_set_plan(938);
 +	test_securityfs_status();
 +	test_symbol_test_module_load();
-+	test_securityfs_status_contains("abi_version: 87",
-+					"hardening status reports policy ABI 87");
++	test_securityfs_status_contains("abi_version: 88",
++					"hardening status reports policy ABI 88");
 +	test_securityfs_status_contains("phase:",
 +					"hardening status reports sealing phase");
 +	test_securityfs_status_contains("policy_staged:",
@@ -62930,7 +63125,7 @@ diff -ruN --exclude .git /home/doll/distro/linux-7.0.12/tools/testing/selftests/
 +use-role 2 desktop-admin
 diff -ruN --exclude .git /home/doll/distro/linux-7.0.12/tools/testing/selftests/hardening/run-qemu-smoke.sh /home/doll/distro/linux-7.0.12-hdn/tools/testing/selftests/hardening/run-qemu-smoke.sh
 --- /home/doll/distro/linux-7.0.12/tools/testing/selftests/hardening/run-qemu-smoke.sh	1969-12-31 18:00:00.000000000 -0600
-+++ /home/doll/distro/linux-7.0.12-hdn/tools/testing/selftests/hardening/run-qemu-smoke.sh	2026-06-26 23:22:28.794802737 -0500
++++ /home/doll/distro/linux-7.0.12-hdn/tools/testing/selftests/hardening/run-qemu-smoke.sh	2026-06-26 23:35:23.478730185 -0500
 @@ -0,0 +1,1221 @@
 +#!/bin/sh
 +# SPDX-License-Identifier: GPL-2.0
@@ -62965,7 +63160,7 @@ diff -ruN --exclude .git /home/doll/distro/linux-7.0.12/tools/testing/selftests/
 +QEMU_MEMORY=${QEMU_MEMORY:-1024M}
 +QEMU_SMP=${QEMU_SMP:-2}
 +QEMU_MACHINE=${QEMU_MACHINE:-q35,accel=tcg}
-+HDN_SMOKE_EXPECTED_PASS=${HDN_SMOKE_EXPECTED_PASS:-936}
++HDN_SMOKE_EXPECTED_PASS=${HDN_SMOKE_EXPECTED_PASS:-938}
 +WORK=${HDN_QEMU_WORK:-"${TMPDIR:-/tmp}/hdn-qemu-smoke.$$"}
 +LOG=${HDN_QEMU_LOG:-"$WORK/qemu.log"}
 +QMP=${HDN_QEMU_QMP:-"$WORK/qmp.sock"}
@@ -64172,8 +64367,8 @@ diff -ruN --exclude .git /home/doll/distro/linux-7.0.12/tools/testing/selftests/
 +allow 2 POLICY_ADMIN CRED_CHANGE SOCKET_CREATE
 diff -ruN --exclude .git /home/doll/distro/linux-7.0.12/tools/testing/selftests/hardening/subject.policy /home/doll/distro/linux-7.0.12-hdn/tools/testing/selftests/hardening/subject.policy
 --- /home/doll/distro/linux-7.0.12/tools/testing/selftests/hardening/subject.policy	1969-12-31 18:00:00.000000000 -0600
-+++ /home/doll/distro/linux-7.0.12-hdn/tools/testing/selftests/hardening/subject.policy	2026-06-25 20:12:44.713122559 -0500
-@@ -0,0 +1,17 @@
++++ /home/doll/distro/linux-7.0.12-hdn/tools/testing/selftests/hardening/subject.policy	2026-06-26 23:34:25.082732969 -0500
+@@ -0,0 +1,18 @@
 +# SPDX-License-Identifier: GPL-2.0-only
 +# Policy used by the QEMU smoke test to prove UID/GID subject rules can select
 +# a user's baseline profile without relying on exec path identity.
@@ -64189,6 +64384,7 @@ diff -ruN --exclude .git /home/doll/distro/linux-7.0.12/tools/testing/selftests/
 +profile 8 nobody-gid
 +
 +allow 2 POLICY_ADMIN CRED_CHANGE
++umask 7 077
 +subject uid 65534 7
 +subject gid 65534 8
 diff -ruN --exclude .git /home/doll/distro/linux-7.0.12/tools/testing/selftests/hardening/textrel.policy /home/doll/distro/linux-7.0.12-hdn/tools/testing/selftests/hardening/textrel.policy

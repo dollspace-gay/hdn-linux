@@ -922,6 +922,13 @@ effective, saved, filesystem, and supplementary groups. Privileged exec still
 enters the sealed privileged profile, so account subject rules cannot silently
 weaken setuid/filecap handling.
 
+Profile records also carry an optional umask floor. The floor is ORed with the
+process umask in `current_umask()`, which means it reaches ordinary VFS and
+filesystem creation paths while only making creation modes stricter. QEMU
+validates that a subject-selected profile with a `077` floor creates regular
+files as private `0600` files and directories as private `0700` directories even
+after the process explicitly sets its own umask to `000`.
+
 The signed exec identity map supports both explicit `exec PROFILE ...`
 transitions and `exec inherit ...` rules. Inheritance rules match executable
 identity the same way as ordinary exec rules but preserve the caller's active
@@ -1870,6 +1877,7 @@ Core oracle groups:
 - unsigned user binary gets user profile
 - compiler roles expand inherited reusable grants into sealed profiles
 - UID/GID subject rules select account profiles
+- profile umask floors keep subject-selected file and directory creation private
 - signed exec inheritance preserves caller profiles and parent-scoped inheritance
   ignores unmatched callers
 - signed object read/write/delete/create/creat/mkdir/mknod/symlink/unlink/rmdir/exec/link/link-target/attr/chmod/chown/utime/setid/xattr/setxattr/removexattr/access/stat/list/find/ioctl/lock/watch/receive/fcntl/chdir/mount/mount-source/umount/truncate/rename/rename-target/unix-connect/unix-bind/unix-listen/unix-accept/unix-send/unix-recv, append-only, recursive split-operation tree, recursive descriptor, operation-tree, target-tree, and preopened-descriptor unmatched checks, fd-receive, mount topology with unmatched-target and source checks, split metadata/xattr, and filesystem-socket IPC operation tree, and recursive append-only tree rules constrain protected file, executable, metadata, setid-bit, extended-attribute, directory-entry, fd-passing, descriptor-control, working-directory, mount topology, size/extent mutation, move access, and filesystem socket IPC by resolved identity
