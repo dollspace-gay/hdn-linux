@@ -213,17 +213,18 @@ are denied without disclosure authority so they cannot become lower-friction
 address or page-state oracles. Self and same-thread-group reads remain
 compatible. Cross-process `/proc/<pid>/cmdline`, `/proc/<pid>/environ`,
 `/proc/<pid>/auxv`, `/proc/<pid>/syscall`, `/proc/<pid>/io`, and
-`/proc/<pid>/personality` reads also require `AUTH_PROC_DISCLOSE` because they
+`/proc/<pid>/personality` reads also require `AUTH_PROC_DISCLOSE`, as do
+cross-process `/proc/<pid>/coredump_filter` reads and writes, because they
 expose argument shape, environment secrets, loader metadata, live syscall
-register state, I/O accounting, and personality flags for another address
-space. `/proc/ioports` and `/proc/iomem` retain resource names
-for hardware inventory, but their address ranges collapse to zero unless a
-capable caller also has `AUTH_PROC_DISCLOSE`. Global page-monitoring metadata in
-`/proc/kpagecount`, `/proc/kpageflags`, and `/proc/kpagecgroup` is denied
-without disclosure authority. The same mitigation also caps privileged execs to
-a 512 KiB copied argv/env stack and an 8 MiB stack rlimit, preserving
-stack-layout entropy for setuid, setgid, secureexec, and file-capability
-helpers without exposing a user-facing knob.
+register state, I/O accounting, personality flags, and future core-dump
+selection for another address space. `/proc/ioports` and `/proc/iomem` retain
+resource names for hardware inventory, but their address ranges collapse to
+zero unless a capable caller also has `AUTH_PROC_DISCLOSE`. Global
+page-monitoring metadata in `/proc/kpagecount`, `/proc/kpageflags`, and
+`/proc/kpagecgroup` is denied without disclosure authority. The same mitigation
+also caps privileged execs to a 512 KiB copied argv/env stack and an 8 MiB stack
+rlimit, preserving stack-layout entropy for setuid, setgid, secureexec, and
+file-capability helpers without exposing a user-facing knob.
 
 Network blackhole and TCP simultaneous-connect hardening are also intentionally
 not authorities. HDN treats them as invisible build-time baseline mitigations:
@@ -1828,8 +1829,9 @@ Core oracle groups:
   while `/proc/self/pagemap` remains usable
 - cross-process `/proc/<pid>/cmdline`, `/proc/<pid>/environ`,
   `/proc/<pid>/auxv`, `/proc/<pid>/syscall`, `/proc/<pid>/io`, and
-  `/proc/<pid>/personality` denied without `PROC_DISCLOSE`, while self reads
-  remain usable
+  `/proc/<pid>/personality` denied without `PROC_DISCLOSE`, and cross-process
+  `/proc/<pid>/coredump_filter` reads and writes denied without
+  `PROC_DISCLOSE`, while self reads remain usable
 - `/proc/ioports` and `/proc/iomem` address ranges redacted without
   `PROC_DISCLOSE`, while resource names remain visible for compatibility
 - owner-only sysfs attributes and sensitive world-readable sysfs metadata such
