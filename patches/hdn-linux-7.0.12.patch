@@ -10231,8 +10231,8 @@ diff -ruN --exclude .git /home/doll/distro/linux-7.0.12/security/commoncap.c /ho
  }
 diff -ruN --exclude .git /home/doll/distro/linux-7.0.12/security/hardening/Kconfig /home/doll/distro/linux-7.0.12-hdn/security/hardening/Kconfig
 --- /home/doll/distro/linux-7.0.12/security/hardening/Kconfig	1969-12-31 18:00:00.000000000 -0600
-+++ /home/doll/distro/linux-7.0.12-hdn/security/hardening/Kconfig	2026-06-26 18:09:48.584693188 -0500
-@@ -0,0 +1,637 @@
++++ /home/doll/distro/linux-7.0.12-hdn/security/hardening/Kconfig	2026-06-27 00:15:50.514515337 -0500
+@@ -0,0 +1,649 @@
 +# SPDX-License-Identifier: GPL-2.0-only
 +menuconfig SECURITY_HARDENING
 +	bool "Hardening contract layer"
@@ -10765,6 +10765,18 @@ diff -ruN --exclude .git /home/doll/distro/linux-7.0.12/security/hardening/Kconf
 +	  a secure default similar to hidepid behavior without requiring every
 +	  product image to remember a special procfs mount option.
 +
++config SECURITY_HARDENING_PROC_TASK_GID
++	int "Global proc task-view group id"
++	default -1
++	range -1 2147483647
++	depends on SECURITY_HARDENING_PROC_HIDE
++	help
++	  Optionally allow members of one global group to see other users'
++	  procfs task directories and mint pidfds without granting broader
++	  PROC_DISCLOSE authority or per-profile PROC_TASK_VIEW authority.
++	  Set this to -1 to disable the global group. Product images can
++	  override the configured value at boot with hdn.proc_task_gid=GID.
++
 +config SECURITY_HARDENING_PROC_MEMMAP
 +	bool "Redact procfs address maps without disclosure authority"
 +	default y
@@ -10879,8 +10891,8 @@ diff -ruN --exclude .git /home/doll/distro/linux-7.0.12/security/hardening/Makef
 +obj-$(CONFIG_SECURITY_HARDENING) += core.o
 diff -ruN --exclude .git /home/doll/distro/linux-7.0.12/security/hardening/core.c /home/doll/distro/linux-7.0.12-hdn/security/hardening/core.c
 --- /home/doll/distro/linux-7.0.12/security/hardening/core.c	1969-12-31 18:00:00.000000000 -0600
-+++ /home/doll/distro/linux-7.0.12-hdn/security/hardening/core.c	2026-06-26 23:47:18.162666848 -0500
-@@ -0,0 +1,7706 @@
++++ /home/doll/distro/linux-7.0.12-hdn/security/hardening/core.c	2026-06-27 00:19:44.270493131 -0500
+@@ -0,0 +1,7750 @@
 +// SPDX-License-Identifier: GPL-2.0-only
 +
 +#include <linux/binfmts.h>
@@ -10963,6 +10975,10 @@ diff -ruN --exclude .git /home/doll/distro/linux-7.0.12/security/hardening/core.
 +#define HDN_KERNEL_LOCKOUT_UID_COUNT 16
 +#define HDN_PRIVEXEC_ARG_LIMIT (512UL * 1024UL)
 +#define HDN_PRIVEXEC_STACK_LIMIT (8UL * 1024UL * 1024UL)
++
++#ifndef CONFIG_SECURITY_HARDENING_PROC_TASK_GID
++#define CONFIG_SECURITY_HARDENING_PROC_TASK_GID (-1)
++#endif
 +
 +#define HDN_MITIGATION_HARDENED_USERCOPY	(1ULL << 0)
 +#define HDN_MITIGATION_INIT_ON_ALLOC		(1ULL << 1)
@@ -11218,6 +11234,22 @@ diff -ruN --exclude .git /home/doll/distro/linux-7.0.12/security/hardening/core.
 +static u32 hdn_audit_flood_last_authority;
 +static u32 hdn_audit_flood_last_transition;
 +static u32 hdn_audit_flood_last_reason;
++static int hdn_proc_task_gid __read_mostly =
++	CONFIG_SECURITY_HARDENING_PROC_TASK_GID;
++
++static int __init hdn_proc_task_gid_setup(char *str)
++{
++	int gid;
++
++	if (!str || kstrtoint(str, 0, &gid))
++		return 0;
++	if (gid < -1)
++		return 0;
++
++	WRITE_ONCE(hdn_proc_task_gid, gid);
++	return 1;
++}
++__setup("hdn.proc_task_gid=", hdn_proc_task_gid_setup);
 +static const struct hdn_mitigation_state *hdn_mitigations __ro_after_init;
 +
 +static const struct hdn_profile_record *hdn_profile_by_id(u64 profile_id);
@@ -15304,6 +15336,25 @@ diff -ruN --exclude .git /home/doll/distro/linux-7.0.12/security/hardening/core.
 +	return visible;
 +}
 +
++static bool hdn_current_in_proc_task_gid(void)
++{
++	kgid_t kgid;
++	int gid;
++
++	if (!IS_ENABLED(CONFIG_SECURITY_HARDENING_PROC_HIDE))
++		return false;
++
++	gid = READ_ONCE(hdn_proc_task_gid);
++	if (gid < 0)
++		return false;
++
++	kgid = make_kgid(&init_user_ns, (gid_t)gid);
++	if (!gid_valid(kgid))
++		return false;
++
++	return in_group_p(kgid);
++}
++
 +bool hdn_proc_task_visible(struct task_struct *target)
 +{
 +	if (!IS_ENABLED(CONFIG_SECURITY_HARDENING_PROC_HIDE))
@@ -15313,6 +15364,8 @@ diff -ruN --exclude .git /home/doll/distro/linux-7.0.12/security/hardening/core.
 +	if (target == current || same_thread_group(current, target))
 +		return true;
 +	if (hdn_task_has_current_uid(target))
++		return true;
++	if (hdn_current_in_proc_task_gid())
 +		return true;
 +	if (hdn_profile_allows(HDN_AUTH_PROC_DISCLOSE, HDN_TRANS_PROCFS_READ))
 +		return true;
@@ -15389,6 +15442,8 @@ diff -ruN --exclude .git /home/doll/distro/linux-7.0.12/security/hardening/core.
 +	if (hdn_signal_target_is_direct_child(target))
 +		return 0;
 +	if (hdn_task_has_current_uid(target))
++		return 0;
++	if (hdn_current_in_proc_task_gid())
 +		return 0;
 +	if (hdn_profile_allows(HDN_AUTH_PROC_DISCLOSE, HDN_TRANS_PROCFS_READ))
 +		return 0;
@@ -18195,6 +18250,7 @@ diff -ruN --exclude .git /home/doll/distro/linux-7.0.12/security/hardening/core.
 +		   IS_ENABLED(CONFIG_SYSFS));
 +	seq_printf(m, "mitigation_proc_hide: %u\n",
 +		   hdn_mitigation_enabled(HDN_MITIGATION_PROC_HIDE));
++	seq_printf(m, "proc_task_gid: %d\n", READ_ONCE(hdn_proc_task_gid));
 +	seq_printf(m, "mitigation_usb_restrict: %u\n",
 +		   hdn_mitigation_enabled(HDN_MITIGATION_USB_RESTRICT));
 +	seq_printf(m, "mitigation_usb_monitor_restrict: %u\n",
@@ -18962,8 +19018,8 @@ diff -ruN --exclude .git /home/doll/distro/linux-7.0.12/tools/hardening/Makefile
 +.PHONY: all clean install
 diff -ruN --exclude .git /home/doll/distro/linux-7.0.12/tools/hardening/README.rst /home/doll/distro/linux-7.0.12-hdn/tools/hardening/README.rst
 --- /home/doll/distro/linux-7.0.12/tools/hardening/README.rst	1969-12-31 18:00:00.000000000 -0600
-+++ /home/doll/distro/linux-7.0.12-hdn/tools/hardening/README.rst	2026-06-27 00:07:26.434562285 -0500
-@@ -0,0 +1,1448 @@
++++ /home/doll/distro/linux-7.0.12-hdn/tools/hardening/README.rst	2026-06-27 00:18:18.190501589 -0500
+@@ -0,0 +1,1452 @@
 +.. SPDX-License-Identifier: GPL-2.0-only
 +
 +Linux Hardening Policy Tools
@@ -19971,9 +20027,13 @@ diff -ruN --exclude .git /home/doll/distro/linux-7.0.12/tools/hardening/README.r
 +``PROC_TASK_VIEW`` instead. Procfs instances mounted with upstream
 +``hidepid=1`` or ``hidepid=2`` and ``gid=<gid>`` let members of that proc mount
 +group see other users' task directories on that mount without granting either
-+proc authority. The QEMU smoke suite commits a restricted root profile and
-+verifies hidden other-user PIDs, verifies grouped ``hidepid=2,gid=0`` proc
-+mount visibility, then commits a proc-task profile that can see other-user
++proc authority. Product images can also set ``SECURITY_HARDENING_PROC_TASK_GID``
++or boot with ``hdn.proc_task_gid=<gid>`` to give one global group the same
++task-view visibility without broader proc disclosure. The QEMU smoke suite
++commits a restricted root profile and verifies hidden other-user PIDs, verifies
++grouped ``hidepid=2,gid=0`` proc mount visibility, verifies a configured
++task-view group can see other-user PIDs and open pidfds without
++``PROC_TASK_VIEW``, then commits a proc-task profile that can see other-user
 +PIDs, open pidfds for other-user tasks, and inspect received pidfd metadata and
 +fdinfo while kernel symbols remain hidden.
 +
@@ -36515,8 +36575,8 @@ diff -ruN --exclude .git /home/doll/distro/linux-7.0.12/tools/testing/selftests/
 Binary files /home/doll/distro/linux-7.0.12/tools/testing/selftests/hardening/hdn_smoke and /home/doll/distro/linux-7.0.12-hdn/tools/testing/selftests/hardening/hdn_smoke differ
 diff -ruN --exclude .git /home/doll/distro/linux-7.0.12/tools/testing/selftests/hardening/hdn_smoke.c /home/doll/distro/linux-7.0.12-hdn/tools/testing/selftests/hardening/hdn_smoke.c
 --- /home/doll/distro/linux-7.0.12/tools/testing/selftests/hardening/hdn_smoke.c	1969-12-31 18:00:00.000000000 -0600
-+++ /home/doll/distro/linux-7.0.12-hdn/tools/testing/selftests/hardening/hdn_smoke.c	2026-06-27 00:02:52.090584923 -0500
-@@ -0,0 +1,26643 @@
++++ /home/doll/distro/linux-7.0.12-hdn/tools/testing/selftests/hardening/hdn_smoke.c	2026-06-27 00:17:43.286505003 -0500
+@@ -0,0 +1,26689 @@
 +// SPDX-License-Identifier: GPL-2.0-only
 +
 +#define _GNU_SOURCE
@@ -36525,6 +36585,7 @@ diff -ruN --exclude .git /home/doll/distro/linux-7.0.12/tools/testing/selftests/
 +#include <elf.h>
 +#include <errno.h>
 +#include <fcntl.h>
++#include <grp.h>
 +#include <linux/aio_abi.h>
 +#include <linux/capability.h>
 +#include <linux/bpf.h>
@@ -37374,6 +37435,7 @@ diff -ruN --exclude .git /home/doll/distro/linux-7.0.12/tools/testing/selftests/
 +
 +#define HDN_SYSLOG_ACTION_READ_ALL 3
 +#define HDN_TEST_NOBODY 65534
++#define HDN_PROC_TASK_GID 65533
 +#define HDN_LOCKOUT_TEST_UID 60000
 +#define HDN_BRUTE_TEST_CRASHES 3
 +#define HDN_BRUTE_DAEMON_DELAY_MIN_MS 25000ULL
@@ -46894,6 +46956,24 @@ diff -ruN --exclude .git /home/doll/distro/linux-7.0.12/tools/testing/selftests/
 +	return pidfd_open_sibling_result(true);
 +}
 +
++static int join_proc_task_group(void)
++{
++	gid_t groups[] = { HDN_PROC_TASK_GID };
++
++	return setgroups(ARRAY_SIZE(groups), groups) ? 2 : 0;
++}
++
++static int pidfd_open_proc_task_gid_allowed(void)
++{
++	int ret;
++
++	ret = join_proc_task_group();
++	if (ret)
++		return ret;
++
++	return pidfd_open_proc_task_allowed();
++}
++
 +static int send_fd_over_socket(int sock, int fd)
 +{
 +	union {
@@ -49287,6 +49367,17 @@ diff -ruN --exclude .git /home/doll/distro/linux-7.0.12/tools/testing/selftests/
 +	kill(child, SIGKILL);
 +	waitpid(child, NULL, 0);
 +	return found ? 0 : 1;
++}
++
++static int proc_pid_visibility_gid_allowed(void)
++{
++	int ret;
++
++	ret = join_proc_task_group();
++	if (ret)
++		return ret;
++
++	return proc_pid_visibility_allowed();
 +}
 +
 +static int mount_admin_denied(void)
@@ -56371,6 +56462,8 @@ diff -ruN --exclude .git /home/doll/distro/linux-7.0.12/tools/testing/selftests/
 +		ksft_test_result_skip("restricted profile allows pidfd_getfd inside profile\n");
 +		ksft_test_result_skip("restricted profile hides other-user proc entries\n");
 +		ksft_test_result_skip("restricted profile allows proc gid mount group access\n");
++		ksft_test_result_skip("restricted profile allows proc task-view group access\n");
++		ksft_test_result_skip("restricted profile allows pidfd_open for task-view group\n");
 +		ksft_test_result_skip("restricted profile denies kexec load\n");
 +		ksft_test_result_skip("restricted profile denies mount administration\n");
 +		ksft_test_result_skip("restricted profile denies raw I/O device access\n");
@@ -57319,6 +57412,17 @@ diff -ruN --exclude .git /home/doll/distro/linux-7.0.12/tools/testing/selftests/
 +			     proc_gid_mount_setup == KSFT_SKIP ? KSFT_SKIP :
 +			     2) : 2,
 +			    "restricted profile allows proc gid mount group access");
++	if (restricted_committed) {
++		report_forked_child_result(proc_pid_visibility_gid_allowed,
++					   "restricted profile allows proc task-view group access");
++		report_forked_child_result(pidfd_open_proc_task_gid_allowed,
++					   "restricted profile allows pidfd_open for task-view group");
++	} else {
++		report_child_result(2,
++				    "restricted profile allows proc task-view group access");
++		report_child_result(2,
++				    "restricted profile allows pidfd_open for task-view group");
++	}
 +	report_child_result(restricted_committed ? kexec_load_denied() : 2,
 +			    "restricted profile denies kexec load");
 +	report_child_result(restricted_committed ?
@@ -62773,7 +62877,7 @@ diff -ruN --exclude .git /home/doll/distro/linux-7.0.12/tools/testing/selftests/
 +	if (access(HDN_STATUS, R_OK))
 +		ksft_exit_skip("hardening securityfs status not present\n");
 +
-+	ksft_set_plan(944);
++	ksft_set_plan(947);
 +	test_securityfs_status();
 +	test_symbol_test_module_load();
 +	test_securityfs_status_contains("abi_version: 89",
@@ -62922,6 +63026,8 @@ diff -ruN --exclude .git /home/doll/distro/linux-7.0.12/tools/testing/selftests/
 +					"hardening status reports sysfs restriction");
 +	test_securityfs_status_contains("mitigation_proc_hide: 1",
 +					"hardening status reports proc task hiding");
++	test_securityfs_status_contains("proc_task_gid: 65533",
++					"hardening status reports proc task-view group");
 +	test_securityfs_status_contains("mitigation_usb_restrict: 1",
 +					"hardening status reports USB attach restriction");
 +	test_securityfs_status_contains("mitigation_usb_monitor_restrict: 1",
@@ -63553,7 +63659,7 @@ diff -ruN --exclude .git /home/doll/distro/linux-7.0.12/tools/testing/selftests/
 +use-role 2 desktop-admin
 diff -ruN --exclude .git /home/doll/distro/linux-7.0.12/tools/testing/selftests/hardening/run-qemu-smoke.sh /home/doll/distro/linux-7.0.12-hdn/tools/testing/selftests/hardening/run-qemu-smoke.sh
 --- /home/doll/distro/linux-7.0.12/tools/testing/selftests/hardening/run-qemu-smoke.sh	1969-12-31 18:00:00.000000000 -0600
-+++ /home/doll/distro/linux-7.0.12-hdn/tools/testing/selftests/hardening/run-qemu-smoke.sh	2026-06-27 00:02:58.378584383 -0500
++++ /home/doll/distro/linux-7.0.12-hdn/tools/testing/selftests/hardening/run-qemu-smoke.sh	2026-06-27 00:17:50.462504247 -0500
 @@ -0,0 +1,1221 @@
 +#!/bin/sh
 +# SPDX-License-Identifier: GPL-2.0
@@ -63588,7 +63694,7 @@ diff -ruN --exclude .git /home/doll/distro/linux-7.0.12/tools/testing/selftests/
 +QEMU_MEMORY=${QEMU_MEMORY:-1024M}
 +QEMU_SMP=${QEMU_SMP:-2}
 +QEMU_MACHINE=${QEMU_MACHINE:-q35,accel=tcg}
-+HDN_SMOKE_EXPECTED_PASS=${HDN_SMOKE_EXPECTED_PASS:-944}
++HDN_SMOKE_EXPECTED_PASS=${HDN_SMOKE_EXPECTED_PASS:-947}
 +WORK=${HDN_QEMU_WORK:-"${TMPDIR:-/tmp}/hdn-qemu-smoke.$$"}
 +LOG=${HDN_QEMU_LOG:-"$WORK/qemu.log"}
 +QMP=${HDN_QEMU_QMP:-"$WORK/qmp.sock"}
@@ -64744,7 +64850,7 @@ diff -ruN --exclude .git /home/doll/distro/linux-7.0.12/tools/testing/selftests/
 +	-qmp unix:"$QMP",server=on,wait=off \
 +	-kernel "$BZIMAGE" \
 +	-initrd "$WORK/initramfs.cpio.gz" \
-+	-append "console=ttyS0 rdinit=/init panic=1 oops=panic spectre_v2_user=prctl spec_store_bypass_disable=prctl" \
++	-append "console=ttyS0 rdinit=/init panic=1 oops=panic spectre_v2_user=prctl spec_store_bypass_disable=prctl hdn.proc_task_gid=65533" \
 +	-nographic -no-reboot >"$LOG" 2>&1
 +qemu_status=$?
 +set -e

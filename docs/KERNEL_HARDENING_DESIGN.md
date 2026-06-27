@@ -196,6 +196,9 @@ Proc task visibility also honors upstream procfs group mounts. A procfs
 instance mounted with `hidepid=1/2,gid=<gid>` lets members of that proc mount
 group see other users' task directories on that mount without granting the
 broader `AUTH_PROC_TASK_VIEW` or `AUTH_PROC_DISCLOSE` authorities.
+Product images can also set `SECURITY_HARDENING_PROC_TASK_GID` or boot with
+`hdn.proc_task_gid=<gid>` to give one global group the same task-view and
+pidfd-open visibility without broader proc disclosure.
 
 Proc memory-map redaction is a build-time mitigation with a policy bypass, not
 a prompt. With `SECURITY_HARDENING_PROC_MEMMAP`, reads of another address
@@ -1696,19 +1699,23 @@ Core oracle groups:
 - cross-profile `pidfd_getfd` operations are denied without `PROCESS_FD`
   authority while same-profile pidfd descriptor sharing remains usable
 - sibling or unrelated `pidfd_open` task-handle creation for other-user tasks
-  is denied without `PROC_TASK_VIEW` or `PROC_DISCLOSE`, while direct-child
-  pidfd supervision remains usable
+  is denied without `PROC_TASK_VIEW`, `PROC_DISCLOSE`, or the configured
+  proc task-view group, while direct-child pidfd supervision remains usable
 - `PIDFD_GET_INFO` metadata reads on inherited or IPC-received pidfds are
   denied for sibling or unrelated other-user tasks without `PROC_TASK_VIEW`
-  or `PROC_DISCLOSE`
+  or `PROC_DISCLOSE`, unless the caller is in the configured proc task-view
+  group
 - `/proc/self/fdinfo/<pidfd>` redacts received pidfd target PIDs for sibling
-  or unrelated other-user tasks without `PROC_TASK_VIEW` or `PROC_DISCLOSE`
+  or unrelated other-user tasks without `PROC_TASK_VIEW` or `PROC_DISCLOSE`,
+  unless the caller is in the configured proc task-view group
 - pidfd-backed `setns()` namespace harvesting is denied for sibling or
   unrelated other-user tasks without `PROC_TASK_VIEW` or `PROC_DISCLOSE`, even
-  when the caller has namespace administration authority
+  when the caller has namespace administration authority, unless the caller is
+  in the configured proc task-view group
 - pidfd namespace fd ioctls such as `PIDFD_GET_UTS_NAMESPACE` are denied for
   sibling or unrelated other-user tasks without `PROC_TASK_VIEW` or
-  `PROC_DISCLOSE`, even when the caller has namespace administration authority
+  `PROC_DISCLOSE`, even when the caller has namespace administration
+  authority, unless the caller is in the configured proc task-view group
 - failed fork attempts caused by process-count or memory pressure emit
   structured fork-failure audit events
 - profiles can reject new writable mounts while allowing read-only mounts
