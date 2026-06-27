@@ -19238,8 +19238,8 @@ diff -ruN --exclude .git linux-7.0.12/tools/hardening/Makefile linux-7.0.12-hdn/
 +.PHONY: all clean install
 diff -ruN --exclude .git linux-7.0.12/tools/hardening/README.rst linux-7.0.12-hdn/tools/hardening/README.rst
 --- linux-7.0.12/tools/hardening/README.rst	1969-12-31 18:00:00.000000000 -0600
-+++ linux-7.0.12-hdn/tools/hardening/README.rst	2026-06-27 03:14:38.017529828 -0500
-@@ -0,0 +1,1517 @@
++++ linux-7.0.12-hdn/tools/hardening/README.rst	2026-06-27 03:25:42.753478556 -0500
+@@ -0,0 +1,1534 @@
 +.. SPDX-License-Identifier: GPL-2.0-only
 +
 +Linux Hardening Policy Tools
@@ -19356,9 +19356,11 @@ diff -ruN --exclude .git linux-7.0.12/tools/hardening/README.rst linux-7.0.12-hd
 +``/etc/hdn/prompt-actions.conf`` entries of the form
 +``action NAME INTENT [ARG...]``, creates a short-lived approval token, and
 +execs ``hdn-admin-broker --approval-token`` with the matching typed intent.
-+The config must be a regular root-owned file that is not group/world writable.
-+The broker allowlist used with this helper must approve the token directory
-+with ``approval-token-dir``; product builds should also enable
++``--dry-run`` creates and then removes a short-lived approval token while
++asking the broker to validate the same typed route without running it. The
++config must be a regular root-owned file that is not group/world writable. The
++broker allowlist used with this helper must approve the token directory with
++``approval-token-dir``; product builds should also enable
 +``require-approval-token`` for prompt-mediated admin actions.
 +
 +``hdn-prompt-describe`` is the read-only prompt metadata facade for desktop
@@ -19377,7 +19379,8 @@ diff -ruN --exclude .git linux-7.0.12/tools/hardening/README.rst linux-7.0.12-hd
 +``/etc/hdn/prompt-session.conf`` selects the describe helper, authenticator,
 +and dispatch helper with absolute paths. The helper never invokes a shell and
 +rejects unsafe configs, failed authentication, or unknown actions before
-+privileged dispatch can run.
++privileged dispatch can run. ``--dry-run`` still validates metadata and the
++dispatch route, but skips authentication and privileged mutation.
 +
 +``hdn-prompt-portal`` is the product desktop entrypoint above
 +``hdn-prompt-session``. Desktop shells, settings panels, and update notifiers
@@ -19386,6 +19389,8 @@ diff -ruN --exclude .git linux-7.0.12/tools/hardening/README.rst linux-7.0.12-hd
 +path or backend action names. The config maps ``action DESKTOP_ACTION
 +PROMPT_SESSION_ACTION`` and may set ``session-helper PATH``. Unknown desktop
 +actions, unsafe configs, and shell-style command construction fail closed.
++``--dry-run`` follows the same mapping without showing an authentication
++prompt or changing protected state.
 +
 +``hdn-desktop-action`` is the stable UI-facing command above
 +``hdn-prompt-portal``. Product UI code calls namespaced verbs such as
@@ -19393,6 +19398,8 @@ diff -ruN --exclude .git linux-7.0.12/tools/hardening/README.rst linux-7.0.12-hd
 +config maps ``action DESKTOP_ACTION PROMPT_PORTAL_ACTION`` and may set
 +``portal-helper PATH``. This keeps desktop shells and settings panels from
 +depending on prompt portal action names or lower-level helper paths.
++``--dry-run`` preflights the same mapped verb without prompting or changing
++protected state.
 +
 +``hdn-desktop-daemon`` is the root-side desktop action service above
 +``hdn-desktop-action``. It can run a single approved verb or stay attached to a
@@ -19400,6 +19407,8 @@ diff -ruN --exclude .git linux-7.0.12/tools/hardening/README.rst linux-7.0.12-hd
 +``/etc/hdn/desktop-daemon.conf`` allowlists ``allow-action DESKTOP_ACTION``
 +entries and may set ``desktop-action-helper PATH``. Unknown verbs, unsafe
 +configs, unsafe action names, and shell-style command construction fail closed.
++One-shot ``--dry-run ACTION`` and stdio ``dry-run ACTION`` preflight an
++approved verb without prompting or changing protected state.
 +
 +``hdn-control-center`` is the stable product-facing command for settings panels
 +and desktop shells. It provides a single branded entry point for product status
@@ -19407,13 +19416,15 @@ diff -ruN --exclude .git linux-7.0.12/tools/hardening/README.rst linux-7.0.12-hd
 +arguments, ``action DESKTOP_ACTION`` execs ``hdn-desktop-daemon`` for a
 +root-owned allowlisted verb, and ``policy COMMAND WORKFLOW`` execs
 +``hdn-policy-daemon`` for named policy learning, candidate generation, and
-+policy compilation or signed-policy commit. ``--dry-run`` is accepted only for
-+``policy commit WORKFLOW`` so settings panels can preflight the approved commit
-+path without installing a new policy. ``--stdio`` keeps the product-facing
-+frontend attached to a supervised backend; accepted requests are ``status``,
-+``action DESKTOP_ACTION``, ``policy COMMAND WORKFLOW``, and ``dry-run policy
-+commit WORKFLOW``. Unknown stdio actions fail through the same allowlisted
-+desktop-daemon path as one-shot actions.
++policy compilation or signed-policy commit. ``--dry-run`` is accepted for
++``action DESKTOP_ACTION`` and ``policy commit WORKFLOW`` so settings panels can
++preflight the approved action or commit path without showing auth UI, changing
++protected mounts, or installing a new policy. ``--stdio`` keeps the
++product-facing frontend attached to a supervised backend; accepted requests are
++``status``, ``action DESKTOP_ACTION``, ``dry-run action DESKTOP_ACTION``,
++``policy COMMAND WORKFLOW``, and ``dry-run policy commit WORKFLOW``. Unknown
++stdio actions fail through the same allowlisted desktop-daemon path as
++one-shot actions.
 +Configured helper paths must be absolute and cannot contain ``.`` or ``..``
 +path components, and action/workflow names use the same safe verb syntax as the
 +backend daemons.
@@ -19569,7 +19580,9 @@ diff -ruN --exclude .git linux-7.0.12/tools/hardening/README.rst linux-7.0.12-hd
 +  sudo tools/hardening/hdn-control-center policy compile default
 +  sudo tools/hardening/hdn-control-center --dry-run policy commit default
 +  sudo tools/hardening/hdn-control-center policy commit default
++  sudo tools/hardening/hdn-control-center --dry-run action updates.install
 +  printf 'action updates.install\n' | sudo tools/hardening/hdn-control-center --stdio
++  printf 'dry-run action updates.install\n' | sudo tools/hardening/hdn-control-center --stdio
 +  printf 'dry-run policy commit default\n' | sudo tools/hardening/hdn-control-center --stdio
 +
 +An approval-token flow is intentionally generated by a product prompt daemon,
@@ -20489,22 +20502,26 @@ diff -ruN --exclude .git linux-7.0.12/tools/hardening/README.rst linux-7.0.12-hd
 +prompt session facade is tested too: unknown prompt actions, unsafe prompt
 +session configs, and failed authentication are denied before dispatch, while an
 +approved session authenticates, reaches the strict token-required broker,
-+updates the product mount, and reseals it read-only. The named prompt portal
-+facade is tested too: unknown desktop actions and unsafe portal configs are
-+denied before session dispatch, while an approved desktop action maps to
-+``package-update``, reaches prompt-session, updates the product mount, and
-+reseals it read-only. The stable desktop action facade is tested too: unknown
-+UI verbs and unsafe desktop action configs are denied before prompt portal
-+dispatch, while an approved ``updates.install`` verb maps to the portal,
-+authenticates, updates the product mount, and reseals it read-only. The desktop
-+daemon facade is tested too: unknown UI verbs and unsafe daemon configs are
-+denied before desktop-action dispatch, while an approved stdio
-+``updates.install`` verb reaches desktop-action, authenticates, updates the
++updates the product mount, and reseals it read-only. Dry-run action preflight
++through the prompt session skips authentication, validates the broker route,
++cleans up the temporary approval token, and leaves the sealed mount unchanged.
++The named prompt portal facade is tested too: unknown desktop actions and
++unsafe portal configs are denied before session dispatch, while an approved
++desktop action maps to ``package-update``, reaches prompt-session, updates the
++product mount, and reseals it read-only. The stable desktop action facade is
++tested too: unknown UI verbs and unsafe desktop action configs are denied
++before prompt portal dispatch, while an approved ``updates.install`` verb maps
++to the portal, authenticates, updates the product mount, and reseals it
++read-only. The desktop daemon facade is tested too: unknown UI verbs and
++unsafe daemon configs are denied before desktop-action dispatch, while an
++approved stdio ``updates.install`` verb dry-runs without prompt or mount change
++before the real request reaches desktop-action, authenticates, updates the
 +product mount, and reseals it read-only. The control-center facade is tested
 +too: product status is routed through ``hdn-status``, unknown UI verbs are
-+denied before daemon dispatch, and an approved ``updates.install`` action
-+reaches the desktop daemon, authenticates, updates the product mount, and
-+reseals it read-only. The named
++denied before daemon dispatch, and approved one-shot and stdio
++``updates.install`` dry-runs leave the sealed mount unchanged before the real
++action reaches the desktop daemon, authenticates, updates the product mount,
++and reseals it read-only. The named
 +post-auth prompt dispatch facade is tested too: unknown prompt actions and
 +unsafe prompt configs are denied, while an approved ``package-update`` action
 +creates a fresh approval token, reaches the strict token-required broker,
@@ -22605,8 +22622,8 @@ diff -ruN --exclude .git linux-7.0.12/tools/hardening/hdn-auth-prompt.c linux-7.
 +}
 diff -ruN --exclude .git linux-7.0.12/tools/hardening/hdn-control-center.c linux-7.0.12-hdn/tools/hardening/hdn-control-center.c
 --- linux-7.0.12/tools/hardening/hdn-control-center.c	1969-12-31 18:00:00.000000000 -0600
-+++ linux-7.0.12-hdn/tools/hardening/hdn-control-center.c	2026-06-27 02:50:03.865673733 -0500
-@@ -0,0 +1,448 @@
++++ linux-7.0.12-hdn/tools/hardening/hdn-control-center.c	2026-06-27 03:22:01.269497134 -0500
+@@ -0,0 +1,458 @@
 +// SPDX-License-Identifier: GPL-2.0-only
 +
 +#define _GNU_SOURCE
@@ -22635,12 +22652,12 @@ diff -ruN --exclude .git linux-7.0.12/tools/hardening/hdn-control-center.c linux
 +{
 +	fprintf(stderr,
 +		"Usage: %s [--status-helper PATH] [--desktop-daemon PATH] [--policy-daemon PATH] status [HDN_STATUS_ARGS...]\n"
-+		"       %s [--desktop-daemon PATH] action DESKTOP_ACTION\n"
++		"       %s [--desktop-daemon PATH] [--dry-run] action DESKTOP_ACTION\n"
 +		"       %s [--policy-daemon PATH] [--dry-run] policy COMMAND WORKFLOW\n"
 +		"       %s [--status-helper PATH] [--desktop-daemon PATH] [--policy-daemon PATH] --stdio\n"
 +		"\n"
 +		"Policy commands: learn, candidate, compile, commit (--dry-run only for commit)\n"
-+		"Stdio requests: status, action DESKTOP_ACTION, policy COMMAND WORKFLOW, or dry-run policy commit WORKFLOW\n"
++		"Stdio requests: status, action DESKTOP_ACTION, dry-run action DESKTOP_ACTION, policy COMMAND WORKFLOW, or dry-run policy commit WORKFLOW\n"
 +		"Stable product-facing entry point for desktop shells and settings panels.\n",
 +		prog, prog, prog, prog);
 +}
@@ -22751,7 +22768,8 @@ diff -ruN --exclude .git linux-7.0.12/tools/hardening/hdn-control-center.c linux
 +	return err == ENOENT ? 127 : 126;
 +}
 +
-+static int run_action(const char *desktop_daemon, const char *action)
++static int run_action(const char *desktop_daemon, const char *action,
++		      bool dry_run)
 +{
 +	int err;
 +
@@ -22762,7 +22780,11 @@ diff -ruN --exclude .git linux-7.0.12/tools/hardening/hdn-control-center.c linux
 +		return 1;
 +	}
 +
-+	execl(desktop_daemon, "hdn-desktop-daemon", action, NULL);
++	if (dry_run)
++		execl(desktop_daemon, "hdn-desktop-daemon", "--dry-run",
++		      action, NULL);
++	else
++		execl(desktop_daemon, "hdn-desktop-daemon", action, NULL);
 +	err = errno;
 +	fprintf(stderr, "hdn-control-center: exec %s failed: %s\n",
 +		desktop_daemon, strerror(err));
@@ -22839,7 +22861,8 @@ diff -ruN --exclude .git linux-7.0.12/tools/hardening/hdn-control-center.c linux
 +	return child_status_result(child);
 +}
 +
-+static int run_action_child(const char *desktop_daemon, const char *action)
++static int run_action_child(const char *desktop_daemon, const char *action,
++			    bool dry_run)
 +{
 +	pid_t child;
 +
@@ -22851,7 +22874,7 @@ diff -ruN --exclude .git linux-7.0.12/tools/hardening/hdn-control-center.c linux
 +	}
 +
 +	if (!child)
-+		_exit(run_action(desktop_daemon, action));
++		_exit(run_action(desktop_daemon, action, dry_run));
 +
 +	return child_status_result(child);
 +}
@@ -22915,7 +22938,13 @@ diff -ruN --exclude .git linux-7.0.12/tools/hardening/hdn-control-center.c linux
 +		} else if (count == 2 && !strcmp(tokens[0], "action")) {
 +			kind = "action";
 +			action = tokens[1];
-+			ret = run_action_child(desktop_daemon, action);
++			ret = run_action_child(desktop_daemon, action, false);
++		} else if (count == 3 && !strcmp(tokens[0], "dry-run") &&
++			   !strcmp(tokens[1], "action")) {
++			kind = "action";
++			dry_run = true;
++			action = tokens[2];
++			ret = run_action_child(desktop_daemon, action, true);
 +		} else if (count == 3 && !strcmp(tokens[0], "policy")) {
 +			kind = "policy";
 +			command = tokens[1];
@@ -22940,9 +22969,10 @@ diff -ruN --exclude .git linux-7.0.12/tools/hardening/hdn-control-center.c linux
 +		}
 +
 +		if (!strcmp(kind, "action"))
-+			printf("HDN_CONTROL_CENTER_RESULT request=action action=%s status=%s exit=%d\n",
++			printf("HDN_CONTROL_CENTER_RESULT request=action action=%s dry_run=%u status=%s exit=%d\n",
 +			       safe_name(action) ? action : "(invalid)",
-+			       ret ? "failed" : "ok", ret ? 1 : 0);
++			       dry_run ? 1 : 0, ret ? "failed" : "ok",
++			       ret ? 1 : 0);
 +		else if (!strcmp(kind, "policy"))
 +			printf("HDN_CONTROL_CENTER_RESULT request=policy command=%s workflow=%s dry_run=%u status=%s exit=%d\n",
 +			       safe_policy_command(command) ? command : "(invalid)",
@@ -23032,15 +23062,12 @@ diff -ruN --exclude .git linux-7.0.12/tools/hardening/hdn-control-center.c linux
 +	}
 +
 +	if (!strcmp(command, "action")) {
-+		if (dry_run) {
-+			usage(argv[0]);
-+			return 2;
-+		}
 +		if (command_index + 1 != argc) {
 +			usage(argv[0]);
 +			return 2;
 +		}
-+		return run_action(desktop_daemon, argv[command_index]);
++		return run_action(desktop_daemon, argv[command_index],
++				  dry_run);
 +	}
 +
 +	if (!strcmp(command, "policy")) {
@@ -23057,8 +23084,8 @@ diff -ruN --exclude .git linux-7.0.12/tools/hardening/hdn-control-center.c linux
 +}
 diff -ruN --exclude .git linux-7.0.12/tools/hardening/hdn-desktop-action.c linux-7.0.12-hdn/tools/hardening/hdn-desktop-action.c
 --- linux-7.0.12/tools/hardening/hdn-desktop-action.c	1969-12-31 18:00:00.000000000 -0600
-+++ linux-7.0.12-hdn/tools/hardening/hdn-desktop-action.c	2026-06-26 01:21:39.011840742 -0500
-@@ -0,0 +1,409 @@
++++ linux-7.0.12-hdn/tools/hardening/hdn-desktop-action.c	2026-06-27 03:22:01.269497134 -0500
+@@ -0,0 +1,418 @@
 +// SPDX-License-Identifier: GPL-2.0-only
 +
 +#define _GNU_SOURCE
@@ -23097,7 +23124,7 @@ diff -ruN --exclude .git linux-7.0.12/tools/hardening/hdn-desktop-action.c linux
 +static void usage(const char *prog)
 +{
 +	fprintf(stderr,
-+		"Usage: %s [--config FILE] ACTION\n"
++		"Usage: %s [--config FILE] [--dry-run] ACTION\n"
 +		"\n"
 +		"Runs a product-approved desktop action through the prompt portal.\n"
 +		"Config lines:\n"
@@ -23397,7 +23424,8 @@ diff -ruN --exclude .git linux-7.0.12/tools/hardening/hdn-desktop-action.c linux
 +	return WEXITSTATUS(status);
 +}
 +
-+static int run_prompt_portal(const char *helper, const char *action)
++static int run_prompt_portal(const char *helper, const char *action,
++			     bool dry_run)
 +{
 +	pid_t child;
 +
@@ -23409,7 +23437,11 @@ diff -ruN --exclude .git linux-7.0.12/tools/hardening/hdn-desktop-action.c linux
 +	}
 +
 +	if (!child) {
-+		execl(helper, "hdn-prompt-portal", action, NULL);
++		if (dry_run)
++			execl(helper, "hdn-prompt-portal", "--dry-run",
++			      action, NULL);
++		else
++			execl(helper, "hdn-prompt-portal", action, NULL);
 +		fprintf(stderr, "hdn-desktop-action: exec %s failed: %s\n",
 +			helper, strerror(errno));
 +		_exit(errno == ENOENT ? 127 : 126);
@@ -23424,6 +23456,7 @@ diff -ruN --exclude .git linux-7.0.12/tools/hardening/hdn-desktop-action.c linux
 +	const struct hdn_desktop_action_rule *rule;
 +	const char *config_path = HDN_DESKTOP_ACTION_CONFIG;
 +	const char *action = NULL;
++	bool dry_run = false;
 +	int ret;
 +	int i;
 +
@@ -23434,6 +23467,8 @@ diff -ruN --exclude .git linux-7.0.12/tools/hardening/hdn-desktop-action.c linux
 +				return 2;
 +			}
 +			config_path = argv[i];
++		} else if (!strcmp(argv[i], "--dry-run")) {
++			dry_run = true;
 +		} else if (!strcmp(argv[i], "-h") ||
 +			   !strcmp(argv[i], "--help")) {
 +			usage(argv[0]);
@@ -23464,14 +23499,15 @@ diff -ruN --exclude .git linux-7.0.12/tools/hardening/hdn-desktop-action.c linux
 +		return 1;
 +	}
 +
-+	ret = run_prompt_portal(config.portal_helper, rule->portal_action);
++	ret = run_prompt_portal(config.portal_helper, rule->portal_action,
++				dry_run);
 +	free_config(&config);
 +	return ret ? 1 : 0;
 +}
 diff -ruN --exclude .git linux-7.0.12/tools/hardening/hdn-desktop-daemon.c linux-7.0.12-hdn/tools/hardening/hdn-desktop-daemon.c
 --- linux-7.0.12/tools/hardening/hdn-desktop-daemon.c	1969-12-31 18:00:00.000000000 -0600
-+++ linux-7.0.12-hdn/tools/hardening/hdn-desktop-daemon.c	2026-06-26 01:54:17.703662617 -0500
-@@ -0,0 +1,458 @@
++++ linux-7.0.12-hdn/tools/hardening/hdn-desktop-daemon.c	2026-06-27 03:22:01.269497134 -0500
+@@ -0,0 +1,474 @@
 +// SPDX-License-Identifier: GPL-2.0-only
 +
 +#define _GNU_SOURCE
@@ -23505,7 +23541,7 @@ diff -ruN --exclude .git linux-7.0.12/tools/hardening/hdn-desktop-daemon.c linux
 +static void usage(const char *prog)
 +{
 +	fprintf(stderr,
-+		"Usage: %s [--config FILE] ACTION\n"
++		"Usage: %s [--config FILE] [--dry-run] ACTION\n"
 +		"       %s [--config FILE] --stdio\n"
 +		"\n"
 +		"Runs product-approved desktop actions through hdn-desktop-action.\n"
@@ -23802,7 +23838,8 @@ diff -ruN --exclude .git linux-7.0.12/tools/hardening/hdn-desktop-daemon.c linux
 +	return WEXITSTATUS(status);
 +}
 +
-+static int run_desktop_action(const char *helper, const char *action)
++static int run_desktop_action(const char *helper, const char *action,
++			      bool dry_run)
 +{
 +	pid_t child;
 +
@@ -23814,7 +23851,11 @@ diff -ruN --exclude .git linux-7.0.12/tools/hardening/hdn-desktop-daemon.c linux
 +	}
 +
 +	if (!child) {
-+		execl(helper, "hdn-desktop-action", action, NULL);
++		if (dry_run)
++			execl(helper, "hdn-desktop-action", "--dry-run",
++			      action, NULL);
++		else
++			execl(helper, "hdn-desktop-action", action, NULL);
 +		fprintf(stderr, "hdn-desktop-daemon: exec %s failed: %s\n",
 +			helper, strerror(errno));
 +		_exit(errno == ENOENT ? 127 : 126);
@@ -23824,7 +23865,7 @@ diff -ruN --exclude .git linux-7.0.12/tools/hardening/hdn-desktop-daemon.c linux
 +}
 +
 +static int dispatch_action(const struct hdn_desktop_daemon_config *config,
-+			   const char *action)
++			   const char *action, bool dry_run)
 +{
 +	if (!safe_name(action)) {
 +		fprintf(stderr,
@@ -23839,7 +23880,8 @@ diff -ruN --exclude .git linux-7.0.12/tools/hardening/hdn-desktop-daemon.c linux
 +		return 1;
 +	}
 +
-+	return run_desktop_action(config->desktop_action_helper, action) ? 1 : 0;
++	return run_desktop_action(config->desktop_action_helper, action,
++				  dry_run) ? 1 : 0;
 +}
 +
 +static int run_stdio(const struct hdn_desktop_daemon_config *config)
@@ -23854,11 +23896,17 @@ diff -ruN --exclude .git linux-7.0.12/tools/hardening/hdn-desktop-daemon.c linux
 +
 +	while ((len = getline(&line, &size, stdin)) >= 0) {
 +		char *action = trim(line);
++		bool dry_run = false;
 +		int ret;
 +
 +		(void)len;
 +		if (!action[0])
 +			continue;
++
++		if (!strncmp(action, "dry-run ", 8)) {
++			dry_run = true;
++			action = trim(action + 8);
++		}
 +
 +		if (!safe_name(action)) {
 +			printf("HDN_DESKTOP_DAEMON_RESULT action=(invalid) status=invalid exit=1\n");
@@ -23867,9 +23915,10 @@ diff -ruN --exclude .git linux-7.0.12/tools/hardening/hdn-desktop-daemon.c linux
 +			continue;
 +		}
 +
-+		ret = dispatch_action(config, action);
-+		printf("HDN_DESKTOP_DAEMON_RESULT action=%s status=%s exit=%d\n",
-+		       action, ret ? "failed" : "ok", ret ? 1 : 0);
++		ret = dispatch_action(config, action, dry_run);
++		printf("HDN_DESKTOP_DAEMON_RESULT action=%s dry_run=%u status=%s exit=%d\n",
++		       action, dry_run ? 1 : 0, ret ? "failed" : "ok",
++		       ret ? 1 : 0);
 +		fflush(stdout);
 +		if (ret)
 +			failed = true;
@@ -23885,6 +23934,7 @@ diff -ruN --exclude .git linux-7.0.12/tools/hardening/hdn-desktop-daemon.c linux
 +	const char *config_path = HDN_DESKTOP_DAEMON_CONFIG;
 +	const char *action = NULL;
 +	bool stdio_mode = false;
++	bool dry_run = false;
 +	int ret;
 +	int i;
 +
@@ -23897,6 +23947,8 @@ diff -ruN --exclude .git linux-7.0.12/tools/hardening/hdn-desktop-daemon.c linux
 +			config_path = argv[i];
 +		} else if (!strcmp(argv[i], "--stdio")) {
 +			stdio_mode = true;
++		} else if (!strcmp(argv[i], "--dry-run")) {
++			dry_run = true;
 +		} else if (!strcmp(argv[i], "-h") ||
 +			   !strcmp(argv[i], "--help")) {
 +			usage(argv[0]);
@@ -23909,7 +23961,7 @@ diff -ruN --exclude .git linux-7.0.12/tools/hardening/hdn-desktop-daemon.c linux
 +		}
 +	}
 +
-+	if (stdio_mode && action) {
++	if (stdio_mode && (action || dry_run)) {
 +		usage(argv[0]);
 +		return 2;
 +	}
@@ -23925,7 +23977,7 @@ diff -ruN --exclude .git linux-7.0.12/tools/hardening/hdn-desktop-daemon.c linux
 +	if (stdio_mode)
 +		ret = run_stdio(&config);
 +	else
-+		ret = dispatch_action(&config, action);
++		ret = dispatch_action(&config, action, dry_run);
 +
 +	free_config(&config);
 +	return ret ? 1 : 0;
@@ -31180,8 +31232,8 @@ diff -ruN --exclude .git linux-7.0.12/tools/hardening/hdn-prompt-describe.c linu
 +}
 diff -ruN --exclude .git linux-7.0.12/tools/hardening/hdn-prompt-dispatch.c linux-7.0.12-hdn/tools/hardening/hdn-prompt-dispatch.c
 --- linux-7.0.12/tools/hardening/hdn-prompt-dispatch.c	1969-12-31 18:00:00.000000000 -0600
-+++ linux-7.0.12-hdn/tools/hardening/hdn-prompt-dispatch.c	2026-06-25 15:09:00.693226933 -0500
-@@ -0,0 +1,673 @@
++++ linux-7.0.12-hdn/tools/hardening/hdn-prompt-dispatch.c	2026-06-27 03:23:08.761489297 -0500
+@@ -0,0 +1,724 @@
 +// SPDX-License-Identifier: GPL-2.0-only
 +
 +#define _GNU_SOURCE
@@ -31234,7 +31286,7 @@ diff -ruN --exclude .git linux-7.0.12/tools/hardening/hdn-prompt-dispatch.c linu
 +{
 +	fprintf(stderr,
 +		"Usage: %s [--config FILE] [--broker PATH] [--token-issuer PATH]\n"
-+		"       [--token-dir DIR] [--ttl-ms MS] ACTION\n"
++		"       [--token-dir DIR] [--ttl-ms MS] [--dry-run] ACTION\n"
 +		"\n"
 +		"Runs a named post-auth product action through hdn-admin-broker.\n"
 +		"Config lines: action NAME INTENT [ARG...]\n"
@@ -31728,14 +31780,25 @@ diff -ruN --exclude .git linux-7.0.12/tools/hardening/hdn-prompt-dispatch.c linu
 +	return 0;
 +}
 +
++static int child_status_result(pid_t child)
++{
++	int status;
++
++	if (waitpid(child, &status, 0) < 0)
++		return 1;
++	if (!WIFEXITED(status))
++		return 1;
++	return WEXITSTATUS(status);
++}
++
 +static int run_rule(const char *broker, const char *token,
-+		    const struct hdn_prompt_rule *rule)
++		    const struct hdn_prompt_rule *rule, bool dry_run)
 +{
 +	char **argv;
 +	unsigned int argc = 0;
 +	unsigned int i;
 +
-+	argv = calloc((size_t)rule->argc + 5, sizeof(*argv));
++	argv = calloc((size_t)rule->argc + 6, sizeof(*argv));
 +	if (!argv) {
 +		fprintf(stderr, "hdn-prompt-dispatch: allocation failed\n");
 +		unlink(token);
@@ -31743,12 +31806,47 @@ diff -ruN --exclude .git linux-7.0.12/tools/hardening/hdn-prompt-dispatch.c linu
 +	}
 +
 +	argv[argc++] = (char *)broker;
++	if (dry_run)
++		argv[argc++] = "--dry-run";
 +	argv[argc++] = "--approval-token";
 +	argv[argc++] = (char *)token;
 +	argv[argc++] = rule->intent;
 +	for (i = 0; i < rule->argc; i++)
 +		argv[argc++] = rule->args[i];
 +	argv[argc] = NULL;
++
++	if (dry_run) {
++		pid_t child;
++		int ret;
++
++		child = fork();
++		if (child < 0) {
++			fprintf(stderr, "hdn-prompt-dispatch: fork failed: %s\n",
++				strerror(errno));
++			free(argv);
++			unlink(token);
++			return 1;
++		}
++
++		if (!child) {
++			execv(broker, argv);
++			fprintf(stderr,
++				"hdn-prompt-dispatch: exec %s failed: %s\n",
++				broker, strerror(errno));
++			_exit(errno == ENOENT ? 127 : 126);
++		}
++
++		ret = child_status_result(child);
++		free(argv);
++		if (unlink(token)) {
++			fprintf(stderr,
++				"hdn-prompt-dispatch: cleanup token %s failed: %s\n",
++				token, strerror(errno));
++			if (!ret)
++				ret = 1;
++		}
++		return ret;
++	}
 +
 +	execv(broker, argv);
 +	fprintf(stderr, "hdn-prompt-dispatch: exec %s failed: %s\n",
@@ -31768,6 +31866,7 @@ diff -ruN --exclude .git linux-7.0.12/tools/hardening/hdn-prompt-dispatch.c linu
 +	const struct hdn_prompt_rule *rule;
 +	struct hdn_prompt_config config;
 +	const char *action = NULL;
++	bool dry_run = false;
 +	char token[PATH_MAX];
 +	int ret = 0;
 +	int i;
@@ -31804,6 +31903,10 @@ diff -ruN --exclude .git linux-7.0.12/tools/hardening/hdn-prompt-dispatch.c linu
 +		if (!strcmp(argv[i], "--ttl-ms")) {
 +			if (++i >= argc || parse_u64(argv[i], &ttl_ms))
 +				goto bad_args;
++			continue;
++		}
++		if (!strcmp(argv[i], "--dry-run")) {
++			dry_run = true;
 +			continue;
 +		}
 +		if (argv[i][0] == '-')
@@ -31847,7 +31950,7 @@ diff -ruN --exclude .git linux-7.0.12/tools/hardening/hdn-prompt-dispatch.c linu
 +	ret = issue_token(issuer_path, rule->intent, token_dir, ttl_ms, token,
 +			  sizeof(token));
 +	if (!ret)
-+		ret = run_rule(broker_path, token, rule);
++		ret = run_rule(broker_path, token, rule, dry_run);
 +	free_config(&config);
 +	return ret;
 +
@@ -31857,8 +31960,8 @@ diff -ruN --exclude .git linux-7.0.12/tools/hardening/hdn-prompt-dispatch.c linu
 +}
 diff -ruN --exclude .git linux-7.0.12/tools/hardening/hdn-prompt-portal.c linux-7.0.12-hdn/tools/hardening/hdn-prompt-portal.c
 --- linux-7.0.12/tools/hardening/hdn-prompt-portal.c	1969-12-31 18:00:00.000000000 -0600
-+++ linux-7.0.12-hdn/tools/hardening/hdn-prompt-portal.c	2026-06-25 19:48:04.286309168 -0500
-@@ -0,0 +1,407 @@
++++ linux-7.0.12-hdn/tools/hardening/hdn-prompt-portal.c	2026-06-27 03:22:01.269497134 -0500
+@@ -0,0 +1,416 @@
 +// SPDX-License-Identifier: GPL-2.0-only
 +
 +#define _GNU_SOURCE
@@ -31897,7 +32000,7 @@ diff -ruN --exclude .git linux-7.0.12/tools/hardening/hdn-prompt-portal.c linux-
 +static void usage(const char *prog)
 +{
 +	fprintf(stderr,
-+		"Usage: %s [--config FILE] ACTION\n"
++		"Usage: %s [--config FILE] [--dry-run] ACTION\n"
 +		"\n"
 +		"Runs a product-approved desktop prompt action.\n"
 +		"Config lines:\n"
@@ -32195,7 +32298,8 @@ diff -ruN --exclude .git linux-7.0.12/tools/hardening/hdn-prompt-portal.c linux-
 +	return WEXITSTATUS(status);
 +}
 +
-+static int run_prompt_session(const char *helper, const char *action)
++static int run_prompt_session(const char *helper, const char *action,
++			      bool dry_run)
 +{
 +	pid_t child;
 +
@@ -32207,7 +32311,11 @@ diff -ruN --exclude .git linux-7.0.12/tools/hardening/hdn-prompt-portal.c linux-
 +	}
 +
 +	if (!child) {
-+		execl(helper, "hdn-prompt-session", action, NULL);
++		if (dry_run)
++			execl(helper, "hdn-prompt-session", "--dry-run",
++			      action, NULL);
++		else
++			execl(helper, "hdn-prompt-session", action, NULL);
 +		fprintf(stderr, "hdn-prompt-portal: exec %s failed: %s\n",
 +			helper, strerror(errno));
 +		_exit(errno == ENOENT ? 127 : 126);
@@ -32222,6 +32330,7 @@ diff -ruN --exclude .git linux-7.0.12/tools/hardening/hdn-prompt-portal.c linux-
 +	const struct hdn_prompt_portal_rule *rule;
 +	const char *config_path = HDN_PROMPT_PORTAL_CONFIG;
 +	const char *action = NULL;
++	bool dry_run = false;
 +	int ret;
 +	int i;
 +
@@ -32232,6 +32341,8 @@ diff -ruN --exclude .git linux-7.0.12/tools/hardening/hdn-prompt-portal.c linux-
 +				return 2;
 +			}
 +			config_path = argv[i];
++		} else if (!strcmp(argv[i], "--dry-run")) {
++			dry_run = true;
 +		} else if (!strcmp(argv[i], "-h") ||
 +			   !strcmp(argv[i], "--help")) {
 +			usage(argv[0]);
@@ -32262,14 +32373,15 @@ diff -ruN --exclude .git linux-7.0.12/tools/hardening/hdn-prompt-portal.c linux-
 +		return 1;
 +	}
 +
-+	ret = run_prompt_session(config.session_helper, rule->session_action);
++	ret = run_prompt_session(config.session_helper, rule->session_action,
++				 dry_run);
 +	free_config(&config);
 +	return ret ? 1 : 0;
 +}
 diff -ruN --exclude .git linux-7.0.12/tools/hardening/hdn-prompt-session.c linux-7.0.12-hdn/tools/hardening/hdn-prompt-session.c
 --- linux-7.0.12/tools/hardening/hdn-prompt-session.c	1969-12-31 18:00:00.000000000 -0600
-+++ linux-7.0.12-hdn/tools/hardening/hdn-prompt-session.c	2026-06-25 15:37:03.259739192 -0500
-@@ -0,0 +1,648 @@
++++ linux-7.0.12-hdn/tools/hardening/hdn-prompt-session.c	2026-06-27 03:22:01.269497134 -0500
+@@ -0,0 +1,658 @@
 +// SPDX-License-Identifier: GPL-2.0-only
 +
 +#define _GNU_SOURCE
@@ -32313,7 +32425,7 @@ diff -ruN --exclude .git linux-7.0.12/tools/hardening/hdn-prompt-session.c linux
 +static void usage(const char *prog)
 +{
 +	fprintf(stderr,
-+		"Usage: %s [--config FILE] ACTION\n"
++		"Usage: %s [--config FILE] [--dry-run] ACTION\n"
 +		"\n"
 +		"Runs a named prompt session: describe, authenticate, then dispatch.\n"
 +		"Config lines:\n"
@@ -32832,7 +32944,8 @@ diff -ruN --exclude .git linux-7.0.12/tools/hardening/hdn-prompt-session.c linux
 +	return status ? 1 : 0;
 +}
 +
-+static int run_dispatch_helper(const char *helper, const char *action)
++static int run_dispatch_helper(const char *helper, const char *action,
++			       bool dry_run)
 +{
 +	pid_t child;
 +
@@ -32844,7 +32957,11 @@ diff -ruN --exclude .git linux-7.0.12/tools/hardening/hdn-prompt-session.c linux
 +	}
 +
 +	if (!child) {
-+		execl(helper, "hdn-prompt-dispatch", action, NULL);
++		if (dry_run)
++			execl(helper, "hdn-prompt-dispatch", "--dry-run",
++			      action, NULL);
++		else
++			execl(helper, "hdn-prompt-dispatch", action, NULL);
 +		fprintf(stderr, "hdn-prompt-session: exec %s failed: %s\n",
 +			helper, strerror(errno));
 +		_exit(errno == ENOENT ? 127 : 126);
@@ -32859,6 +32976,7 @@ diff -ruN --exclude .git linux-7.0.12/tools/hardening/hdn-prompt-session.c linux
 +	const char *config_path = HDN_PROMPT_SESSION_CONFIG;
 +	const char *action = NULL;
 +	char *metadata = NULL;
++	bool dry_run = false;
 +	int ret;
 +	int i;
 +
@@ -32869,6 +32987,8 @@ diff -ruN --exclude .git linux-7.0.12/tools/hardening/hdn-prompt-session.c linux
 +				return 2;
 +			}
 +			config_path = argv[i];
++		} else if (!strcmp(argv[i], "--dry-run")) {
++			dry_run = true;
 +		} else if (!strcmp(argv[i], "-h") ||
 +			   !strcmp(argv[i], "--help")) {
 +			usage(argv[0]);
@@ -32899,15 +33019,17 @@ diff -ruN --exclude .git linux-7.0.12/tools/hardening/hdn-prompt-session.c linux
 +	if (ret)
 +		goto out;
 +
-+	ret = run_auth_helper(&config, action, metadata);
-+	if (ret) {
-+		fprintf(stderr,
-+			"hdn-prompt-session: prompt authentication denied: %s\n",
-+			action);
-+		goto out;
++	if (!dry_run) {
++		ret = run_auth_helper(&config, action, metadata);
++		if (ret) {
++			fprintf(stderr,
++				"hdn-prompt-session: prompt authentication denied: %s\n",
++				action);
++			goto out;
++		}
 +	}
 +
-+	ret = run_dispatch_helper(config.dispatch_helper, action);
++	ret = run_dispatch_helper(config.dispatch_helper, action, dry_run);
 +	if (ret)
 +		fprintf(stderr,
 +			"hdn-prompt-session: prompt dispatch failed for %s\n",
@@ -38064,8 +38186,8 @@ diff -ruN --exclude .git linux-7.0.12/tools/testing/selftests/hardening/hdn_elfn
 +}
 diff -ruN --exclude .git linux-7.0.12/tools/testing/selftests/hardening/hdn_smoke.c linux-7.0.12-hdn/tools/testing/selftests/hardening/hdn_smoke.c
 --- linux-7.0.12/tools/testing/selftests/hardening/hdn_smoke.c	1969-12-31 18:00:00.000000000 -0600
-+++ linux-7.0.12-hdn/tools/testing/selftests/hardening/hdn_smoke.c	2026-06-27 03:13:48.493534698 -0500
-@@ -0,0 +1,27722 @@
++++ linux-7.0.12-hdn/tools/testing/selftests/hardening/hdn_smoke.c	2026-06-27 03:23:08.781489295 -0500
+@@ -0,0 +1,27815 @@
 +// SPDX-License-Identifier: GPL-2.0-only
 +
 +#define _GNU_SOURCE
@@ -53888,6 +54010,35 @@ diff -ruN --exclude .git linux-7.0.12/tools/testing/selftests/hardening/hdn_smok
 +	int ret;
 +	int fd;
 +
++	count = product_rofs_sentinel_update_count();
++	ret = product_rofs_desktop_daemon_stdio_run("dry-run updates.install");
++	if (ret == KSFT_SKIP)
++		return ret;
++	if (ret) {
++		fprintf(stderr, "desktop daemon dry-run exited with %d\n", ret);
++		return ret;
++	}
++	if (product_rofs_sentinel_update_count() != count) {
++		fprintf(stderr, "desktop daemon dry-run changed sentinel\n");
++		return 1;
++	}
++	errno = 0;
++	fd = open(HDN_PRODUCT_ROFS_SENTINEL,
++		  O_WRONLY | O_APPEND | O_CLOEXEC);
++	saved_errno = errno;
++	if (fd >= 0) {
++		fprintf(stderr,
++			"desktop daemon dry-run left product mount writable\n");
++		close(fd);
++		return 1;
++	}
++	if (saved_errno != EROFS) {
++		fprintf(stderr,
++			"post-desktop-daemon-dry-run write-open failed with %s\n",
++			strerror(saved_errno));
++		return 2;
++	}
++
 +	ret = product_rofs_desktop_daemon_stdio_run("updates.install");
 +	if (ret == KSFT_SKIP)
 +		return ret;
@@ -53922,7 +54073,7 @@ diff -ruN --exclude .git linux-7.0.12/tools/testing/selftests/hardening/hdn_smok
 +	return saved_errno == EROFS ? 0 : 2;
 +}
 +
-+static int product_rofs_control_center_run(const char *action)
++static int product_rofs_control_center_run(const char *action, bool dry_run)
 +{
 +	pid_t child;
 +
@@ -53938,8 +54089,12 @@ diff -ruN --exclude .git linux-7.0.12/tools/testing/selftests/hardening/hdn_smok
 +		return 2;
 +
 +	if (!child) {
-+		execl(HDN_CONTROL_CENTER_EXEC, "hdn-control-center",
-+		      "action", action, NULL);
++		if (dry_run)
++			execl(HDN_CONTROL_CENTER_EXEC, "hdn-control-center",
++			      "--dry-run", "action", action, NULL);
++		else
++			execl(HDN_CONTROL_CENTER_EXEC, "hdn-control-center",
++			      "action", action, NULL);
 +		fprintf(stderr, "control center exec failed: %s\n",
 +			strerror(errno));
 +		_exit(2);
@@ -53957,7 +54112,7 @@ diff -ruN --exclude .git linux-7.0.12/tools/testing/selftests/hardening/hdn_smok
 +	int ret;
 +	int fd;
 +
-+	ret = product_rofs_control_center_run(action);
++	ret = product_rofs_control_center_run(action, false);
 +	if (ret == KSFT_SKIP)
 +		return ret;
 +	if (!ret) {
@@ -54058,7 +54213,37 @@ diff -ruN --exclude .git linux-7.0.12/tools/testing/selftests/hardening/hdn_smok
 +	int ret;
 +	int fd;
 +
-+	ret = product_rofs_control_center_run("updates.install");
++	count = product_rofs_sentinel_update_count();
++	ret = product_rofs_control_center_run("updates.install", true);
++	if (ret == KSFT_SKIP)
++		return ret;
++	if (ret) {
++		fprintf(stderr, "control center dry-run exited with %d\n",
++			ret);
++		return ret;
++	}
++	if (product_rofs_sentinel_update_count() != count) {
++		fprintf(stderr, "control center dry-run changed sentinel\n");
++		return 1;
++	}
++	errno = 0;
++	fd = open(HDN_PRODUCT_ROFS_SENTINEL,
++		  O_WRONLY | O_APPEND | O_CLOEXEC);
++	saved_errno = errno;
++	if (fd >= 0) {
++		fprintf(stderr,
++			"control center dry-run left product mount writable\n");
++		close(fd);
++		return 1;
++	}
++	if (saved_errno != EROFS) {
++		fprintf(stderr,
++			"post-control-center-dry-run write-open failed with %s\n",
++			strerror(saved_errno));
++		return 2;
++	}
++
++	ret = product_rofs_control_center_run("updates.install", false);
 +	if (ret == KSFT_SKIP)
 +		return ret;
 +	if (ret) {
@@ -54098,6 +54283,36 @@ diff -ruN --exclude .git linux-7.0.12/tools/testing/selftests/hardening/hdn_smok
 +	unsigned int count;
 +	int ret;
 +	int fd;
++
++	count = product_rofs_sentinel_update_count();
++	ret = control_center_stdio_run("dry-run action updates.install");
++	if (ret == KSFT_SKIP)
++		return ret;
++	if (ret) {
++		fprintf(stderr, "control center stdio dry-run exited with %d\n",
++			ret);
++		return ret;
++	}
++	if (product_rofs_sentinel_update_count() != count) {
++		fprintf(stderr, "control center stdio dry-run changed sentinel\n");
++		return 1;
++	}
++	errno = 0;
++	fd = open(HDN_PRODUCT_ROFS_SENTINEL,
++		  O_WRONLY | O_APPEND | O_CLOEXEC);
++	saved_errno = errno;
++	if (fd >= 0) {
++		fprintf(stderr,
++			"control center stdio dry-run left product mount writable\n");
++		close(fd);
++		return 1;
++	}
++	if (saved_errno != EROFS) {
++		fprintf(stderr,
++			"post-control-center-stdio-dry-run write-open failed with %s\n",
++			strerror(saved_errno));
++		return 2;
++	}
 +
 +	ret = control_center_stdio_run("action updates.install");
 +	if (ret == KSFT_SKIP)

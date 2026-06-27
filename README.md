@@ -96,16 +96,19 @@ support tools and developer-mode UI a root-owned named workflow for policy
 learning, candidate policy generation, unsigned binary policy compilation, and
 brokered signed policy commit above `hdn-policy-learn`, `hdn-policy-merge`,
 the policy compiler, and `hdn-admin-broker`, while `hdn-policy-daemon` gives
-product UI an allowlisted root-side facade above those workflows. Commit
-preflight now routes through the same `hdn-control-center --dry-run policy
-commit WORKFLOW` and `hdn-policy-daemon --dry-run commit WORKFLOW` path so UI
-code can validate the approved broker route without installing a policy; the
-control-center stdio protocol accepts `status`, `action DESKTOP_ACTION`,
+product UI an allowlisted root-side facade above those workflows. Action and
+commit preflight now route through the same
+`hdn-control-center --dry-run action DESKTOP_ACTION`,
+`hdn-control-center --dry-run policy commit WORKFLOW`, and
+`hdn-policy-daemon --dry-run commit WORKFLOW` paths so UI code can validate the
+approved broker route without showing auth UI, changing protected mounts, or
+installing a policy; the control-center stdio protocol accepts `status`,
+`action DESKTOP_ACTION`, `dry-run action DESKTOP_ACTION`,
 `policy COMMAND WORKFLOW`, and `dry-run policy commit WORKFLOW`, while the
 daemon stdio protocol also accepts `dry-run commit WORKFLOW` below it. The
-QEMU smoke path now proves `action updates.install` through both one-shot and
-stdio control-center routes, and proves unknown stdio UI actions fail closed
-without changing the protected mount state.
+QEMU smoke path now proves real and dry-run `updates.install` through both
+one-shot and stdio control-center routes, and proves unknown stdio UI actions
+fail closed without changing the protected mount state.
 Package and image update preflight now uses the same `--dry-run` contract
 through `hdn-image-seal`, `hdn-system-transaction`, and `hdn-package-hook`;
 QEMU proves those approved routes validate without changing the protected
@@ -159,9 +162,9 @@ Patch artifact at this checkpoint:
 
 ```text
 patch: patches/hdn-linux-7.0.12.patch
-lines: 67,610
-bytes: 2,013,292
-sha256: 1b31153f7105f15ed4332d80434cd2f2785273ef51ef3c55bbcb689f1f7a3251
+lines: 67,825
+bytes: 2,019,753
+sha256: 2bbf520b9dcfa5e720b86825be04c42ced865fa951268e8264361b9d6470f05e
 ```
 
 ## Development Rule

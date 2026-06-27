@@ -822,24 +822,30 @@ read-only.
 `hdn-desktop-action`. It can run one approved verb or stay attached to a
 supervised frontend through stdio; its root-owned daemon config allowlists UI
 verbs before any dispatch. QEMU proves unknown UI verbs and unsafe daemon
-configs fail closed, and proves an approved stdio `updates.install` action
-reaches desktop-action, authenticates, updates the sealed product mount, and
-reseals it read-only.
+configs fail closed, proves one-shot `--dry-run ACTION` and stdio
+`dry-run ACTION` validate the approved desktop-action route without prompting
+or changing the sealed mount, and proves an approved stdio `updates.install`
+action reaches desktop-action, authenticates, updates the sealed product mount,
+and reseals it read-only.
 `hdn-control-center` is the product-facing command surface above status,
 desktop actions, and policy workflows. Settings panels and shells call
 `hdn-control-center status` for product health,
 `hdn-control-center action DESKTOP_ACTION` for an allowlisted UI verb, or
 `hdn-control-center policy COMMAND WORKFLOW` for policy learning, candidate
 generation, compile, brokered commit, and `--dry-run policy commit WORKFLOW`
-preflight. Its `--stdio` mode accepts `status`, `action DESKTOP_ACTION`,
-`policy COMMAND WORKFLOW`, and `dry-run policy commit WORKFLOW` for supervised
-settings-panel backends; the helper validates absolute backend paths and safe
-action or workflow names and never invokes a shell. QEMU proves one-shot and
-stdio status routing, one-shot and stdio unknown UI action denial, approved
-one-shot and stdio `updates.install` actions reaching the desktop daemon while
-preserving the read-only reseal invariant, stdio rejection of non-commit policy
-dry-runs, and an approved compiled policy workflow plus one-shot and stdio
-commit preflight reaching the policy daemon.
+preflight; `--dry-run action DESKTOP_ACTION` gives settings panels the same
+approved action-route preflight without auth UI or mount mutation. Its
+`--stdio` mode accepts `status`, `action DESKTOP_ACTION`,
+`dry-run action DESKTOP_ACTION`, `policy COMMAND WORKFLOW`, and
+`dry-run policy commit WORKFLOW` for supervised settings-panel backends; the
+helper validates absolute backend paths and safe action or workflow names and
+never invokes a shell. QEMU proves one-shot and stdio status routing, one-shot
+and stdio unknown UI action denial, approved one-shot and stdio
+`updates.install` action dry-runs leaving the sealed mount unchanged before the
+real actions reach the desktop daemon and preserve the read-only reseal
+invariant, stdio rejection of non-commit policy dry-runs, and an approved
+compiled policy workflow plus one-shot and stdio commit preflight reaching the
+policy daemon.
 `hdn-image-seal` is the installer/first-boot/image-updater facade for sealing
 the base image. Product config maps stable seal names to ordered brokered
 steps such as signed policy commit and read-only mount-list application, so
@@ -1798,7 +1804,9 @@ Core oracle groups:
   fields for an approved action without dispatching privileged work
 - the prompt session helper rejects unknown prompt actions, rejects unsafe
   session configs, rejects failed authentication before dispatch, and runs an
-  approved prompt action only after metadata handoff and authenticator success
+  approved prompt action only after metadata handoff and authenticator success;
+  dry-run validates metadata and the broker dispatch route while skipping auth
+  UI and leaving the sealed mount unchanged
 - the prompt portal helper rejects unknown desktop actions, rejects unsafe
   portal configs, and maps an approved desktop action to prompt-session without
   exposing token, broker, or helper command lines
@@ -1806,13 +1814,15 @@ Core oracle groups:
   and maps an approved UI verb to prompt-portal without exposing lower helper
   paths
 - the desktop-daemon helper rejects unknown UI verbs, rejects unsafe configs,
-  and runs an approved stdio UI action through desktop-action
+  dry-runs approved one-shot and stdio UI actions without prompting or changing
+  the sealed mount, and runs an approved stdio UI action through desktop-action
 - the control-center helper reports product status through hdn-status, rejects
   unknown UI actions, runs an approved UI action through hdn-desktop-daemon,
   reports product status through stdio, rejects unknown UI actions through
-  stdio, runs an approved UI action through stdio, rejects non-commit policy
-  dry-runs through stdio, and runs an approved policy workflow plus
-  signed-commit preflight through hdn-policy-daemon
+  stdio, dry-runs approved one-shot and stdio UI actions without prompting or
+  changing the sealed mount, runs an approved UI action through stdio, rejects
+  non-commit policy dry-runs through stdio, and runs an approved policy
+  workflow plus signed-commit preflight through hdn-policy-daemon
 - the image seal helper rejects unknown seal names, rejects unsafe image seal
   configs, dry-runs an approved brokered read-only mount list without changing
   mount state, and applies that list while leaving the sealed mount read-only
