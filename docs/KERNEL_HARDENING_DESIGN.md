@@ -534,14 +534,18 @@ copies a base text policy, consumes only reviewed `allow` and `mem`
 suggestions for profiles already defined in that base, de-duplicates existing
 grants, and appends a marked candidate block for later compile/sign/commit.
 `tools/hardening/hdn-policy-workflow` puts a root-owned named contract above
-those helpers and the policy compiler so settings panels, support tools, and
-developer-mode policy UI can run `learn NAME`, `candidate NAME`, and
-`compile NAME` without receiving raw event-log, base-policy, fragment,
-candidate output, or binary policy output paths.
+those helpers, the policy compiler, and the admin broker so settings panels,
+support tools, and developer-mode policy UI can run `learn NAME`,
+`candidate NAME`, `compile NAME`, and `commit NAME` without receiving raw
+event-log, base-policy, fragment, candidate output, binary policy output, or
+signed policy paths. The compile step writes an unsigned payload; signing
+remains a product policy step; commit delegates a configured signed policy path
+to `hdn-admin-broker policy-commit`.
 `tools/hardening/hdn-policy-daemon` is the product-facing root-side facade
 above policy-workflow. It allowlists workflow names from a root-owned config,
 supports one-shot or stdio operation, and lets `hdn-control-center policy`
-route settings-panel policy review actions without exposing helper paths.
+route settings-panel policy review and signed commit actions without exposing
+helper paths.
 
 ## Memory Execution Policy
 
@@ -825,11 +829,11 @@ desktop actions, and policy workflows. Settings panels and shells call
 `hdn-control-center status` for product health,
 `hdn-control-center action DESKTOP_ACTION` for an allowlisted UI verb, or
 `hdn-control-center policy COMMAND WORKFLOW` for policy learning, candidate
-generation, and compile; the helper validates absolute backend paths and safe
-action or workflow names and never invokes a shell. QEMU proves status routing,
-unknown UI action denial, an approved `updates.install` action reaching the
-desktop daemon while preserving the read-only reseal invariant, and an approved
-compiled policy workflow reaching the policy daemon.
+generation, compile, and brokered commit; the helper validates absolute
+backend paths and safe action or workflow names and never invokes a shell. QEMU
+proves status routing, unknown UI action denial, an approved `updates.install`
+action reaching the desktop daemon while preserving the read-only reseal
+invariant, and an approved compiled policy workflow reaching the policy daemon.
 `hdn-image-seal` is the installer/first-boot/image-updater facade for sealing
 the base image. Product config maps stable seal names to ordered brokered
 steps such as signed policy commit and read-only mount-list application, so
@@ -1982,7 +1986,7 @@ Core oracle groups:
 - Build userspace policy-learning output from stable event records.
 - Build userspace policy-merge output from reviewed learner suggestions.
 - Build a named policy workflow facade and policy daemon above learning, merge,
-  and compile helpers.
+  compile, and brokered signed commit helpers.
 - Build userspace status output from stable status records.
 - Build a product ROFS apply helper for post-boot read-only mount sealing.
 - Build a product ROFS transaction helper for package/update/recovery writes

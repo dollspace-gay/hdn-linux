@@ -25,11 +25,13 @@ call sites, tests, and implementation structure.
 | Runtime audit | Partial | HDN emits stable event records through securityfs, `hdn-event-decode` maps raw event records to stable UAPI names for UI/log consumers, including common packed object detail names for exec arguments, signals, resources, time changes, USB, coredumps, and sockets, `hdn-status` maps raw status to product-facing policy/mitigation/audit-flood state and decodes audit-flood last action/authority/transition/reason IDs, `hdn-policy-learn` turns denied events into de-duplicated reviewable `allow`/`mem` policy suggestions while keeping W+X invariant denials review-only, `hdn-policy-merge` turns reviewed suggestions into candidate policy while refusing unknown profiles, suppresses repeated identical audit floods after a runtime-tunable burst/window, records exec plus privacy-preserving `EXEC_ARGS` argv/env-count telemetry, successful and failed fork attempts, profile-scoped process-accounting exits, privileged-descendant `SIGXCPU`/`SIGXFSZ` coredump denials, ptrace attach/seize attempts that pass the HDN profile gate, severe fault-style signals, cross-profile signal policy denials, chdir, mount administration, time-change, resource-limit writes including resource families without separate Linux pressure hooks such as `RLIMIT_RSS`, denied RWX mmap/mprotect attempts, executable-stack ELF denials and compatibility grants, textrel-style mprotect denials and compatibility grants, and selected resource-pressure allow-audit events (`NOFILE`, `FSIZE`, `CORE`, `NPROC`, `AS`, `DATA`, `STACK`, `MEMLOCK`, `MSGQUEUE`, `SIGPENDING`, `CPU`, `RTTIME`, `NICE`, `RTPRIO`, `LOCKS`), flags successful exec audit events from chrooted tasks with `HDN_EVENT_CHROOTED`, records operation-specific chroot denial reasons, records time-change, resource-limit, raw block-device access, and block-device admin policy denials, attributes socket client/server denials to endpoint object IDs, and exposes owner-readable proc IP attribution for accepted IPv4 TCP peers with one-time child handoff, local TCP carry, and AF_UNIX stream carry. QEMU proves the decoder can find a W+X denial by decoded `USER_WX_MAPPING` reason and `DENY_AUDIT` action, denied RWX-map audit by decoded `RWXMAP_DENIED` reason, executable-stack ELF denial by decoded `EXEC_STACK_ELF` reason and `DENY_AUDIT` action, textrel mprotect denial by decoded `TEXTREL_MPROTECT` reason and `DENY_AUDIT` action, a successful exec-argument count event, a failed fork audit event by decoded `FORK_FAILED` reason, a ptrace attach audit event by decoded `PTRACE` authority/transition and `ALLOW_AUDIT` action, a severe signal audit event by decoded `SIGNAL` transition, packed object detail decoding for exec arguments, signals, resource IDs and pressure values, time changes, USB bus/port context, socket create/endpoint context, and coredump signals, live status-helper reporting, compatibility-family status composition, and decoded audit-flood status names for `DENY_AUDIT`, `USB_MONITOR`, and `RESOURCE_PROFILE_LIMIT`, process-account policy recording a child exit event, privileged-descendant `SIGXFSZ` coredump suppression, restricted signal denial by `SIGNAL` authority, RSS resource-limit write audit, policy learner output for denied authorities, memory compatibility flags, and W+X review-only handling, and policy merge output that compiles while rejecting unknown profile suggestions. It does not yet match grsecurity's full log taxonomy. |
 
 `hdn-policy-workflow` now adds a root-owned named facade above policy learning,
-merge, and compile, and `hdn-policy-daemon` adds a product-facing allowlisted
-daemon facade above those workflows. QEMU proves unknown workflow denial,
-unsafe workflow and daemon config denial, an approved workflow that generates a
-learner fragment, merges a candidate, compiles the resulting policy through the
-named workflow, and runs the same compiled policy flow through
+merge, compile, and brokered signed commit, and `hdn-policy-daemon` adds a
+product-facing allowlisted daemon facade above those workflows. QEMU proves
+unknown workflow denial, unsafe workflow and daemon config denial, commit
+rejection when a workflow has no signed policy input, an approved workflow that
+generates a learner fragment, merges a candidate, compiles the resulting
+unsigned policy through the named workflow, dry-runs brokered commit of an
+approved signed policy path, and runs the same compiled policy flow through
 `hdn-control-center policy`.
 
 ## Module, Firmware, And Kernel-Interface Admission
@@ -171,8 +173,8 @@ symlink target-owner mismatch denial,
 decoded audit presentation for UI/log consumers, reviewable policy-learning
 suggestions from denied events, candidate policy merging from reviewed
 suggestions, a named policy workflow facade plus policy daemon above learning,
-merge, and compile, sealed-HDN-data write-fault reporting, and kernel/module
-W^X baseline.
+merge, compile, and brokered signed commit, sealed-HDN-data write-fault
+reporting, and kernel/module W^X baseline.
 
 The biggest remaining equivalence gaps are not in the already-tested policy
 loader. They are in richer object policy semantics beyond the current read/write/delete/create/creat/mkdir/mknod/symlink/unlink/rmdir/exec/link/link-target/attr/chmod/chown/utime/setid/xattr/setxattr/removexattr/access/stat/list/find/ioctl/lock/watch/receive/fcntl/chdir/mount/mount-source/umount/truncate/rename/rename-target/unix-connect/unix-bind/unix-listen/unix-accept/unix-send/unix-recv denial plus append-only, recursive operation, recursive target-operation, recursive split-operation, and tree slice, broader top-level proc compatibility shims if

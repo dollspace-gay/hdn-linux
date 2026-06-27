@@ -93,10 +93,10 @@ families.
 product-facing status/action/policy entry point above `hdn-status`,
 `hdn-desktop-daemon`, and `hdn-policy-daemon`. `hdn-policy-workflow` now gives
 support tools and developer-mode UI a root-owned named workflow for policy
-learning, candidate policy generation, and binary policy compilation above
-`hdn-policy-learn`, `hdn-policy-merge`, and the policy compiler, while
-`hdn-policy-daemon` gives product UI an allowlisted root-side facade above
-those workflows.
+learning, candidate policy generation, unsigned binary policy compilation, and
+brokered signed policy commit above `hdn-policy-learn`, `hdn-policy-merge`,
+the policy compiler, and `hdn-admin-broker`, while `hdn-policy-daemon` gives
+product UI an allowlisted root-side facade above those workflows.
 Other-user proc task visibility now has grouped proc mount compatibility plus
 an HDN-native global task-view group for proc, pidfd, and proc task-directory
 mode visibility.
@@ -139,16 +139,16 @@ The hardening smoke suite in the development tree is run under QEMU. Latest
 local result before this publication checkpoint:
 
 ```text
-QEMU hardening smoke: 964/964 pass
+QEMU hardening smoke: 965/965 pass
 ```
 
 Patch artifact at this checkpoint:
 
 ```text
 patch: patches/hdn-linux-7.0.12.patch
-lines: 66,689
-bytes: 1,981,991
-sha256: 75080dff50bbe6664cc1d3f190b95b767fb4e5b07b462bb91124ae584ccbd7bf
+lines: 66,821
+bytes: 1,987,202
+sha256: 639bf4263935687ad0ff86c7b6b4f3a07f90ee703ee57f7675404aa742c503ce
 ```
 
 ## Development Rule
