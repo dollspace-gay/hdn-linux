@@ -199,6 +199,10 @@ broader `AUTH_PROC_TASK_VIEW` or `AUTH_PROC_DISCLOSE` authorities.
 Product images can also set `SECURITY_HARDENING_PROC_TASK_GID` or boot with
 `hdn.proc_task_gid=<gid>` to give one global group the same task-view and
 pidfd-open visibility without broader proc disclosure.
+`SECURITY_HARDENING_PROC_TASK_MODES` uses that configured group to publish
+public proc task directories as owner-and-task-view-group traversable instead
+of world-traversable, so cached inode metadata and fresh `stat(2)` results
+match the task-visibility policy.
 
 Proc memory-map redaction is a build-time mitigation with a policy bypass, not
 a prompt. With `SECURITY_HARDENING_PROC_MEMMAP`, reads of another address
@@ -1701,6 +1705,9 @@ Core oracle groups:
 - sibling or unrelated `pidfd_open` task-handle creation for other-user tasks
   is denied without `PROC_TASK_VIEW`, `PROC_DISCLOSE`, or the configured
   proc task-view group, while direct-child pidfd supervision remains usable
+- public `/proc/<pid>`, `/proc/<pid>/task`, and `/proc/<pid>/task/<tid>`
+  directories are owner-and-configured-task-view-group traversable instead of
+  world-traversable when the global proc task-view group is configured
 - `PIDFD_GET_INFO` metadata reads on inherited or IPC-received pidfds are
   denied for sibling or unrelated other-user tasks without `PROC_TASK_VIEW`
   or `PROC_DISCLOSE`, unless the caller is in the configured proc task-view

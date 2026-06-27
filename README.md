@@ -89,8 +89,9 @@ product-facing status/action entry point above `hdn-status` and
 tools, and developer-mode UI a root-owned named workflow for policy learning
 and candidate policy generation above `hdn-policy-learn` and
 `hdn-policy-merge`.
-Other-user proc task visibility now has both grouped proc mount compatibility
-and an HDN-native global task-view group for proc and pidfd visibility.
+Other-user proc task visibility now has grouped proc mount compatibility plus
+an HDN-native global task-view group for proc, pidfd, and proc task-directory
+mode visibility.
 Sensitive sysfs kernel metadata such as `/sys/kernel/vmcoreinfo`,
 `/sys/kernel/notes`, and `/sys/kernel/boot_params/data` now requires the
 sysfs-read authority and is hidden from restricted directory enumeration, while
@@ -126,16 +127,16 @@ The hardening smoke suite in the development tree is run under QEMU. Latest
 local result before this publication checkpoint:
 
 ```text
-QEMU hardening smoke: 947/947 pass
+QEMU hardening smoke: 949/949 pass
 ```
 
 Patch artifact at this checkpoint:
 
 ```text
 patch: patches/hdn-linux-7.0.12.patch
-lines: 65,061
-bytes: 1,954,415
-sha256: 48e8c1c3f060a62703ec860187ea9c31996d5cf70a3aadd107732843641c80b6
+lines: 65,240
+bytes: 1,959,194
+sha256: 928e72fdcc0d962d60791f7696978ba9dff534647ed4698e19089c4201fa74d3
 ```
 
 ## Development Rule
