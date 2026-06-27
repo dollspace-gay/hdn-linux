@@ -35810,8 +35810,8 @@ diff -ruN --exclude .git linux-7.0.12/tools/testing/selftests/hardening/hdn_elfn
 +}
 diff -ruN --exclude .git linux-7.0.12/tools/testing/selftests/hardening/hdn_smoke.c linux-7.0.12-hdn/tools/testing/selftests/hardening/hdn_smoke.c
 --- linux-7.0.12/tools/testing/selftests/hardening/hdn_smoke.c	1969-12-31 18:00:00.000000000 -0600
-+++ linux-7.0.12-hdn/tools/testing/selftests/hardening/hdn_smoke.c	2026-06-26 21:10:51.279515565 -0500
-@@ -0,0 +1,25414 @@
++++ linux-7.0.12-hdn/tools/testing/selftests/hardening/hdn_smoke.c	2026-06-26 21:19:10.627470587 -0500
+@@ -0,0 +1,25480 @@
 +// SPDX-License-Identifier: GPL-2.0-only
 +
 +#define _GNU_SOURCE
@@ -36338,6 +36338,16 @@ diff -ruN --exclude .git linux-7.0.12/tools/testing/selftests/hardening/hdn_smok
 +	HDN_OBJECT_CREATE_UNPROTECTED_DIR "/tree-rename-source-denied"
 +#define HDN_OBJECT_TREE_OPS_UNIX_CONNECT \
 +	HDN_OBJECT_TREE_OPS_NESTED "/unix-connect-sock"
++#define HDN_OBJECT_TREE_RECEIVE \
++	"/hdn-object-tree-receive/nested/receive-target"
++#define HDN_OBJECT_TREE_MOUNT_TARGET \
++	"/hdn-object-tree-mount/nested/mount-target"
++#define HDN_OBJECT_TREE_MOVE_MOUNT_TARGET \
++	"/hdn-object-tree-mount/nested/move-target"
++#define HDN_OBJECT_TREE_MOVE_MOUNT_SOURCE \
++	"/hdn-object-tree-move-mount-source"
++#define HDN_OBJECT_TREE_UMOUNT_TARGET \
++	"/hdn-object-tree-umount/nested/umount-target"
 +#define HDN_OBJECT_TREE_META_DIR "/hdn-object-tree-meta"
 +#define HDN_OBJECT_TREE_META_NESTED HDN_OBJECT_TREE_META_DIR "/nested"
 +#define HDN_OBJECT_TREE_META_CHMOD \
@@ -45886,6 +45896,11 @@ diff -ruN --exclude .git linux-7.0.12/tools/testing/selftests/hardening/hdn_smok
 +	return object_receive_fd_result(HDN_OBJECT_RECEIVE_UNPROTECTED, true);
 +}
 +
++static int object_tree_receive_denied(void)
++{
++	return object_receive_fd_result(HDN_OBJECT_TREE_RECEIVE, false);
++}
++
 +static int object_fcntl_dup_result(const char *path, bool expect_allowed)
 +{
 +	int saved_errno = 0;
@@ -46509,6 +46524,22 @@ diff -ruN --exclude .git linux-7.0.12/tools/testing/selftests/hardening/hdn_smok
 +	return 0;
 +}
 +
++static void cleanup_object_tree_umount_fixture(void)
++{
++	umount(HDN_OBJECT_TREE_UMOUNT_TARGET);
++}
++
++static int setup_object_tree_umount_fixture(void)
++{
++	cleanup_object_tree_umount_fixture();
++
++	if (mount("none", HDN_OBJECT_TREE_UMOUNT_TARGET, "tmpfs", 0,
++		  "size=4k"))
++		return -errno;
++
++	return 0;
++}
++
 +static int object_umount_path(const char *path, bool expect_denied)
 +{
 +	int saved_errno;
@@ -46533,6 +46564,22 @@ diff -ruN --exclude .git linux-7.0.12/tools/testing/selftests/hardening/hdn_smok
 +static int object_umount_unmatched_allowed(void)
 +{
 +	return object_umount_path(HDN_OBJECT_UMOUNT_UNPROTECTED_DIR, false);
++}
++
++static int object_tree_mount_denied(void)
++{
++	return object_mount_path(HDN_OBJECT_TREE_MOUNT_TARGET, true);
++}
++
++static int object_tree_move_mount_denied(void)
++{
++	return object_move_mount_path(HDN_OBJECT_TREE_MOVE_MOUNT_SOURCE,
++				      HDN_OBJECT_TREE_MOVE_MOUNT_TARGET, true);
++}
++
++static int object_tree_umount_denied(void)
++{
++	return object_umount_path(HDN_OBJECT_TREE_UMOUNT_TARGET, true);
 +}
 +
 +static int pidfd_info_received_result(bool expect_allowed)
@@ -55157,6 +55204,10 @@ diff -ruN --exclude .git linux-7.0.12/tools/testing/selftests/hardening/hdn_smok
 +				ksft_test_result_skip("object tree ops policy denies preopened nested ftruncate\n");
 +				ksft_test_result_skip("object tree ops policy denies nested source rename\n");
 +				ksft_test_result_skip("object tree ops policy denies nested socket connect\n");
++				ksft_test_result_skip("object tree receive policy denies nested fd receive\n");
++				ksft_test_result_skip("object tree mount policy denies nested mount target\n");
++				ksft_test_result_skip("object tree mount policy denies nested move_mount target\n");
++				ksft_test_result_skip("object tree umount policy denies mounted tree root\n");
 +				ksft_test_result_skip("object tree metadata policy denies nested chmod\n");
 +				ksft_test_result_skip("object tree metadata policy denies nested chown\n");
 +				ksft_test_result_skip("object tree metadata policy denies nested timestamp change\n");
@@ -57793,6 +57844,8 @@ diff -ruN --exclude .git linux-7.0.12/tools/testing/selftests/hardening/hdn_smok
 +	if (!ret)
 +		ret = setup_object_umount_fixtures();
 +	if (!ret)
++		ret = setup_object_tree_umount_fixture();
++	if (!ret)
 +		ret = setup_object_unix_connect_fixtures(
 +			&object_unix_connect_protected_fd,
 +			&object_unix_connect_unprotected_fd);
@@ -57893,7 +57946,7 @@ diff -ruN --exclude .git linux-7.0.12/tools/testing/selftests/hardening/hdn_smok
 +		ksft_test_result(object_policy_committed,
 +				 "object-write hardening policy commits\n");
 +		ksft_test_result(object_policy_committed &&
-+							 securityfs_status_has_line("object_rule_count: 90"),
++							 securityfs_status_has_line("object_rule_count: 93"),
 +						 "object-write policy reports object rule count\n");
 +	report_child_result(object_policy_committed ?
 +			    object_protected_write_denied() : 2,
@@ -58630,6 +58683,18 @@ diff -ruN --exclude .git linux-7.0.12/tools/testing/selftests/hardening/hdn_smok
 +			    object_tree_unix_connect_denied() : 2,
 +			    "object tree ops policy denies nested socket connect");
 +	report_child_result(object_policy_committed ?
++			    object_tree_receive_denied() : 2,
++			    "object tree receive policy denies nested fd receive");
++	report_child_result(object_policy_committed ?
++			    object_tree_mount_denied() : 2,
++			    "object tree mount policy denies nested mount target");
++	report_child_result(object_policy_committed ?
++			    object_tree_move_mount_denied() : 2,
++			    "object tree mount policy denies nested move_mount target");
++	report_child_result(object_policy_committed ?
++			    object_tree_umount_denied() : 2,
++			    "object tree umount policy denies mounted tree root");
++	report_child_result(object_policy_committed ?
 +			    object_tree_chmod_denied() : 2,
 +			    "object tree metadata policy denies nested chmod");
 +	report_child_result(object_policy_committed ?
@@ -58908,6 +58973,7 @@ diff -ruN --exclude .git linux-7.0.12/tools/testing/selftests/hardening/hdn_smok
 +		rmdir(HDN_OBJECT_UNIX_BIND_PROTECTED_DIR);
 +		rmdir(HDN_OBJECT_UNIX_BIND_UNPROTECTED_DIR);
 +		cleanup_object_umount_fixtures();
++		cleanup_object_tree_umount_fixture();
 +		cleanup_object_fileattr_fs();
 +
 +	ret = write_signed_policy_path(HDN_SOCKET_POLICY);
@@ -60841,7 +60907,7 @@ diff -ruN --exclude .git linux-7.0.12/tools/testing/selftests/hardening/hdn_smok
 +	if (access(HDN_STATUS, R_OK))
 +		ksft_exit_skip("hardening securityfs status not present\n");
 +
-+	ksft_set_plan(882);
++	ksft_set_plan(886);
 +	test_securityfs_status();
 +	test_symbol_test_module_load();
 +	test_securityfs_status_contains("abi_version: 81",
@@ -61408,8 +61474,8 @@ diff -ruN --exclude .git linux-7.0.12/tools/testing/selftests/hardening/namespac
 +allow 2 POLICY_ADMIN CRED_CHANGE PTRACE NAMESPACE_ADMIN PROC_TASK_VIEW
 diff -ruN --exclude .git linux-7.0.12/tools/testing/selftests/hardening/object-write.policy linux-7.0.12-hdn/tools/testing/selftests/hardening/object-write.policy
 --- linux-7.0.12/tools/testing/selftests/hardening/object-write.policy	1969-12-31 18:00:00.000000000 -0600
-+++ linux-7.0.12-hdn/tools/testing/selftests/hardening/object-write.policy	2026-06-26 21:08:22.691720788 -0500
-@@ -0,0 +1,106 @@
++++ linux-7.0.12-hdn/tools/testing/selftests/hardening/object-write.policy	2026-06-26 21:15:42.903486130 -0500
+@@ -0,0 +1,109 @@
 +# Root-profile policy used by the QEMU smoke test to prove object
 +# read/write/delete/create/creat/mkdir/mknod/symlink/unlink/rmdir/exec/link/attr/chmod/chown/utime/xattr/setxattr/removexattr/access/stat/list/find/ioctl/lock/watch/receive/fcntl/chdir/mount/umount/truncate/rename/unix-connect/unix-bind/unix-listen/unix-accept/unix-send/unix-recv denial,
 +# recursive tree denial, recursive tree denial for descriptor and IPC
@@ -61504,6 +61570,9 @@ diff -ruN --exclude .git linux-7.0.12/tools/testing/selftests/hardening/object-w
 +object 2 deny-xattr tree /hdn-object-tree-meta
 +object 2 deny-setxattr tree /hdn-object-tree-meta
 +object 2 deny-removexattr tree /hdn-object-tree-meta
++object 2 deny-receive tree /hdn-object-tree-receive
++object 2 deny-mount tree /hdn-object-tree-mount
++object 2 deny-umount tree /hdn-object-tree-umount/nested/umount-target
 +object 2 deny-unix-bind tree /hdn-object-tree-ipc-bind
 +object 2 deny-unix-listen tree /hdn-object-tree-ipc-listen
 +object 2 deny-unix-accept tree /hdn-object-tree-ipc-accept
@@ -61606,8 +61675,8 @@ diff -ruN --exclude .git linux-7.0.12/tools/testing/selftests/hardening/role.pol
 +use-role 2 desktop-admin
 diff -ruN --exclude .git linux-7.0.12/tools/testing/selftests/hardening/run-qemu-smoke.sh linux-7.0.12-hdn/tools/testing/selftests/hardening/run-qemu-smoke.sh
 --- linux-7.0.12/tools/testing/selftests/hardening/run-qemu-smoke.sh	1969-12-31 18:00:00.000000000 -0600
-+++ linux-7.0.12-hdn/tools/testing/selftests/hardening/run-qemu-smoke.sh	2026-06-26 21:08:46.403529974 -0500
-@@ -0,0 +1,1142 @@
++++ linux-7.0.12-hdn/tools/testing/selftests/hardening/run-qemu-smoke.sh	2026-06-26 21:16:03.351485499 -0500
+@@ -0,0 +1,1160 @@
 +#!/bin/sh
 +# SPDX-License-Identifier: GPL-2.0
 +
@@ -61641,7 +61710,7 @@ diff -ruN --exclude .git linux-7.0.12/tools/testing/selftests/hardening/run-qemu
 +QEMU_MEMORY=${QEMU_MEMORY:-1024M}
 +QEMU_SMP=${QEMU_SMP:-2}
 +QEMU_MACHINE=${QEMU_MACHINE:-q35,accel=tcg}
-+HDN_SMOKE_EXPECTED_PASS=${HDN_SMOKE_EXPECTED_PASS:-882}
++HDN_SMOKE_EXPECTED_PASS=${HDN_SMOKE_EXPECTED_PASS:-886}
 +WORK=${HDN_QEMU_WORK:-"${TMPDIR:-/tmp}/hdn-qemu-smoke.$$"}
 +LOG=${HDN_QEMU_LOG:-"$WORK/qemu.log"}
 +QMP=${HDN_QEMU_QMP:-"$WORK/qmp.sock"}
@@ -62550,6 +62619,24 @@ diff -ruN --exclude .git linux-7.0.12/tools/testing/selftests/hardening/run-qemu
 +printf '%s\n' 'protected object tree rename target' \
 +	> "$WORK/initramfs/hdn-object-tree-ops/nested/rename-target"
 +chmod 0644 "$WORK/initramfs/hdn-object-tree-ops/nested/rename-target"
++mkdir -p "$WORK/initramfs/hdn-object-tree-receive/nested"
++chmod 0777 "$WORK/initramfs/hdn-object-tree-receive"
++chmod 0777 "$WORK/initramfs/hdn-object-tree-receive/nested"
++printf '%s\n' 'protected object tree receive target' \
++	> "$WORK/initramfs/hdn-object-tree-receive/nested/receive-target"
++chmod 0644 "$WORK/initramfs/hdn-object-tree-receive/nested/receive-target"
++mkdir -p "$WORK/initramfs/hdn-object-tree-mount/nested/mount-target"
++mkdir -p "$WORK/initramfs/hdn-object-tree-mount/nested/move-target"
++chmod 0777 "$WORK/initramfs/hdn-object-tree-mount"
++chmod 0777 "$WORK/initramfs/hdn-object-tree-mount/nested"
++chmod 0755 "$WORK/initramfs/hdn-object-tree-mount/nested/mount-target"
++chmod 0755 "$WORK/initramfs/hdn-object-tree-mount/nested/move-target"
++mkdir -p "$WORK/initramfs/hdn-object-tree-move-mount-source"
++chmod 0755 "$WORK/initramfs/hdn-object-tree-move-mount-source"
++mkdir -p "$WORK/initramfs/hdn-object-tree-umount/nested/umount-target"
++chmod 0777 "$WORK/initramfs/hdn-object-tree-umount"
++chmod 0777 "$WORK/initramfs/hdn-object-tree-umount/nested"
++chmod 0755 "$WORK/initramfs/hdn-object-tree-umount/nested/umount-target"
 +mkdir -p "$WORK/initramfs/hdn-object-tree-meta/nested"
 +chmod 0777 "$WORK/initramfs/hdn-object-tree-meta"
 +chmod 0777 "$WORK/initramfs/hdn-object-tree-meta/nested"
