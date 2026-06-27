@@ -19238,8 +19238,8 @@ diff -ruN --exclude .git linux-7.0.12/tools/hardening/Makefile linux-7.0.12-hdn/
 +.PHONY: all clean install
 diff -ruN --exclude .git linux-7.0.12/tools/hardening/README.rst linux-7.0.12-hdn/tools/hardening/README.rst
 --- linux-7.0.12/tools/hardening/README.rst	1969-12-31 18:00:00.000000000 -0600
-+++ linux-7.0.12-hdn/tools/hardening/README.rst	2026-06-27 02:55:44.761640555 -0500
-@@ -0,0 +1,1504 @@
++++ linux-7.0.12-hdn/tools/hardening/README.rst	2026-06-27 03:02:24.277605743 -0500
+@@ -0,0 +1,1505 @@
 +.. SPDX-License-Identifier: GPL-2.0-only
 +
 +Linux Hardening Policy Tools
@@ -19406,7 +19406,8 @@ diff -ruN --exclude .git linux-7.0.12/tools/hardening/README.rst linux-7.0.12-hd
 +path without installing a new policy. ``--stdio`` keeps the product-facing
 +frontend attached to a supervised backend; accepted requests are ``status``,
 +``action DESKTOP_ACTION``, ``policy COMMAND WORKFLOW``, and ``dry-run policy
-+commit WORKFLOW``.
++commit WORKFLOW``. Unknown stdio actions fail through the same allowlisted
++desktop-daemon path as one-shot actions.
 +Configured helper paths must be absolute and cannot contain ``.`` or ``..``
 +path components, and action/workflow names use the same safe verb syntax as the
 +backend daemons.
@@ -38012,8 +38013,8 @@ diff -ruN --exclude .git linux-7.0.12/tools/testing/selftests/hardening/hdn_elfn
 +}
 diff -ruN --exclude .git linux-7.0.12/tools/testing/selftests/hardening/hdn_smoke.c linux-7.0.12-hdn/tools/testing/selftests/hardening/hdn_smoke.c
 --- linux-7.0.12/tools/testing/selftests/hardening/hdn_smoke.c	1969-12-31 18:00:00.000000000 -0600
-+++ linux-7.0.12-hdn/tools/testing/selftests/hardening/hdn_smoke.c	2026-06-27 02:55:28.781642141 -0500
-@@ -0,0 +1,27506 @@
++++ linux-7.0.12-hdn/tools/testing/selftests/hardening/hdn_smoke.c	2026-06-27 03:02:06.009607500 -0500
+@@ -0,0 +1,27637 @@
 +// SPDX-License-Identifier: GPL-2.0-only
 +
 +#define _GNU_SOURCE
@@ -53882,6 +53883,58 @@ diff -ruN --exclude .git linux-7.0.12/tools/testing/selftests/hardening/hdn_smok
 +						 "unknown action", updates);
 +}
 +
++static int product_rofs_control_center_stdio_denied(const char *request,
++						    const char *failure,
++						    unsigned int updates)
++{
++	int saved_errno;
++	unsigned int count;
++	int ret;
++	int fd;
++
++	ret = control_center_stdio_run(request);
++	if (ret == KSFT_SKIP)
++		return ret;
++	if (!ret) {
++		fprintf(stderr, "control center stdio allowed %s\n", failure);
++		return 1;
++	}
++	if (ret != 1)
++		return ret;
++
++	count = product_rofs_sentinel_update_count();
++	if (count != updates) {
++		fprintf(stderr,
++			"control center stdio denial left %u sentinel updates, expected %u\n",
++			count, updates);
++		return 1;
++	}
++
++	errno = 0;
++	fd = open(HDN_PRODUCT_ROFS_SENTINEL,
++		  O_WRONLY | O_APPEND | O_CLOEXEC);
++	saved_errno = errno;
++	if (fd >= 0) {
++		fprintf(stderr,
++			"control center stdio denial left product mount writable\n");
++		close(fd);
++		return 1;
++	}
++
++	if (saved_errno != EROFS)
++		fprintf(stderr,
++			"post-control-center-stdio-denial write-open failed with %s\n",
++			strerror(saved_errno));
++	return saved_errno == EROFS ? 0 : 2;
++}
++
++static int product_rofs_control_center_stdio_unknown_denied(unsigned int updates)
++{
++	return product_rofs_control_center_stdio_denied("action updates.remove",
++						       "unknown action",
++						       updates);
++}
++
 +static int product_rofs_control_center_updates_and_reseals(unsigned int min_updates)
 +{
 +	int saved_errno;
@@ -58392,6 +58445,7 @@ diff -ruN --exclude .git linux-7.0.12/tools/testing/selftests/hardening/hdn_smok
 +	int product_rofs_desktop_daemon_unknown_result = 2;
 +	int product_rofs_desktop_daemon_unsafe_config_result = 2;
 +	int product_rofs_desktop_daemon_result = 2;
++	int product_rofs_control_center_stdio_unknown_result = 2;
 +	int product_rofs_control_center_unknown_result = 2;
 +	int product_rofs_control_center_result = 2;
 +	int product_rofs_control_center_stdio_result = 2;
@@ -61411,8 +61465,8 @@ diff -ruN --exclude .git linux-7.0.12/tools/testing/selftests/hardening/hdn_smok
 +	    !product_rofs_desktop_daemon_unknown_result &&
 +	    !product_rofs_desktop_daemon_unsafe_config_result &&
 +	    !product_rofs_desktop_daemon_result)
-+		product_rofs_control_center_unknown_result =
-+			product_rofs_control_center_unknown_denied(12);
++		product_rofs_control_center_stdio_unknown_result =
++			product_rofs_control_center_stdio_unknown_denied(12);
 +	report_child_result(mount_ro_policy_committed ?
 +			    (product_rofs_apply_result ?
 +			     product_rofs_apply_result :
@@ -61448,6 +61502,79 @@ diff -ruN --exclude .git linux-7.0.12/tools/testing/selftests/hardening/hdn_smok
 +			       product_rofs_desktop_daemon_unsafe_config_result ||
 +			       product_rofs_desktop_daemon_result) ?
 +			      KSFT_SKIP :
++			      product_rofs_control_center_stdio_unknown_result)) : 2,
++			    "control center stdio denies unknown UI action");
++	if (mount_ro_policy_committed && !product_rofs_apply_result &&
++	    !product_rofs_transaction_result &&
++	    !product_rofs_broker_missing_config_result &&
++	    !product_rofs_broker_unsafe_config_result &&
++	    !product_rofs_broker_denial_result &&
++	    !product_rofs_broker_token_result &&
++	    !product_rofs_system_unknown_result &&
++	    !product_rofs_system_unsafe_config_result &&
++	    !product_rofs_system_transaction_result &&
++	    !product_rofs_package_hook_unknown_result &&
++	    !product_rofs_package_hook_unsafe_config_result &&
++	    !product_rofs_package_hook_result &&
++	    !product_rofs_recovery_repair_result &&
++	    !product_rofs_recovery_session_repair_result &&
++	    !product_rofs_recovery_portal_repair_result &&
++	    !product_rofs_prompt_unknown_result &&
++	    !product_rofs_prompt_unsafe_config_result &&
++	    !product_rofs_prompt_dispatch_result &&
++	    !product_rofs_prompt_session_unknown_result &&
++	    !product_rofs_prompt_session_unsafe_config_result &&
++	    !product_rofs_prompt_session_auth_denied_result &&
++	    !product_rofs_prompt_session_no_display_result &&
++	    !product_rofs_prompt_session_result &&
++	    !product_rofs_prompt_portal_unknown_result &&
++	    !product_rofs_prompt_portal_unsafe_config_result &&
++	    !product_rofs_prompt_portal_result &&
++	    !product_rofs_desktop_action_unknown_result &&
++	    !product_rofs_desktop_action_unsafe_config_result &&
++	    !product_rofs_desktop_action_result &&
++	    !product_rofs_desktop_daemon_unknown_result &&
++	    !product_rofs_desktop_daemon_unsafe_config_result &&
++	    !product_rofs_desktop_daemon_result &&
++	    !product_rofs_control_center_stdio_unknown_result)
++		product_rofs_control_center_unknown_result =
++			product_rofs_control_center_unknown_denied(12);
++	report_child_result(mount_ro_policy_committed ?
++			    (product_rofs_apply_result ?
++			     product_rofs_apply_result :
++			     ((product_rofs_transaction_result ||
++			       product_rofs_broker_missing_config_result ||
++			       product_rofs_broker_unsafe_config_result ||
++			       product_rofs_broker_denial_result ||
++			       product_rofs_broker_token_result ||
++			       product_rofs_system_unknown_result ||
++			       product_rofs_system_unsafe_config_result ||
++			       product_rofs_system_transaction_result ||
++			       product_rofs_package_hook_unknown_result ||
++			       product_rofs_package_hook_unsafe_config_result ||
++			       product_rofs_package_hook_result ||
++			       product_rofs_recovery_repair_result ||
++			       product_rofs_recovery_session_repair_result ||
++			       product_rofs_recovery_portal_repair_result ||
++			       product_rofs_prompt_unknown_result ||
++			       product_rofs_prompt_unsafe_config_result ||
++			       product_rofs_prompt_dispatch_result ||
++			       product_rofs_prompt_session_unknown_result ||
++			       product_rofs_prompt_session_unsafe_config_result ||
++			       product_rofs_prompt_session_auth_denied_result ||
++			       product_rofs_prompt_session_no_display_result ||
++			       product_rofs_prompt_session_result ||
++			       product_rofs_prompt_portal_unknown_result ||
++			       product_rofs_prompt_portal_unsafe_config_result ||
++			       product_rofs_prompt_portal_result ||
++			       product_rofs_desktop_action_unknown_result ||
++			       product_rofs_desktop_action_unsafe_config_result ||
++			       product_rofs_desktop_action_result ||
++			       product_rofs_desktop_daemon_unknown_result ||
++			       product_rofs_desktop_daemon_unsafe_config_result ||
++			       product_rofs_desktop_daemon_result ||
++			       product_rofs_control_center_stdio_unknown_result) ?
++			      KSFT_SKIP :
 +			      product_rofs_control_center_unknown_result)) : 2,
 +			    "control center denies unknown UI action");
 +	if (mount_ro_policy_committed && !product_rofs_apply_result &&
@@ -61482,6 +61609,7 @@ diff -ruN --exclude .git linux-7.0.12/tools/testing/selftests/hardening/hdn_smok
 +	    !product_rofs_desktop_daemon_unknown_result &&
 +	    !product_rofs_desktop_daemon_unsafe_config_result &&
 +	    !product_rofs_desktop_daemon_result &&
++	    !product_rofs_control_center_stdio_unknown_result &&
 +	    !product_rofs_control_center_unknown_result)
 +		product_rofs_control_center_result =
 +			product_rofs_control_center_updates_and_reseals(13);
@@ -61519,6 +61647,7 @@ diff -ruN --exclude .git linux-7.0.12/tools/testing/selftests/hardening/hdn_smok
 +			       product_rofs_desktop_daemon_unknown_result ||
 +			       product_rofs_desktop_daemon_unsafe_config_result ||
 +			       product_rofs_desktop_daemon_result ||
++			       product_rofs_control_center_stdio_unknown_result ||
 +			       product_rofs_control_center_unknown_result) ?
 +			      KSFT_SKIP :
 +			      product_rofs_control_center_result)) : 2,
@@ -61555,6 +61684,7 @@ diff -ruN --exclude .git linux-7.0.12/tools/testing/selftests/hardening/hdn_smok
 +	    !product_rofs_desktop_daemon_unknown_result &&
 +	    !product_rofs_desktop_daemon_unsafe_config_result &&
 +	    !product_rofs_desktop_daemon_result &&
++	    !product_rofs_control_center_stdio_unknown_result &&
 +	    !product_rofs_control_center_unknown_result &&
 +	    !product_rofs_control_center_result)
 +		product_rofs_control_center_stdio_result =
@@ -61593,6 +61723,7 @@ diff -ruN --exclude .git linux-7.0.12/tools/testing/selftests/hardening/hdn_smok
 +			       product_rofs_desktop_daemon_unknown_result ||
 +			       product_rofs_desktop_daemon_unsafe_config_result ||
 +			       product_rofs_desktop_daemon_result ||
++			       product_rofs_control_center_stdio_unknown_result ||
 +			       product_rofs_control_center_unknown_result ||
 +			       product_rofs_control_center_result) ?
 +			      KSFT_SKIP :
@@ -61632,6 +61763,7 @@ diff -ruN --exclude .git linux-7.0.12/tools/testing/selftests/hardening/hdn_smok
 +			       product_rofs_desktop_daemon_unknown_result ||
 +			       product_rofs_desktop_daemon_unsafe_config_result ||
 +			       product_rofs_desktop_daemon_result ||
++			       product_rofs_control_center_stdio_unknown_result ||
 +			       product_rofs_control_center_unknown_result ||
 +			       product_rofs_control_center_result ||
 +			       product_rofs_control_center_stdio_result) ? KSFT_SKIP :
@@ -65099,7 +65231,7 @@ diff -ruN --exclude .git linux-7.0.12/tools/testing/selftests/hardening/hdn_smok
 +	if (access(HDN_STATUS, R_OK))
 +		ksft_exit_skip("hardening securityfs status not present\n");
 +
-+	ksft_set_plan(969);
++	ksft_set_plan(970);
 +	test_securityfs_status();
 +	test_symbol_test_module_load();
 +	test_securityfs_status_contains("abi_version: 89",
@@ -65913,7 +66045,7 @@ diff -ruN --exclude .git linux-7.0.12/tools/testing/selftests/hardening/role.pol
 +use-role 2 desktop-admin
 diff -ruN --exclude .git linux-7.0.12/tools/testing/selftests/hardening/run-qemu-smoke.sh linux-7.0.12-hdn/tools/testing/selftests/hardening/run-qemu-smoke.sh
 --- linux-7.0.12/tools/testing/selftests/hardening/run-qemu-smoke.sh	1969-12-31 18:00:00.000000000 -0600
-+++ linux-7.0.12-hdn/tools/testing/selftests/hardening/run-qemu-smoke.sh	2026-06-27 02:55:35.945641426 -0500
++++ linux-7.0.12-hdn/tools/testing/selftests/hardening/run-qemu-smoke.sh	2026-06-27 03:02:14.629606675 -0500
 @@ -0,0 +1,1248 @@
 +#!/bin/sh
 +# SPDX-License-Identifier: GPL-2.0
@@ -65948,7 +66080,7 @@ diff -ruN --exclude .git linux-7.0.12/tools/testing/selftests/hardening/run-qemu
 +QEMU_MEMORY=${QEMU_MEMORY:-1024M}
 +QEMU_SMP=${QEMU_SMP:-2}
 +QEMU_MACHINE=${QEMU_MACHINE:-q35,accel=tcg}
-+HDN_SMOKE_EXPECTED_PASS=${HDN_SMOKE_EXPECTED_PASS:-969}
++HDN_SMOKE_EXPECTED_PASS=${HDN_SMOKE_EXPECTED_PASS:-970}
 +WORK=${HDN_QEMU_WORK:-"${TMPDIR:-/tmp}/hdn-qemu-smoke.$$"}
 +LOG=${HDN_QEMU_LOG:-"$WORK/qemu.log"}
 +QMP=${HDN_QEMU_QMP:-"$WORK/qmp.sock"}

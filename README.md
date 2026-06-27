@@ -104,7 +104,8 @@ control-center stdio protocol accepts `status`, `action DESKTOP_ACTION`,
 `policy COMMAND WORKFLOW`, and `dry-run policy commit WORKFLOW`, while the
 daemon stdio protocol also accepts `dry-run commit WORKFLOW` below it. The
 QEMU smoke path now proves `action updates.install` through both one-shot and
-stdio control-center routes.
+stdio control-center routes, and proves unknown stdio UI actions fail closed
+without changing the protected mount state.
 Other-user proc task visibility now has grouped proc mount compatibility plus
 an HDN-native global task-view group for proc, pidfd, and proc task-directory
 mode visibility.
@@ -147,16 +148,16 @@ The hardening smoke suite in the development tree is run under QEMU. Latest
 local result before this publication checkpoint:
 
 ```text
-QEMU hardening smoke: 969/969 pass
+QEMU hardening smoke: 970/970 pass
 ```
 
 Patch artifact at this checkpoint:
 
 ```text
 patch: patches/hdn-linux-7.0.12.patch
-lines: 67,342
-bytes: 2,003,417
-sha256: 1944b08dc1e57b0c0a4677e8b142249e1ff8fae26ce0512b3cd6a797b1a4ca35
+lines: 67,474
+bytes: 2,008,979
+sha256: 774d823c6acfba6ac3a1f2cece8984cd832116e59c478eb21656b53501fc9aa5
 ```
 
 ## Development Rule

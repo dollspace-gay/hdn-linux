@@ -175,7 +175,8 @@ suggestions from denied events, candidate policy merging from reviewed
 suggestions, a named policy workflow facade plus policy daemon above learning,
 merge, compile, brokered signed commit, and commit dry-run/preflight through
 the workflow, policy daemon, policy-daemon stdio, control-center one-shot, and
-control-center stdio route, sealed-HDN-data write-fault reporting, and
+control-center stdio route, control-center stdio unknown-action denial,
+sealed-HDN-data write-fault reporting, and
 kernel/module W^X baseline.
 
 The biggest remaining equivalence gaps are not in the already-tested policy

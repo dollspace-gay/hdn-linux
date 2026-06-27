@@ -835,11 +835,11 @@ preflight. Its `--stdio` mode accepts `status`, `action DESKTOP_ACTION`,
 `policy COMMAND WORKFLOW`, and `dry-run policy commit WORKFLOW` for supervised
 settings-panel backends; the helper validates absolute backend paths and safe
 action or workflow names and never invokes a shell. QEMU proves one-shot and
-stdio status routing, unknown UI action denial, approved one-shot and stdio
-`updates.install` actions reaching the desktop daemon while preserving the
-read-only reseal invariant, stdio rejection of non-commit policy dry-runs, and
-an approved compiled policy workflow plus one-shot and stdio commit preflight
-reaching the policy daemon.
+stdio status routing, one-shot and stdio unknown UI action denial, approved
+one-shot and stdio `updates.install` actions reaching the desktop daemon while
+preserving the read-only reseal invariant, stdio rejection of non-commit policy
+dry-runs, and an approved compiled policy workflow plus one-shot and stdio
+commit preflight reaching the policy daemon.
 `hdn-image-seal` is the installer/first-boot/image-updater facade for sealing
 the base image. Product config maps stable seal names to ordered brokered
 steps such as signed policy commit and read-only mount-list application, so
@@ -1807,9 +1807,10 @@ Core oracle groups:
   and runs an approved stdio UI action through desktop-action
 - the control-center helper reports product status through hdn-status, rejects
   unknown UI actions, runs an approved UI action through hdn-desktop-daemon,
-  reports product status through stdio, runs an approved UI action through
-  stdio, rejects non-commit policy dry-runs through stdio, and runs an approved
-  policy workflow plus signed-commit preflight through hdn-policy-daemon
+  reports product status through stdio, rejects unknown UI actions through
+  stdio, runs an approved UI action through stdio, rejects non-commit policy
+  dry-runs through stdio, and runs an approved policy workflow plus
+  signed-commit preflight through hdn-policy-daemon
 - the image seal helper rejects unknown seal names, rejects unsafe image seal
   configs, and applies an approved brokered read-only mount list while leaving
   the sealed mount read-only
