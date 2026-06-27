@@ -982,8 +982,9 @@ to aggregate create policy. It covers `execve(2)` and file-backed executable
 `mmap(2)`/`mprotect(2)` transitions for protected executable objects, plus
 hardlink attempts from protected regular-file sources. It also covers aggregate
 mode, ownership, size, explicit timestamp changes through the common setattr
-path, and extended attribute set/remove operations through the common VFS xattr
-paths, plus split `chmod(2)`, `chown(2)`, utime-style timestamp mutation,
+path, VFS file-attribute flag changes through the common fileattr path, and
+extended attribute set/remove operations through the common VFS xattr paths,
+plus split `chmod(2)`, `chown(2)`, utime-style timestamp mutation,
 `setxattr(2)`, and `removexattr(2)` object rules for exact policy gates. It
 also covers explicit `access(2)`/`faccessat(2)` probes through
 `deny-access`, and makes `R_OK`/`W_OK`/`X_OK` probes observe regular-file
