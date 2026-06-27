@@ -1210,7 +1210,7 @@ diff -ruN --exclude .git /home/doll/distro/linux-7.0.12/fs/mount.h /home/doll/di
  	struct fsnotify_mark_connector __rcu *n_fsnotify_marks;
 diff -ruN --exclude .git /home/doll/distro/linux-7.0.12/fs/namei.c /home/doll/distro/linux-7.0.12-hdn/fs/namei.c
 --- /home/doll/distro/linux-7.0.12/fs/namei.c	2026-06-09 05:32:51.000000000 -0500
-+++ /home/doll/distro/linux-7.0.12-hdn/fs/namei.c	2026-06-26 23:06:04.514893458 -0500
++++ /home/doll/distro/linux-7.0.12-hdn/fs/namei.c	2026-06-27 00:05:20.854571530 -0500
 @@ -35,6 +35,7 @@
  #include <linux/fcntl.h>
  #include <linux/device_cgroup.h>
@@ -1513,7 +1513,7 @@ diff -ruN --exclude .git /home/doll/distro/linux-7.0.12/fs/namei.c /home/doll/di
  	if (!dir->i_op->create)
  		return -EACCES;	/* shouldn't it be ENOSYS? */
  
-@@ -4269,6 +4419,19 @@
+@@ -4269,6 +4419,24 @@
  	if (flag & O_NOATIME && !inode_owner_or_capable(idmap, inode))
  		return -EPERM;
  
@@ -1529,11 +1529,16 @@ diff -ruN --exclude .git /home/doll/distro/linux-7.0.12/fs/namei.c /home/doll/di
 +		if (error)
 +			return error;
 +	}
++	if (!S_ISDIR(inode->i_mode)) {
++		error = hdn_authorize_object_find(path);
++		if (error)
++			return error;
++	}
 +
  	return 0;
  }
  
-@@ -4281,6 +4444,8 @@
+@@ -4281,6 +4449,8 @@
  		return error;
  
  	error = security_file_truncate(filp);
@@ -1542,7 +1547,7 @@ diff -ruN --exclude .git /home/doll/distro/linux-7.0.12/fs/namei.c /home/doll/di
  	if (!error) {
  		error = do_truncate(idmap, path->dentry, 0,
  				    ATTR_MTIME|ATTR_CTIME|ATTR_OPEN,
-@@ -4313,6 +4478,10 @@
+@@ -4313,6 +4483,10 @@
  	if (error)
  		return error;
  
@@ -1553,7 +1558,7 @@ diff -ruN --exclude .git /home/doll/distro/linux-7.0.12/fs/namei.c /home/doll/di
  	return security_inode_create(dir->dentry->d_inode, dentry, mode);
  }
  
-@@ -4474,6 +4643,10 @@
+@@ -4474,6 +4648,10 @@
  
  	/* Negative dentry, just create the file */
  	if (!dentry->d_inode && (open_flag & O_CREAT)) {
@@ -1564,7 +1569,7 @@ diff -ruN --exclude .git /home/doll/distro/linux-7.0.12/fs/namei.c /home/doll/di
  		/* but break the directory lease first! */
  		error = try_break_deleg(dir_inode, delegated_inode);
  		if (error)
-@@ -4644,6 +4817,12 @@
+@@ -4644,6 +4822,12 @@
  		if (error)
  			return error;
  	}
@@ -1577,7 +1582,7 @@ diff -ruN --exclude .git /home/doll/distro/linux-7.0.12/fs/namei.c /home/doll/di
  	if (!(file->f_mode & FMODE_CREATED))
  		audit_inode(nd->name, nd->path.dentry, 0);
  	idmap = mnt_idmap(nd->path.mnt);
-@@ -4717,6 +4896,9 @@
+@@ -4717,6 +4901,9 @@
  	error = inode_permission(idmap, dir, MAY_WRITE | MAY_EXEC);
  	if (error)
  		return error;
@@ -1587,7 +1592,7 @@ diff -ruN --exclude .git /home/doll/distro/linux-7.0.12/fs/namei.c /home/doll/di
  	if (!dir->i_op->tmpfile)
  		return -EOPNOTSUPP;
  	child = d_alloc(parentpath->dentry, &slash_name);
-@@ -4806,8 +4988,11 @@
+@@ -4806,8 +4993,11 @@
  	struct path path;
  	int error = path_lookupat(nd, flags, &path);
  	if (!error) {
@@ -1601,7 +1606,7 @@ diff -ruN --exclude .git /home/doll/distro/linux-7.0.12/fs/namei.c /home/doll/di
  		path_put(&path);
  	}
  	return error;
-@@ -5075,10 +5260,20 @@
+@@ -5075,10 +5265,20 @@
  	if (error)
  		return error;
  
@@ -1622,7 +1627,7 @@ diff -ruN --exclude .git /home/doll/distro/linux-7.0.12/fs/namei.c /home/doll/di
  	if (!dir->i_op->mknod)
  		return -EPERM;
  
-@@ -5219,6 +5414,10 @@
+@@ -5219,6 +5419,10 @@
  	if (error)
  		goto err;
  
@@ -1633,7 +1638,7 @@ diff -ruN --exclude .git /home/doll/distro/linux-7.0.12/fs/namei.c /home/doll/di
  	error = -EPERM;
  	if (!dir->i_op->mkdir)
  		goto err;
-@@ -5322,6 +5521,10 @@
+@@ -5322,6 +5526,10 @@
  	if (error)
  		return error;
  
@@ -1644,7 +1649,7 @@ diff -ruN --exclude .git /home/doll/distro/linux-7.0.12/fs/namei.c /home/doll/di
  	if (!dir->i_op->rmdir)
  		return -EPERM;
  
-@@ -5456,6 +5659,10 @@
+@@ -5456,6 +5664,10 @@
  	if (error)
  		return error;
  
@@ -1655,7 +1660,7 @@ diff -ruN --exclude .git /home/doll/distro/linux-7.0.12/fs/namei.c /home/doll/di
  	if (!dir->i_op->unlink)
  		return -EPERM;
  
-@@ -5607,6 +5814,10 @@
+@@ -5607,6 +5819,10 @@
  	if (error)
  		return error;
  
@@ -1666,7 +1671,7 @@ diff -ruN --exclude .git /home/doll/distro/linux-7.0.12/fs/namei.c /home/doll/di
  	if (!dir->i_op->symlink)
  		return -EPERM;
  
-@@ -5714,6 +5925,18 @@
+@@ -5714,6 +5930,18 @@
  	if (error)
  		return error;
  
@@ -1685,7 +1690,7 @@ diff -ruN --exclude .git /home/doll/distro/linux-7.0.12/fs/namei.c /home/doll/di
  	if (dir->i_sb != inode->i_sb)
  		return -EXDEV;
  
-@@ -5938,6 +6161,39 @@
+@@ -5938,6 +6166,39 @@
  	if (error)
  		return error;
  
@@ -1725,7 +1730,7 @@ diff -ruN --exclude .git /home/doll/distro/linux-7.0.12/fs/namei.c /home/doll/di
  	if (!old_dir->i_op->rename)
  		return -EPERM;
  
-@@ -6142,6 +6398,11 @@
+@@ -6142,6 +6403,11 @@
  			goto exit_unlock;
  	}
  
@@ -18957,8 +18962,8 @@ diff -ruN --exclude .git /home/doll/distro/linux-7.0.12/tools/hardening/Makefile
 +.PHONY: all clean install
 diff -ruN --exclude .git /home/doll/distro/linux-7.0.12/tools/hardening/README.rst /home/doll/distro/linux-7.0.12-hdn/tools/hardening/README.rst
 --- /home/doll/distro/linux-7.0.12/tools/hardening/README.rst	1969-12-31 18:00:00.000000000 -0600
-+++ /home/doll/distro/linux-7.0.12-hdn/tools/hardening/README.rst	2026-06-26 23:55:52.298621520 -0500
-@@ -0,0 +1,1446 @@
++++ /home/doll/distro/linux-7.0.12-hdn/tools/hardening/README.rst	2026-06-27 00:07:26.434562285 -0500
+@@ -0,0 +1,1448 @@
 +.. SPDX-License-Identifier: GPL-2.0-only
 +
 +Linux Hardening Policy Tools
@@ -19640,12 +19645,14 @@ diff -ruN --exclude .git /home/doll/distro/linux-7.0.12/tools/hardening/README.r
 +path. It enforces deny-list
 +for directory name discovery through the common VFS ``iterate_dir()`` path used
 +by ``readdir(3)`` and ``getdents64(2)``, including already-open directory file
-+descriptors after policy commit. It enforces deny-find for pure lookup-style
-+discovery through ``open(2)`` with ``O_PATH`` and ``name_to_handle_at(2)``,
++descriptors after policy commit. It enforces deny-find for regular non-directory
++``open(2)``, ``open(2)`` with ``O_PATH``, and ``name_to_handle_at(2)``,
 +returning ``ENOENT`` while recording a dedicated object-policy denial event.
-+It also applies deny-find to per-entry directory enumeration, hiding matching
-+protected entries from ``readdir(3)``/``getdents64(2)`` without denying the
-+whole containing directory. It enforces deny-ioctl for native and compat
++Regular open checks run after more specific read/write denials, so a combined
++tree rule still reports its specific data-access denial. Directory enumeration
++uses deny-find per entry, hiding matching protected entries from
++``readdir(3)``/``getdents64(2)`` without denying the whole containing directory.
++It enforces deny-ioctl for native and compat
 +``ioctl(2)`` requests through the common file ioctl security path, including
 +device/control files where ioctl is the mutation surface. It enforces
 +deny-lock for advisory lock and lease acquisition through the common file lock
@@ -19714,8 +19721,8 @@ diff -ruN --exclude .git /home/doll/distro/linux-7.0.12/tools/hardening/README.r
 +			and fallocate write denial,
 +	preopened descriptor shared writable mapping denial, protected FIFO, character-device, and block-device creation
 +denial, protected tmpfile creation denial, preopened descriptor stat and list
-+denial, protected file-handle export denial, protected directory delete and
-+rename denial, direct and recursive deny-find
++denial, protected regular-open and file-handle export denial, protected
++directory delete and rename denial, direct and recursive deny-find
 +directory-entry hiding, recursive tree children including
 +nested attr, xattr, access-probe, stat, list, find, incoming rename target,
 +and incoming hardlink target changes, and append-only rewrite and shared
@@ -36508,8 +36515,8 @@ diff -ruN --exclude .git /home/doll/distro/linux-7.0.12/tools/testing/selftests/
 Binary files /home/doll/distro/linux-7.0.12/tools/testing/selftests/hardening/hdn_smoke and /home/doll/distro/linux-7.0.12-hdn/tools/testing/selftests/hardening/hdn_smoke differ
 diff -ruN --exclude .git /home/doll/distro/linux-7.0.12/tools/testing/selftests/hardening/hdn_smoke.c /home/doll/distro/linux-7.0.12-hdn/tools/testing/selftests/hardening/hdn_smoke.c
 --- /home/doll/distro/linux-7.0.12/tools/testing/selftests/hardening/hdn_smoke.c	1969-12-31 18:00:00.000000000 -0600
-+++ /home/doll/distro/linux-7.0.12-hdn/tools/testing/selftests/hardening/hdn_smoke.c	2026-06-26 23:52:45.774639963 -0500
-@@ -0,0 +1,26607 @@
++++ /home/doll/distro/linux-7.0.12-hdn/tools/testing/selftests/hardening/hdn_smoke.c	2026-06-27 00:02:52.090584923 -0500
+@@ -0,0 +1,26643 @@
 +// SPDX-License-Identifier: GPL-2.0-only
 +
 +#define _GNU_SOURCE
@@ -43789,6 +43796,34 @@ diff -ruN --exclude .git /home/doll/distro/linux-7.0.12/tools/testing/selftests/
 +static int object_find_path_denied(void)
 +{
 +	return object_find_opath_denied(HDN_OBJECT_FIND_PROTECTED);
++}
++
++static int object_find_regular_open_denied(void)
++{
++	int saved_errno;
++	int fd;
++
++	errno = 0;
++	fd = open(HDN_OBJECT_FIND_PROTECTED, O_RDONLY | O_CLOEXEC);
++	saved_errno = errno;
++	if (fd >= 0) {
++		close(fd);
++		return 1;
++	}
++
++	return saved_errno == ENOENT ? 0 : 2;
++}
++
++static int object_find_regular_open_allowed(void)
++{
++	int fd;
++
++	fd = open(HDN_OBJECT_FIND_UNPROTECTED, O_RDONLY | O_CLOEXEC);
++	if (fd < 0)
++		return 2;
++
++	close(fd);
++	return 0;
 +}
 +
 +static int object_ioctl_path(const char *path, bool expect_denied)
@@ -56725,6 +56760,8 @@ diff -ruN --exclude .git /home/doll/distro/linux-7.0.12/tools/testing/selftests/
 +				ksft_test_result_skip("object list policy allows unmatched readdir\n");
 +				ksft_test_result_skip("object find policy denies protected O_PATH lookup\n");
 +				ksft_test_result_skip("object find policy allows unmatched O_PATH lookup\n");
++				ksft_test_result_skip("object find policy denies protected regular open\n");
++				ksft_test_result_skip("object find policy allows unmatched regular open\n");
 +				ksft_test_result_skip("object find policy denies protected file handle export\n");
 +				ksft_test_result_skip("object ioctl policy denies protected ioctl\n");
 +				ksft_test_result_skip("object ioctl policy allows unmatched ioctl\n");
@@ -60165,6 +60202,12 @@ diff -ruN --exclude .git /home/doll/distro/linux-7.0.12/tools/testing/selftests/
 +			    object_find_opath_allowed() : 2,
 +			    "object find policy allows unmatched O_PATH lookup");
 +	report_child_result(object_policy_committed ?
++			    object_find_regular_open_denied() : 2,
++			    "object find policy denies protected regular open");
++	report_child_result(object_policy_committed ?
++			    object_find_regular_open_allowed() : 2,
++			    "object find policy allows unmatched regular open");
++	report_child_result(object_policy_committed ?
 +			    object_find_handle_denied() : 2,
 +			    "object find policy denies protected file handle export");
 +	report_child_result(object_policy_committed ?
@@ -62730,7 +62773,7 @@ diff -ruN --exclude .git /home/doll/distro/linux-7.0.12/tools/testing/selftests/
 +	if (access(HDN_STATUS, R_OK))
 +		ksft_exit_skip("hardening securityfs status not present\n");
 +
-+	ksft_set_plan(942);
++	ksft_set_plan(944);
 +	test_securityfs_status();
 +	test_symbol_test_module_load();
 +	test_securityfs_status_contains("abi_version: 89",
@@ -63301,13 +63344,13 @@ diff -ruN --exclude .git /home/doll/distro/linux-7.0.12/tools/testing/selftests/
 +allow 2 POLICY_ADMIN CRED_CHANGE PTRACE NAMESPACE_ADMIN PROC_TASK_VIEW
 diff -ruN --exclude .git /home/doll/distro/linux-7.0.12/tools/testing/selftests/hardening/object-write.policy /home/doll/distro/linux-7.0.12-hdn/tools/testing/selftests/hardening/object-write.policy
 --- /home/doll/distro/linux-7.0.12/tools/testing/selftests/hardening/object-write.policy	1969-12-31 18:00:00.000000000 -0600
-+++ /home/doll/distro/linux-7.0.12-hdn/tools/testing/selftests/hardening/object-write.policy	2026-06-26 23:08:40.822880256 -0500
++++ /home/doll/distro/linux-7.0.12-hdn/tools/testing/selftests/hardening/object-write.policy	2026-06-27 00:08:18.906556678 -0500
 @@ -0,0 +1,116 @@
 +# Root-profile policy used by the QEMU smoke test to prove object
 +# read/write/delete/create/creat/mkdir/mknod/symlink/unlink/rmdir/exec/link/link-target/attr/chmod/chown/utime/setid/xattr/setxattr/removexattr/access/stat/list/find/ioctl/lock/watch/receive/fcntl/chdir/mount/umount/truncate/rename/rename-target/unix-connect/unix-bind/unix-listen/unix-accept/unix-send/unix-recv denial,
 +# recursive tree denial, recursive tree denial for descriptor and IPC
 +# operations, recursive split-operation and split metadata tree denial, and
-+# append-only enforcement
++# append-only enforcement, including deny-find ordinary-open hiding
 +# by signed file or directory identity.
 +generation 1
 +base 0
@@ -63510,7 +63553,7 @@ diff -ruN --exclude .git /home/doll/distro/linux-7.0.12/tools/testing/selftests/
 +use-role 2 desktop-admin
 diff -ruN --exclude .git /home/doll/distro/linux-7.0.12/tools/testing/selftests/hardening/run-qemu-smoke.sh /home/doll/distro/linux-7.0.12-hdn/tools/testing/selftests/hardening/run-qemu-smoke.sh
 --- /home/doll/distro/linux-7.0.12/tools/testing/selftests/hardening/run-qemu-smoke.sh	1969-12-31 18:00:00.000000000 -0600
-+++ /home/doll/distro/linux-7.0.12-hdn/tools/testing/selftests/hardening/run-qemu-smoke.sh	2026-06-26 23:52:51.026639340 -0500
++++ /home/doll/distro/linux-7.0.12-hdn/tools/testing/selftests/hardening/run-qemu-smoke.sh	2026-06-27 00:02:58.378584383 -0500
 @@ -0,0 +1,1221 @@
 +#!/bin/sh
 +# SPDX-License-Identifier: GPL-2.0
@@ -63545,7 +63588,7 @@ diff -ruN --exclude .git /home/doll/distro/linux-7.0.12/tools/testing/selftests/
 +QEMU_MEMORY=${QEMU_MEMORY:-1024M}
 +QEMU_SMP=${QEMU_SMP:-2}
 +QEMU_MACHINE=${QEMU_MACHINE:-q35,accel=tcg}
-+HDN_SMOKE_EXPECTED_PASS=${HDN_SMOKE_EXPECTED_PASS:-942}
++HDN_SMOKE_EXPECTED_PASS=${HDN_SMOKE_EXPECTED_PASS:-944}
 +WORK=${HDN_QEMU_WORK:-"${TMPDIR:-/tmp}/hdn-qemu-smoke.$$"}
 +LOG=${HDN_QEMU_LOG:-"$WORK/qemu.log"}
 +QMP=${HDN_QEMU_QMP:-"$WORK/qmp.sock"}

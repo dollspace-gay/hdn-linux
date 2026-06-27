@@ -1026,12 +1026,16 @@ calls, `fstat(2)` on descriptors opened before policy commit, and VFS
 file-attribute reads such as `FS_IOC_GETFLAGS`. Directory name discovery
 through the common VFS `iterate_dir()` path is covered by
 `deny-list`, including `readdir(3)`/`getdents64(2)` and directory descriptors
-opened before policy commit. Pure lookup-style discovery is covered by
-	`deny-find` for `open(2)` with `O_PATH` and `name_to_handle_at(2)`, returning
-	`ENOENT` while recording an `OBJECT_FIND` denial event. Descriptor passing and
-	descriptor-control surfaces are covered through `security_file_receive()` and
-	`security_file_fcntl()`: `deny-receive` blocks received protected file
-	descriptors, and `deny-fcntl` blocks mutating/control fcntl commands plus
+opened before policy commit. Name-discovery opens are covered by `deny-find`
+for regular non-directory `open(2)`, `open(2)` with `O_PATH`, and
+`name_to_handle_at(2)`, returning `ENOENT` while recording an `OBJECT_FIND`
+denial event. Regular open checks run after more specific read/write denials,
+so combined tree rules still report their data-access denial; directory
+enumeration uses deny-find per entry rather than denying the containing
+directory open. Descriptor passing and descriptor-control surfaces are covered
+through `security_file_receive()` and `security_file_fcntl()`: `deny-receive`
+blocks received protected file descriptors, and `deny-fcntl` blocks
+mutating/control fcntl commands plus
 	ioctl aliases for close-on-exec, nonblocking, and async flag changes while
 	leaving status queries usable. `deny-lock` covers BSD `flock(2)`, POSIX/OFD
 	`fcntl(2)` lock acquisition, and file lease acquisition through `F_SETLEASE`
@@ -1890,7 +1894,7 @@ Core oracle groups:
 - profile umask floors keep subject-selected file and directory creation private
 - signed exec inheritance preserves caller profiles and parent-scoped inheritance
   ignores unmatched callers
-- signed object read/write/delete/create/creat/mkdir/mknod/symlink/unlink/rmdir/exec/link/link-target/attr/chmod/chown/utime/setid/xattr/setxattr/removexattr/access/stat/list/find/ioctl/lock/watch/receive/fcntl/chdir/mount/mount-source/umount/truncate/rename/rename-target/unix-connect/unix-bind/unix-listen/unix-accept/unix-send/unix-recv, append-only, recursive split-operation tree, recursive descriptor, operation-tree, target-tree, and preopened-descriptor unmatched checks, fd-receive, mount topology with unmatched-target and source checks, split metadata/xattr, and filesystem-socket IPC operation tree, and recursive append-only tree rules constrain protected file, executable, metadata, setid-bit, extended-attribute, directory-entry, fd-passing, descriptor-control, working-directory, mount topology, size/extent mutation, move access, and filesystem socket IPC by resolved identity
+- signed object read/write/delete/create/creat/mkdir/mknod/symlink/unlink/rmdir/exec/link/link-target/attr/chmod/chown/utime/setid/xattr/setxattr/removexattr/access/stat/list/find/ioctl/lock/watch/receive/fcntl/chdir/mount/mount-source/umount/truncate/rename/rename-target/unix-connect/unix-bind/unix-listen/unix-accept/unix-send/unix-recv, append-only, recursive split-operation tree, recursive descriptor, operation-tree, target-tree, and preopened-descriptor unmatched checks, fd-receive, mount topology with unmatched-target and source checks, split metadata/xattr, and filesystem-socket IPC operation tree, and recursive append-only tree rules constrain protected file, executable, metadata, setid-bit, extended-attribute, directory-entry, lookup/open, fd-passing, descriptor-control, working-directory, mount topology, size/extent mutation, move access, and filesystem socket IPC by resolved identity
 - script inherits correct interpreter-chain profile
 - non-root TPE denies execution from unsafe executable directories
 - setuid transition gets privileged profile only when valid

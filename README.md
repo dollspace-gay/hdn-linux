@@ -30,8 +30,9 @@ disclosure, module admission hardening, read-only mount controls, object policy
 rules including split setid-bit, incoming rename-target, and hardlink target
 controls plus AF_UNIX connect, bind, listen, accept, datagram send, and datagram
 receive controls, recursive tree false-positive proofs for operation and
-target-directory rules, preopened descriptors, fd receive, and mount topology,
-including split `move_mount` source controls, exec-profile inheritance,
+target-directory rules, `deny-find` ordinary-open hiding, preopened descriptors,
+fd receive, and mount topology, including split `move_mount` source controls,
+exec-profile inheritance,
 profile-scoped umask floors and resource ceilings, chroot restrictions,
 TPE-style execution controls,
 IPC/socket/device hardening,
@@ -123,16 +124,16 @@ The hardening smoke suite in the development tree is run under QEMU. Latest
 local result before this publication checkpoint:
 
 ```text
-QEMU hardening smoke: 942/942 pass
+QEMU hardening smoke: 944/944 pass
 ```
 
 Patch artifact at this checkpoint:
 
 ```text
 patch: patches/hdn-linux-7.0.12.patch
-lines: 64,912
-bytes: 1,950,022
-sha256: 38e0422eced96e6b4dd236b03d0d147d81e4d08d4386f4b33706a3e9178fa4ea
+lines: 64,955
+bytes: 1,951,260
+sha256: e0b708ab57401ae9098ea7a9ab121924b790b41302a12e37fb5372ed8dd69a51
 ```
 
 ## Development Rule
