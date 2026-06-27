@@ -537,6 +537,10 @@ grants, and appends a marked candidate block for later compile/sign/commit.
 both helpers so settings panels, support tools, and developer-mode policy UI
 can run `learn NAME` and `candidate NAME` without receiving raw event-log,
 base-policy, fragment, or candidate output paths.
+`tools/hardening/hdn-policy-daemon` is the product-facing root-side facade
+above policy-workflow. It allowlists workflow names from a root-owned config,
+supports one-shot or stdio operation, and lets `hdn-control-center policy`
+route settings-panel policy review actions without exposing helper paths.
 
 ## Memory Execution Policy
 
@@ -815,13 +819,16 @@ verbs before any dispatch. QEMU proves unknown UI verbs and unsafe daemon
 configs fail closed, and proves an approved stdio `updates.install` action
 reaches desktop-action, authenticates, updates the sealed product mount, and
 reseals it read-only.
-`hdn-control-center` is the product-facing command surface above status and
-desktop actions. Settings panels and shells call `hdn-control-center status`
-for product health or `hdn-control-center action DESKTOP_ACTION` for an
-allowlisted UI verb; the helper validates absolute backend paths and safe action
-names and never invokes a shell. QEMU proves status routing, unknown UI action
-denial, and an approved `updates.install` action reaching the desktop daemon
-while preserving the read-only reseal invariant.
+`hdn-control-center` is the product-facing command surface above status,
+desktop actions, and policy workflows. Settings panels and shells call
+`hdn-control-center status` for product health,
+`hdn-control-center action DESKTOP_ACTION` for an allowlisted UI verb, or
+`hdn-control-center policy COMMAND WORKFLOW` for policy learning and candidate
+generation; the helper validates absolute backend paths and safe action or
+workflow names and never invokes a shell. QEMU proves status routing, unknown
+UI action denial, an approved `updates.install` action reaching the desktop
+daemon while preserving the read-only reseal invariant, and an approved policy
+workflow reaching the policy daemon.
 `hdn-image-seal` is the installer/first-boot/image-updater facade for sealing
 the base image. Product config maps stable seal names to ordered brokered
 steps such as signed policy commit and read-only mount-list application, so
@@ -1788,7 +1795,8 @@ Core oracle groups:
 - the desktop-daemon helper rejects unknown UI verbs, rejects unsafe configs,
   and runs an approved stdio UI action through desktop-action
 - the control-center helper reports product status through hdn-status, rejects
-  unknown UI actions, and runs an approved UI action through hdn-desktop-daemon
+  unknown UI actions, runs an approved UI action through hdn-desktop-daemon,
+  and runs an approved policy workflow through hdn-policy-daemon
 - the image seal helper rejects unknown seal names, rejects unsafe image seal
   configs, and applies an approved brokered read-only mount list while leaving
   the sealed mount read-only
@@ -1972,7 +1980,8 @@ Core oracle groups:
 - Build userspace policy compiler prototype.
 - Build userspace policy-learning output from stable event records.
 - Build userspace policy-merge output from reviewed learner suggestions.
-- Build a named policy workflow facade above learning and merge helpers.
+- Build a named policy workflow facade and policy daemon above learning and
+  merge helpers.
 - Build userspace status output from stable status records.
 - Build a product ROFS apply helper for post-boot read-only mount sealing.
 - Build a product ROFS transaction helper for package/update/recovery writes
