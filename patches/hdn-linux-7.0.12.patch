@@ -35797,8 +35797,8 @@ diff -ruN --exclude .git linux-7.0.12/tools/testing/selftests/hardening/hdn_elfn
 +}
 diff -ruN --exclude .git linux-7.0.12/tools/testing/selftests/hardening/hdn_smoke.c linux-7.0.12-hdn/tools/testing/selftests/hardening/hdn_smoke.c
 --- linux-7.0.12/tools/testing/selftests/hardening/hdn_smoke.c	1969-12-31 18:00:00.000000000 -0600
-+++ linux-7.0.12-hdn/tools/testing/selftests/hardening/hdn_smoke.c	2026-06-26 19:50:08.004146699 -0500
-@@ -0,0 +1,24505 @@
++++ linux-7.0.12-hdn/tools/testing/selftests/hardening/hdn_smoke.c	2026-06-26 19:59:08.904094714 -0500
+@@ -0,0 +1,24554 @@
 +// SPDX-License-Identifier: GPL-2.0-only
 +
 +#define _GNU_SOURCE
@@ -42691,6 +42691,47 @@ diff -ruN --exclude .git linux-7.0.12/tools/testing/selftests/hardening/hdn_smok
 +static int object_posix_lock_unmatched_allowed(void)
 +{
 +	return object_lock_path(HDN_OBJECT_LOCK_UNPROTECTED, true, false);
++}
++
++static int object_lease_path(const char *path, bool expect_denied)
++{
++	int saved_errno;
++	int ret;
++	int fd;
++
++	fd = open(path, O_RDWR | O_CLOEXEC);
++	if (fd < 0)
++		return 2;
++
++	errno = 0;
++	ret = fcntl(fd, F_SETLEASE, F_WRLCK);
++	saved_errno = errno;
++
++	if (expect_denied) {
++		close(fd);
++		if (!ret)
++			return 1;
++		return errno_is_denial(saved_errno) ? 0 : 2;
++	}
++
++	if (ret) {
++		close(fd);
++		return 2;
++	}
++
++	ret = fcntl(fd, F_SETLEASE, F_UNLCK);
++	close(fd);
++	return ret ? 2 : 0;
++}
++
++static int object_lease_denied(void)
++{
++	return object_lease_path(HDN_OBJECT_LOCK_PROTECTED, true);
++}
++
++static int object_lease_unmatched_allowed(void)
++{
++	return object_lease_path(HDN_OBJECT_LOCK_UNPROTECTED, false);
 +}
 +
 +static int object_watch_path(const char *path, bool expect_denied)
@@ -54436,6 +54477,8 @@ diff -ruN --exclude .git linux-7.0.12/tools/testing/selftests/hardening/hdn_smok
 +				ksft_test_result_skip("object lock policy denies protected POSIX lock\n");
 +				ksft_test_result_skip("object lock policy allows unmatched flock\n");
 +				ksft_test_result_skip("object lock policy allows unmatched POSIX lock\n");
++				ksft_test_result_skip("object lock policy denies protected file lease\n");
++				ksft_test_result_skip("object lock policy allows unmatched file lease\n");
 +				ksft_test_result_skip("object watch policy denies protected inotify watch\n");
 +				ksft_test_result_skip("object watch policy allows unmatched inotify watch\n");
 +				ksft_test_result_skip("object watch policy denies protected dnotify watch\n");
@@ -57698,6 +57741,12 @@ diff -ruN --exclude .git linux-7.0.12/tools/testing/selftests/hardening/hdn_smok
 +			    object_posix_lock_unmatched_allowed() : 2,
 +			    "object lock policy allows unmatched POSIX lock");
 +	report_child_result(object_policy_committed ?
++			    object_lease_denied() : 2,
++			    "object lock policy denies protected file lease");
++	report_child_result(object_policy_committed ?
++			    object_lease_unmatched_allowed() : 2,
++			    "object lock policy allows unmatched file lease");
++	report_child_result(object_policy_committed ?
 +			    object_watch_denied() : 2,
 +			    "object watch policy denies protected inotify watch");
 +		report_child_result(object_policy_committed ?
@@ -59919,7 +59968,7 @@ diff -ruN --exclude .git linux-7.0.12/tools/testing/selftests/hardening/hdn_smok
 +	if (access(HDN_STATUS, R_OK))
 +		ksft_exit_skip("hardening securityfs status not present\n");
 +
-+	ksft_set_plan(833);
++	ksft_set_plan(835);
 +	test_securityfs_status();
 +	test_symbol_test_module_load();
 +	test_securityfs_status_contains("abi_version: 81",
@@ -60654,7 +60703,7 @@ diff -ruN --exclude .git linux-7.0.12/tools/testing/selftests/hardening/role.pol
 +use-role 2 desktop-admin
 diff -ruN --exclude .git linux-7.0.12/tools/testing/selftests/hardening/run-qemu-smoke.sh linux-7.0.12-hdn/tools/testing/selftests/hardening/run-qemu-smoke.sh
 --- linux-7.0.12/tools/testing/selftests/hardening/run-qemu-smoke.sh	1969-12-31 18:00:00.000000000 -0600
-+++ linux-7.0.12-hdn/tools/testing/selftests/hardening/run-qemu-smoke.sh	2026-06-26 19:50:13.180146310 -0500
++++ linux-7.0.12-hdn/tools/testing/selftests/hardening/run-qemu-smoke.sh	2026-06-26 19:59:08.904094714 -0500
 @@ -0,0 +1,1060 @@
 +#!/bin/sh
 +# SPDX-License-Identifier: GPL-2.0
@@ -60689,7 +60738,7 @@ diff -ruN --exclude .git linux-7.0.12/tools/testing/selftests/hardening/run-qemu
 +QEMU_MEMORY=${QEMU_MEMORY:-1024M}
 +QEMU_SMP=${QEMU_SMP:-2}
 +QEMU_MACHINE=${QEMU_MACHINE:-q35,accel=tcg}
-+HDN_SMOKE_EXPECTED_PASS=${HDN_SMOKE_EXPECTED_PASS:-833}
++HDN_SMOKE_EXPECTED_PASS=${HDN_SMOKE_EXPECTED_PASS:-835}
 +WORK=${HDN_QEMU_WORK:-"${TMPDIR:-/tmp}/hdn-qemu-smoke.$$"}
 +LOG=${HDN_QEMU_LOG:-"$WORK/qemu.log"}
 +QMP=${HDN_QEMU_QMP:-"$WORK/qmp.sock"}

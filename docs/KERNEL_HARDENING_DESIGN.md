@@ -1001,7 +1001,9 @@ opened before policy commit. Pure lookup-style discovery is covered by
 	`security_file_fcntl()`: `deny-receive` blocks received protected file
 	descriptors, and `deny-fcntl` blocks mutating/control fcntl commands plus
 	ioctl aliases for close-on-exec, nonblocking, and async flag changes while
-	leaving status queries usable. `deny-chdir` covers `chdir(2)` and
+	leaving status queries usable. `deny-lock` covers BSD `flock(2)`, POSIX/OFD
+	`fcntl(2)` lock acquisition, and file lease acquisition through `F_SETLEASE`
+	while leaving unlock operations usable. `deny-chdir` covers `chdir(2)` and
 	`fchdir(2)`, `deny-mount` covers mount-tree attachment through
 	`mount(2)` and the `move_mount(2)` destination path, and
 	`deny-umount` covers validated `umount(2)`/`umount2(2)` detach attempts.
