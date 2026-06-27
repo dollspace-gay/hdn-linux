@@ -885,11 +885,12 @@ Product recovery config maps stable action names to either brokered policy
 rollback or a named system transaction, so recovery flows offer repair actions
 without exposing `securityfs` or raw broker commands. QEMU proves unknown
 recovery actions and unsafe recovery configs fail closed, and proves an
-approved recovery policy rollback restores generation 0 through the broker,
-proves approved package repair dry-run preflights the named transaction backend
-without changing the sealed mount, and proves real package repair updates the
-product mount through the named system transaction while preserving the
-read-only reseal invariant.
+approved recovery policy rollback dry-run leaves generation 1 unchanged before
+the real rollback restores generation 0 through the broker, proves approved
+package repair dry-run preflights the named transaction backend without
+changing the sealed mount, and proves real package repair updates the product
+mount through the named system transaction while preserving the read-only
+reseal invariant.
 `hdn-recovery-describe` is the read-only recovery metadata facade. Recovery UI
 asks for a named action and receives stable title/message/consequence/risk
 fields from a root-owned manifest before it offers that action to a user. It
@@ -903,10 +904,12 @@ authentication helper over stdin, and calls `hdn-recovery-action` only after
 the helper exits successfully. The root-owned session config selects absolute
 helper paths and does not invoke a shell. QEMU proves unknown actions, unsafe
 session configs, failed confirmation, and missing graphical sessions stop
-before repair work, proves approved package-repair dry-run validates metadata
-and the action route without confirmation UI or sealed-mount mutation, and
-proves a real approved package-repair session reaches the named recovery
-action, updates the sealed product mount, and reseals it read-only.
+before repair work, proves approved policy-rollback dry-run validates metadata
+and leaves generation 1 unchanged, proves approved package-repair dry-run
+validates metadata and the action route without confirmation UI or sealed-mount
+mutation, and proves real approved sessions reach the named recovery action,
+preserve rollback behavior, update the sealed product mount for repair, and
+reseal it read-only.
 `hdn-recovery-prompt` is the starter recovery confirmation frontend for this
 contract: it validates root-owned recovery metadata from stdin, displays a
 continue/cancel dialog through common desktop prompt helpers, and fails closed
@@ -918,8 +921,9 @@ so recovery panels and rescue shells do not expose helper paths, broker
 arguments, or securityfs operations. QEMU proves unknown recovery UI actions
 and unsafe portal configs fail closed, and proves approved rollback and repair
 portal actions reach recovery-session while preserving the policy rollback and
-read-only reseal invariants; approved repair dry-run preflights the same portal
-route without confirmation UI or sealed-mount mutation before real repair.
+read-only reseal invariants; approved rollback and repair dry-runs preflight
+the same portal routes without confirmation UI or protected-state mutation
+before real rollback or repair.
 
 Broker decisions become signed policy transactions consumed by the policy state manager and kernel interface.
 
@@ -1843,7 +1847,8 @@ Core oracle groups:
   DNF5/libdnf5, and the image-seal systemd unit invoke the stable
   hdn-package-hook actions
 - the recovery action helper rejects unknown recovery action names, rejects
-  unsafe recovery configs, runs approved policy rollback through the broker,
+  unsafe recovery configs, dry-runs approved policy rollback without changing
+  the active generation, runs approved policy rollback through the broker,
   dry-runs approved repair actions without changing the sealed mount, and runs
   approved repair actions through named system transactions
 - the recovery metadata helper rejects unknown recovery action names, rejects
@@ -1851,12 +1856,13 @@ Core oracle groups:
   fields for an approved action without dispatching repair work
 - the recovery session helper rejects unknown recovery action names, rejects
   unsafe session configs, rejects failed confirmation before action dispatch,
-  dry-runs an approved package repair action after metadata validation without
-  confirmation UI or sealed-mount mutation, and runs an approved package repair
-  action only after metadata handoff and confirmation success
+  dry-runs approved rollback and package repair actions after metadata
+  validation without confirmation UI or protected-state mutation, and runs
+  approved recovery actions only after metadata handoff and confirmation
+  success
 - the recovery portal helper rejects unknown recovery UI action names, rejects
-  unsafe portal configs, dry-runs approved repair routing without confirmation
-  UI or sealed-mount mutation, and maps approved recovery UI actions to
+  unsafe portal configs, dry-runs approved rollback and repair routing without
+  confirmation UI or protected-state mutation, and maps approved recovery UI actions to
   recovery-session without exposing broker, securityfs, or helper command lines
 - the prompt dispatch helper rejects unknown post-auth action names, rejects
   unsafe prompt configs, and runs an approved named package-update action

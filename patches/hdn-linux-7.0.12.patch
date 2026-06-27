@@ -19238,8 +19238,8 @@ diff -ruN --exclude .git linux-7.0.12/tools/hardening/Makefile linux-7.0.12-hdn/
 +.PHONY: all clean install
 diff -ruN --exclude .git linux-7.0.12/tools/hardening/README.rst linux-7.0.12-hdn/tools/hardening/README.rst
 --- linux-7.0.12/tools/hardening/README.rst	1969-12-31 18:00:00.000000000 -0600
-+++ linux-7.0.12-hdn/tools/hardening/README.rst	2026-06-27 03:34:01.945434862 -0500
-@@ -0,0 +1,1544 @@
++++ linux-7.0.12-hdn/tools/hardening/README.rst	2026-06-27 03:43:30.525376855 -0500
+@@ -0,0 +1,1545 @@
 +.. SPDX-License-Identifier: GPL-2.0-only
 +
 +Linux Hardening Policy Tools
@@ -20550,23 +20550,24 @@ diff -ruN --exclude .git linux-7.0.12/tools/hardening/README.rst linux-7.0.12-hd
 +decoder names both the ``CHROOT_FILE_HANDLE`` and ``CHROOT_MOUNT`` reasons.
 +The recovery facade is smoke-tested as well: unknown
 +actions and unsafe recovery configs are denied, an approved
-+``policy-rollback`` action rolls the policy back through the broker, and an
-+approved ``package-repair`` dry-run preflights the named transaction backend
-+without changing the sealed mount before the real action runs the named package
++``policy-rollback`` dry-run leaves the active generation unchanged before the
++real action rolls the policy back through the broker, and an approved
++``package-repair`` dry-run preflights the named transaction backend without
++changing the sealed mount before the real action runs the named package
 +transaction and reseals the product mount read-only. The recovery metadata
 +facade is tested too: unknown recovery actions and unsafe metadata configs are
 +denied, while an approved ``policy-rollback`` action emits stable
 +title/message/consequence/risk metadata for recovery UI. The recovery session
 +facade is tested too: unknown actions, unsafe session configs, and failed
-+confirmation are denied before repair work, while an approved
-+``package-repair`` session dry-runs without confirmation or mount change before
-+the real session describes the action, confirms it, runs the named recovery
-+repair action, and reseals the product mount read-only. The recovery portal
-+facade is tested too: unknown recovery UI actions and unsafe portal configs are
-+denied before session dispatch, while approved ``repair-system`` and
-+``rollback-policy`` actions map to recovery-session, preserve rollback
-+behavior, and ``repair-system`` dry-runs without confirmation or mount change
-+before real repair reseals the product mount read-only. The shipped
++confirmation are denied before repair work, while approved ``policy-rollback``
++and ``package-repair`` sessions dry-run without confirmation or protected-state
++mutation before the real sessions describe the action, confirm it, run the
++named recovery action, and preserve the rollback or read-only reseal invariant.
++The recovery portal facade is tested too: unknown recovery UI actions and
++unsafe portal configs are denied before session dispatch, while approved
++``repair-system`` and ``rollback-policy`` actions map to recovery-session,
++preserve rollback behavior, and dry-run without confirmation or protected-state
++mutation before real repair reseals the product mount read-only. The shipped
 +``readonly-mounts.conf`` is a product baseline: ``/usr`` is required, while
 +``/boot``, ``/boot/efi``, ``/opt``, ``/usr/local``,
 +``/var/lib/flatpak``, and ``/var/lib/snapd`` are optional mounted
@@ -38232,8 +38233,8 @@ diff -ruN --exclude .git linux-7.0.12/tools/testing/selftests/hardening/hdn_elfn
 +}
 diff -ruN --exclude .git linux-7.0.12/tools/testing/selftests/hardening/hdn_smoke.c linux-7.0.12-hdn/tools/testing/selftests/hardening/hdn_smoke.c
 --- linux-7.0.12/tools/testing/selftests/hardening/hdn_smoke.c	1969-12-31 18:00:00.000000000 -0600
-+++ linux-7.0.12-hdn/tools/testing/selftests/hardening/hdn_smoke.c	2026-06-27 03:33:38.873436169 -0500
-@@ -0,0 +1,27944 @@
++++ linux-7.0.12-hdn/tools/testing/selftests/hardening/hdn_smoke.c	2026-06-27 03:41:23.781391323 -0500
+@@ -0,0 +1,28001 @@
 +// SPDX-License-Identifier: GPL-2.0-only
 +
 +#define _GNU_SOURCE
@@ -46519,7 +46520,8 @@ diff -ruN --exclude .git linux-7.0.12/tools/testing/selftests/hardening/hdn_smok
 +	       securityfs_status_has_line("policy_staged: 0") ? 0 : 1;
 +}
 +
-+static int recovery_action_run(const char *action, const char *config_path)
++static int recovery_action_run(const char *action, const char *config_path,
++			       bool dry_run)
 +{
 +	pid_t child;
 +
@@ -46531,9 +46533,16 @@ diff -ruN --exclude .git linux-7.0.12/tools/testing/selftests/hardening/hdn_smok
 +		return 2;
 +
 +	if (!child) {
-+		if (config_path)
++		if (config_path && dry_run)
++			execl(HDN_RECOVERY_ACTION_EXEC, "hdn-recovery-action",
++			      "--dry-run", "--config", config_path, action,
++			      NULL);
++		else if (config_path)
 +			execl(HDN_RECOVERY_ACTION_EXEC, "hdn-recovery-action",
 +			      "--config", config_path, action, NULL);
++		else if (dry_run)
++			execl(HDN_RECOVERY_ACTION_EXEC, "hdn-recovery-action",
++			      "--dry-run", action, NULL);
 +		else
 +			execl(HDN_RECOVERY_ACTION_EXEC, "hdn-recovery-action",
 +			      action, NULL);
@@ -46547,7 +46556,7 @@ diff -ruN --exclude .git linux-7.0.12/tools/testing/selftests/hardening/hdn_smok
 +
 +static int recovery_action_unknown_denied(void)
 +{
-+	int ret = recovery_action_run("unknown-action", NULL);
++	int ret = recovery_action_run("unknown-action", NULL, false);
 +
 +	if (ret == KSFT_SKIP)
 +		return ret;
@@ -46561,7 +46570,8 @@ diff -ruN --exclude .git linux-7.0.12/tools/testing/selftests/hardening/hdn_smok
 +static int recovery_action_unsafe_config_denied(void)
 +{
 +	int ret = recovery_action_run("policy-rollback",
-+				      HDN_RECOVERY_ACTION_UNSAFE_CONFIG);
++				      HDN_RECOVERY_ACTION_UNSAFE_CONFIG,
++				      false);
 +
 +	if (ret == KSFT_SKIP)
 +		return ret;
@@ -46580,7 +46590,17 @@ diff -ruN --exclude .git linux-7.0.12/tools/testing/selftests/hardening/hdn_smok
 +	if (ret)
 +		return ret;
 +
-+	ret = recovery_action_run("policy-rollback", NULL);
++	ret = recovery_action_run("policy-rollback", NULL, true);
++	if (ret) {
++		(void)write_text_file(HDN_ROLLBACK, "1\n");
++		return ret;
++	}
++	if (!securityfs_status_has_line("generation: 1")) {
++		(void)write_text_file(HDN_ROLLBACK, "1\n");
++		return 1;
++	}
++
++	ret = recovery_action_run("policy-rollback", NULL, false);
 +	if (ret) {
 +		(void)write_text_file(HDN_ROLLBACK, "1\n");
 +		return ret;
@@ -46855,7 +46875,8 @@ diff -ruN --exclude .git linux-7.0.12/tools/testing/selftests/hardening/hdn_smok
 +	return approve ? 0 : 1;
 +}
 +
-+static int recovery_session_run(const char *action, const char *config_path)
++static int recovery_session_run(const char *action, const char *config_path,
++				bool dry_run)
 +{
 +	pid_t child;
 +
@@ -46871,10 +46892,18 @@ diff -ruN --exclude .git linux-7.0.12/tools/testing/selftests/hardening/hdn_smok
 +		return 2;
 +
 +	if (!child) {
-+		if (config_path)
++		if (config_path && dry_run)
++			execl(HDN_RECOVERY_SESSION_EXEC,
++			      "hdn-recovery-session", "--dry-run", "--config",
++			      config_path, action, NULL);
++		else if (config_path)
 +			execl(HDN_RECOVERY_SESSION_EXEC,
 +			      "hdn-recovery-session", "--config",
 +			      config_path, action, NULL);
++		else if (dry_run)
++			execl(HDN_RECOVERY_SESSION_EXEC,
++			      "hdn-recovery-session", "--dry-run", action,
++			      NULL);
 +		else
 +			execl(HDN_RECOVERY_SESSION_EXEC,
 +			      "hdn-recovery-session", action, NULL);
@@ -46889,7 +46918,7 @@ diff -ruN --exclude .git linux-7.0.12/tools/testing/selftests/hardening/hdn_smok
 +static int recovery_session_denied(const char *action, const char *config_path,
 +				   const char *failure)
 +{
-+	int ret = recovery_session_run(action, config_path);
++	int ret = recovery_session_run(action, config_path, false);
 +
 +	if (ret == KSFT_SKIP)
 +		return ret;
@@ -46939,7 +46968,17 @@ diff -ruN --exclude .git linux-7.0.12/tools/testing/selftests/hardening/hdn_smok
 +	if (ret)
 +		return ret;
 +
-+	ret = recovery_session_run("policy-rollback", NULL);
++	ret = recovery_session_run("policy-rollback", NULL, true);
++	if (ret) {
++		(void)write_text_file(HDN_ROLLBACK, "1\n");
++		return ret;
++	}
++	if (!securityfs_status_has_line("generation: 1")) {
++		(void)write_text_file(HDN_ROLLBACK, "1\n");
++		return 1;
++	}
++
++	ret = recovery_session_run("policy-rollback", NULL, false);
 +	if (ret) {
 +		(void)write_text_file(HDN_ROLLBACK, "1\n");
 +		return ret;
@@ -46952,7 +46991,8 @@ diff -ruN --exclude .git linux-7.0.12/tools/testing/selftests/hardening/hdn_smok
 +	return 1;
 +}
 +
-+static int recovery_portal_run(const char *action, const char *config_path)
++static int recovery_portal_run(const char *action, const char *config_path,
++			       bool dry_run)
 +{
 +	pid_t child;
 +
@@ -46968,10 +47008,18 @@ diff -ruN --exclude .git linux-7.0.12/tools/testing/selftests/hardening/hdn_smok
 +		return 2;
 +
 +	if (!child) {
-+		if (config_path)
++		if (config_path && dry_run)
++			execl(HDN_RECOVERY_PORTAL_EXEC,
++			      "hdn-recovery-portal", "--dry-run", "--config",
++			      config_path, action, NULL);
++		else if (config_path)
 +			execl(HDN_RECOVERY_PORTAL_EXEC,
 +			      "hdn-recovery-portal", "--config",
 +			      config_path, action, NULL);
++		else if (dry_run)
++			execl(HDN_RECOVERY_PORTAL_EXEC,
++			      "hdn-recovery-portal", "--dry-run", action,
++			      NULL);
 +		else
 +			execl(HDN_RECOVERY_PORTAL_EXEC,
 +			      "hdn-recovery-portal", action, NULL);
@@ -46986,7 +47034,7 @@ diff -ruN --exclude .git linux-7.0.12/tools/testing/selftests/hardening/hdn_smok
 +static int recovery_portal_denied(const char *action, const char *config_path,
 +				  const char *failure)
 +{
-+	int ret = recovery_portal_run(action, config_path);
++	int ret = recovery_portal_run(action, config_path, false);
 +
 +	if (ret == KSFT_SKIP)
 +		return ret;
@@ -47022,7 +47070,17 @@ diff -ruN --exclude .git linux-7.0.12/tools/testing/selftests/hardening/hdn_smok
 +	if (ret)
 +		return ret;
 +
-+	ret = recovery_portal_run("rollback-policy", NULL);
++	ret = recovery_portal_run("rollback-policy", NULL, true);
++	if (ret) {
++		(void)write_text_file(HDN_ROLLBACK, "1\n");
++		return ret;
++	}
++	if (!securityfs_status_has_line("generation: 1")) {
++		(void)write_text_file(HDN_ROLLBACK, "1\n");
++		return 1;
++	}
++
++	ret = recovery_portal_run("rollback-policy", NULL, false);
 +	if (ret) {
 +		(void)write_text_file(HDN_ROLLBACK, "1\n");
 +		return ret;

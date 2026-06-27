@@ -117,6 +117,9 @@ Recovery repair preflight now uses the same `--dry-run` contract through
 `hdn-recovery-action`, `hdn-recovery-session`, and `hdn-recovery-portal`; QEMU
 proves those approved routes validate without confirmation UI or sealed-mount
 changes before the real repair path runs and reseals.
+Recovery rollback preflight is now covered by the same oracle: QEMU proves
+dry-run rollback leaves the active policy generation unchanged before the real
+rollback path executes through action, session, and portal.
 Other-user proc task visibility now has grouped proc mount compatibility plus
 an HDN-native global task-view group for proc, pidfd, and proc task-directory
 mode visibility.
@@ -166,9 +169,9 @@ Patch artifact at this checkpoint:
 
 ```text
 patch: patches/hdn-linux-7.0.12.patch
-lines: 68,000
-bytes: 2,024,619
-sha256: 68ebba64f2b95b22aa610e33dca38c980df6203314340c5905c768307334b152
+lines: 68,058
+bytes: 2,026,505
+sha256: 0c2ffe3c54f9319278772cfc3f4cf95f07f74d3964f450a25f7f761c3cdbab37
 ```
 
 ## Development Rule
