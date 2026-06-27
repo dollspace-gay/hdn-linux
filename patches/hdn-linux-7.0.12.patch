@@ -3570,8 +3570,8 @@ diff -ruN --exclude .git linux-7.0.12/include/linux/btf.h linux-7.0.12-hdn/inclu
  
 diff -ruN --exclude .git linux-7.0.12/include/linux/hardening.h linux-7.0.12-hdn/include/linux/hardening.h
 --- linux-7.0.12/include/linux/hardening.h	1969-12-31 18:00:00.000000000 -0600
-+++ linux-7.0.12-hdn/include/linux/hardening.h	2026-06-26 19:33:26.936239153 -0500
-@@ -0,0 +1,982 @@
++++ linux-7.0.12-hdn/include/linux/hardening.h	2026-06-26 19:48:51.948153594 -0500
+@@ -0,0 +1,988 @@
 +/* SPDX-License-Identifier: GPL-2.0-only */
 +#ifndef _LINUX_HARDENING_H
 +#define _LINUX_HARDENING_H
@@ -3728,6 +3728,7 @@ diff -ruN --exclude .git linux-7.0.12/include/linux/hardening.h linux-7.0.12-hdn
 +int hdn_authorize_object_attr(const struct dentry *dentry,
 +			      unsigned int ia_valid);
 +int hdn_authorize_object_fileattr(const struct dentry *dentry);
++int hdn_authorize_object_filegetattr(const struct dentry *dentry);
 +int hdn_authorize_object_xattr(const struct dentry *dentry,
 +			       enum hdn_xattr_operation operation);
 +int hdn_authorize_object_write(const struct path *path);
@@ -4157,6 +4158,11 @@ diff -ruN --exclude .git linux-7.0.12/include/linux/hardening.h linux-7.0.12-hdn
 +}
 +
 +static inline int hdn_authorize_object_fileattr(const struct dentry *dentry)
++{
++	return 0;
++}
++
++static inline int hdn_authorize_object_filegetattr(const struct dentry *dentry)
 +{
 +	return 0;
 +}
@@ -10715,8 +10721,8 @@ diff -ruN --exclude .git linux-7.0.12/security/hardening/Makefile linux-7.0.12-h
 +obj-$(CONFIG_SECURITY_HARDENING) += core.o
 diff -ruN --exclude .git linux-7.0.12/security/hardening/core.c linux-7.0.12-hdn/security/hardening/core.c
 --- linux-7.0.12/security/hardening/core.c	1969-12-31 18:00:00.000000000 -0600
-+++ linux-7.0.12-hdn/security/hardening/core.c	2026-06-26 19:33:38.620237776 -0500
-@@ -0,0 +1,7476 @@
++++ linux-7.0.12-hdn/security/hardening/core.c	2026-06-26 19:48:58.840152920 -0500
+@@ -0,0 +1,7483 @@
 +// SPDX-License-Identifier: GPL-2.0-only
 +
 +#include <linux/binfmts.h>
@@ -13612,6 +13618,13 @@ diff -ruN --exclude .git linux-7.0.12/security/hardening/core.c linux-7.0.12-hdn
 +int hdn_authorize_object_fileattr(const struct dentry *dentry)
 +{
 +	return hdn_authorize_object_attr_dentry(dentry);
++}
++
++int hdn_authorize_object_filegetattr(const struct dentry *dentry)
++{
++	return hdn_authorize_object_dentry_policy(dentry, HDN_OBJECT_DENY_STAT,
++						  HDN_AUTH_OBJECT_STAT,
++						  HDN_TRANS_OBJECT_STAT);
 +}
 +
 +int hdn_authorize_object_xattr(const struct dentry *dentry,
@@ -18257,7 +18270,7 @@ diff -ruN --exclude .git linux-7.0.12/security/min_addr.c linux-7.0.12-hdn/secur
  	update_mmap_min_addr();
 diff -ruN --exclude .git linux-7.0.12/security/security.c linux-7.0.12-hdn/security/security.c
 --- linux-7.0.12/security/security.c	2026-06-09 05:32:51.000000000 -0500
-+++ linux-7.0.12-hdn/security/security.c	2026-06-26 19:33:44.480237220 -0500
++++ linux-7.0.12-hdn/security/security.c	2026-06-26 19:49:06.532152138 -0500
 @@ -19,6 +19,7 @@
  #include <linux/kernel.h>
  #include <linux/kernel_read_file.h>
@@ -18292,7 +18305,20 @@ diff -ruN --exclude .git linux-7.0.12/security/security.c linux-7.0.12-hdn/secur
  	return call_int_hook(inode_file_setattr, dentry, fa);
  }
  
-@@ -2509,6 +2522,12 @@
+@@ -2167,6 +2180,12 @@
+  */
+ int security_inode_file_getattr(struct dentry *dentry, struct file_kattr *fa)
+ {
++	int ret;
++
++	ret = hdn_authorize_object_filegetattr(dentry);
++	if (ret)
++		return ret;
++
+ 	return call_int_hook(inode_file_getattr, dentry, fa);
+ }
+ 
+@@ -2509,6 +2528,12 @@
   */
  int security_file_ioctl(struct file *file, unsigned int cmd, unsigned long arg)
  {
@@ -18305,7 +18331,7 @@ diff -ruN --exclude .git linux-7.0.12/security/security.c linux-7.0.12-hdn/secur
  	return call_int_hook(file_ioctl, file, cmd, arg);
  }
  EXPORT_SYMBOL_GPL(security_file_ioctl);
-@@ -2527,6 +2546,12 @@
+@@ -2527,6 +2552,12 @@
  int security_file_ioctl_compat(struct file *file, unsigned int cmd,
  			       unsigned long arg)
  {
@@ -18318,7 +18344,7 @@ diff -ruN --exclude .git linux-7.0.12/security/security.c linux-7.0.12-hdn/secur
  	return call_int_hook(file_ioctl_compat, file, cmd, arg);
  }
  EXPORT_SYMBOL_GPL(security_file_ioctl_compat);
-@@ -2649,6 +2674,12 @@
+@@ -2649,6 +2680,12 @@
   */
  int security_file_lock(struct file *file, unsigned int cmd)
  {
@@ -18331,7 +18357,7 @@ diff -ruN --exclude .git linux-7.0.12/security/security.c linux-7.0.12-hdn/secur
  	return call_int_hook(file_lock, file, cmd);
  }
  
-@@ -2668,6 +2699,12 @@
+@@ -2668,6 +2705,12 @@
   */
  int security_file_fcntl(struct file *file, unsigned int cmd, unsigned long arg)
  {
@@ -18344,7 +18370,7 @@ diff -ruN --exclude .git linux-7.0.12/security/security.c linux-7.0.12-hdn/secur
  	return call_int_hook(file_fcntl, file, cmd, arg);
  }
  
-@@ -2718,6 +2755,12 @@
+@@ -2718,6 +2761,12 @@
   */
  int security_file_receive(struct file *file)
  {
@@ -18555,8 +18581,8 @@ diff -ruN --exclude .git linux-7.0.12/tools/hardening/Makefile linux-7.0.12-hdn/
 +.PHONY: all clean install
 diff -ruN --exclude .git linux-7.0.12/tools/hardening/README.rst linux-7.0.12-hdn/tools/hardening/README.rst
 --- linux-7.0.12/tools/hardening/README.rst	1969-12-31 18:00:00.000000000 -0600
-+++ linux-7.0.12-hdn/tools/hardening/README.rst	2026-06-26 19:37:53.200214909 -0500
-@@ -0,0 +1,1390 @@
++++ linux-7.0.12-hdn/tools/hardening/README.rst	2026-06-26 19:50:35.420144330 -0500
+@@ -0,0 +1,1392 @@
 +.. SPDX-License-Identifier: GPL-2.0-only
 +
 +Linux Hardening Policy Tools
@@ -19196,7 +19222,9 @@ diff -ruN --exclude .git linux-7.0.12/tools/hardening/README.rst linux-7.0.12-hd
 +``R_OK``/``W_OK``/``X_OK`` probes respect existing deny-read, deny-write, and
 +deny-exec regular-file rules. It enforces deny-stat for metadata discovery
 +through ``stat(2)``, ``lstat(2)``, ``fstat(2)``, ``fstatat(2)``, and
-+``statx(2)`` paths that use the common VFS getattr path. It enforces deny-list
++``statx(2)`` paths that use the common VFS getattr path, and for VFS
++file-attribute reads such as ``FS_IOC_GETFLAGS`` through the common fileattr
++path. It enforces deny-list
 +for directory name discovery through the common VFS ``iterate_dir()`` path used
 +by ``readdir(3)`` and ``getdents64(2)``, including already-open directory file
 +descriptors after policy commit. It enforces deny-find for pure lookup-style
@@ -35769,8 +35797,8 @@ diff -ruN --exclude .git linux-7.0.12/tools/testing/selftests/hardening/hdn_elfn
 +}
 diff -ruN --exclude .git linux-7.0.12/tools/testing/selftests/hardening/hdn_smoke.c linux-7.0.12-hdn/tools/testing/selftests/hardening/hdn_smoke.c
 --- linux-7.0.12/tools/testing/selftests/hardening/hdn_smoke.c	1969-12-31 18:00:00.000000000 -0600
-+++ linux-7.0.12-hdn/tools/testing/selftests/hardening/hdn_smoke.c	2026-06-26 19:42:16.344190347 -0500
-@@ -0,0 +1,24448 @@
++++ linux-7.0.12-hdn/tools/testing/selftests/hardening/hdn_smoke.c	2026-06-26 19:50:08.004146699 -0500
+@@ -0,0 +1,24505 @@
 +// SPDX-License-Identifier: GPL-2.0-only
 +
 +#define _GNU_SOURCE
@@ -36158,6 +36186,10 @@ diff -ruN --exclude .git linux-7.0.12/tools/testing/selftests/hardening/hdn_smok
 +#define HDN_OBJECT_FILEATTR_DIR "/hdn-object-fileattr-tmpfs"
 +#define HDN_OBJECT_FILEATTR_PROTECTED HDN_OBJECT_FILEATTR_DIR "/protected"
 +#define HDN_OBJECT_FILEATTR_UNPROTECTED HDN_OBJECT_FILEATTR_DIR "/unprotected"
++#define HDN_OBJECT_FILEGETATTR_PROTECTED \
++	HDN_OBJECT_FILEATTR_DIR "/stat-protected"
++#define HDN_OBJECT_FILEGETATTR_UNPROTECTED \
++	HDN_OBJECT_FILEATTR_DIR "/stat-unprotected"
 +#define HDN_OBJECT_CHMOD_PROTECTED "/hdn-object-chmod-protected"
 +#define HDN_OBJECT_CHOWN_PROTECTED "/hdn-object-chown-protected"
 +#define HDN_OBJECT_UTIME_PROTECTED "/hdn-object-utime-protected"
@@ -42009,6 +42041,8 @@ diff -ruN --exclude .git linux-7.0.12/tools/testing/selftests/hardening/hdn_smok
 +{
 +	unlink(HDN_OBJECT_FILEATTR_PROTECTED);
 +	unlink(HDN_OBJECT_FILEATTR_UNPROTECTED);
++	unlink(HDN_OBJECT_FILEGETATTR_PROTECTED);
++	unlink(HDN_OBJECT_FILEGETATTR_UNPROTECTED);
 +	umount(HDN_OBJECT_FILEATTR_DIR);
 +	rmdir(HDN_OBJECT_FILEATTR_DIR);
 +}
@@ -42031,6 +42065,12 @@ diff -ruN --exclude .git linux-7.0.12/tools/testing/selftests/hardening/hdn_smok
 +	if (ret)
 +		goto out_cleanup;
 +	ret = create_file_exclusive(HDN_OBJECT_FILEATTR_UNPROTECTED);
++	if (ret)
++		goto out_cleanup;
++	ret = create_file_exclusive(HDN_OBJECT_FILEGETATTR_PROTECTED);
++	if (ret)
++		goto out_cleanup;
++	ret = create_file_exclusive(HDN_OBJECT_FILEGETATTR_UNPROTECTED);
 +	if (ret)
 +		goto out_cleanup;
 +
@@ -42081,6 +42121,43 @@ diff -ruN --exclude .git linux-7.0.12/tools/testing/selftests/hardening/hdn_smok
 +{
 +	return object_fileattr_setflags_result(HDN_OBJECT_FILEATTR_UNPROTECTED,
 +					       false);
++}
++
++static int object_filegetattr_result(const char *path, bool denied)
++{
++	unsigned int flags;
++	int saved_errno;
++	int result;
++	int fd;
++
++	fd = open(path, O_RDONLY | O_CLOEXEC);
++	if (fd < 0)
++		return 2;
++
++	errno = 0;
++	if (!ioctl(fd, FS_IOC_GETFLAGS, &flags)) {
++		result = denied ? 1 : 0;
++		goto out;
++	}
++
++	saved_errno = errno;
++	result = denied && errno_is_denial(saved_errno) ? 0 : 2;
++
++out:
++	close(fd);
++	return result;
++}
++
++static int object_stat_filegetattr_denied(void)
++{
++	return object_filegetattr_result(HDN_OBJECT_FILEGETATTR_PROTECTED,
++					 true);
++}
++
++static int object_stat_filegetattr_unmatched_allowed(void)
++{
++	return object_filegetattr_result(HDN_OBJECT_FILEGETATTR_UNPROTECTED,
++					 false);
 +}
 +
 +static int object_attr_unmatched_chmod_allowed(void)
@@ -54344,6 +54421,8 @@ diff -ruN --exclude .git linux-7.0.12/tools/testing/selftests/hardening/hdn_smok
 +				ksft_test_result_skip("object access policy denies exec access probe\n");
 +				ksft_test_result_skip("object stat policy denies protected stat\n");
 +				ksft_test_result_skip("object stat policy denies preopened fstat\n");
++				ksft_test_result_skip("object stat policy denies protected fileattr ioctl\n");
++				ksft_test_result_skip("object stat policy allows unmatched fileattr ioctl\n");
 +				ksft_test_result_skip("object stat policy allows unmatched stat\n");
 +				ksft_test_result_skip("object list policy denies protected readdir\n");
 +				ksft_test_result_skip("object list policy denies preopened readdir\n");
@@ -57071,7 +57150,7 @@ diff -ruN --exclude .git linux-7.0.12/tools/testing/selftests/hardening/hdn_smok
 +		ksft_test_result(object_policy_committed,
 +				 "object-write hardening policy commits\n");
 +	ksft_test_result(object_policy_committed &&
-+						 securityfs_status_has_line("object_rule_count: 61"),
++						 securityfs_status_has_line("object_rule_count: 62"),
 +					 "object-write policy reports object rule count\n");
 +	report_child_result(object_policy_committed ?
 +			    object_protected_write_denied() : 2,
@@ -57572,6 +57651,12 @@ diff -ruN --exclude .git linux-7.0.12/tools/testing/selftests/hardening/hdn_smok
 +	report_child_result(object_policy_committed ?
 +			    object_stat_preopened_denied(object_stat_preopen_fd) : 2,
 +			    "object stat policy denies preopened fstat");
++	report_child_result(object_policy_committed && object_fileattr_prepared ?
++			    object_stat_filegetattr_denied() : 2,
++			    "object stat policy denies protected fileattr ioctl");
++	report_child_result(object_policy_committed && object_fileattr_prepared ?
++			    object_stat_filegetattr_unmatched_allowed() : 2,
++			    "object stat policy allows unmatched fileattr ioctl");
 +	report_child_result(object_policy_committed ?
 +			    object_stat_unmatched_allowed() : 2,
 +			    "object stat policy allows unmatched stat");
@@ -59834,7 +59919,7 @@ diff -ruN --exclude .git linux-7.0.12/tools/testing/selftests/hardening/hdn_smok
 +	if (access(HDN_STATUS, R_OK))
 +		ksft_exit_skip("hardening securityfs status not present\n");
 +
-+	ksft_set_plan(831);
++	ksft_set_plan(833);
 +	test_securityfs_status();
 +	test_symbol_test_module_load();
 +	test_securityfs_status_contains("abi_version: 81",
@@ -60401,8 +60486,8 @@ diff -ruN --exclude .git linux-7.0.12/tools/testing/selftests/hardening/namespac
 +allow 2 POLICY_ADMIN CRED_CHANGE PTRACE NAMESPACE_ADMIN PROC_TASK_VIEW
 diff -ruN --exclude .git linux-7.0.12/tools/testing/selftests/hardening/object-write.policy linux-7.0.12-hdn/tools/testing/selftests/hardening/object-write.policy
 --- linux-7.0.12/tools/testing/selftests/hardening/object-write.policy	1969-12-31 18:00:00.000000000 -0600
-+++ linux-7.0.12-hdn/tools/testing/selftests/hardening/object-write.policy	2026-06-26 19:36:48.820220585 -0500
-@@ -0,0 +1,75 @@
++++ linux-7.0.12-hdn/tools/testing/selftests/hardening/object-write.policy	2026-06-26 19:49:45.588148425 -0500
+@@ -0,0 +1,76 @@
 +# Root-profile policy used by the QEMU smoke test to prove object
 +# read/write/delete/create/creat/mkdir/mknod/symlink/unlink/rmdir/exec/link/attr/chmod/chown/utime/xattr/setxattr/removexattr/access/stat/list/find/ioctl/lock/watch/receive/fcntl/chdir/mount/umount/truncate/rename/unix-connect/unix-bind/unix-listen/unix-accept/unix-send/unix-recv denial,
 +# recursive tree denial, and append-only enforcement
@@ -60445,6 +60530,7 @@ diff -ruN --exclude .git linux-7.0.12/tools/testing/selftests/hardening/object-w
 +object 2 deny-utime path /hdn-object-utime-protected
 +object 2 deny-access path /hdn-object-access-protected
 +object 2 deny-stat path /hdn-object-stat-protected
++object 2 deny-stat path /hdn-object-fileattr-tmpfs/stat-protected
 +object 2 deny-list path /hdn-object-list-protected
 +object 2 deny-find path /hdn-object-find-protected
 +object 2 deny-ioctl path /hdn-object-ioctl-protected
@@ -60568,7 +60654,7 @@ diff -ruN --exclude .git linux-7.0.12/tools/testing/selftests/hardening/role.pol
 +use-role 2 desktop-admin
 diff -ruN --exclude .git linux-7.0.12/tools/testing/selftests/hardening/run-qemu-smoke.sh linux-7.0.12-hdn/tools/testing/selftests/hardening/run-qemu-smoke.sh
 --- linux-7.0.12/tools/testing/selftests/hardening/run-qemu-smoke.sh	1969-12-31 18:00:00.000000000 -0600
-+++ linux-7.0.12-hdn/tools/testing/selftests/hardening/run-qemu-smoke.sh	2026-06-26 19:37:04.736219195 -0500
++++ linux-7.0.12-hdn/tools/testing/selftests/hardening/run-qemu-smoke.sh	2026-06-26 19:50:13.180146310 -0500
 @@ -0,0 +1,1060 @@
 +#!/bin/sh
 +# SPDX-License-Identifier: GPL-2.0
@@ -60603,7 +60689,7 @@ diff -ruN --exclude .git linux-7.0.12/tools/testing/selftests/hardening/run-qemu
 +QEMU_MEMORY=${QEMU_MEMORY:-1024M}
 +QEMU_SMP=${QEMU_SMP:-2}
 +QEMU_MACHINE=${QEMU_MACHINE:-q35,accel=tcg}
-+HDN_SMOKE_EXPECTED_PASS=${HDN_SMOKE_EXPECTED_PASS:-831}
++HDN_SMOKE_EXPECTED_PASS=${HDN_SMOKE_EXPECTED_PASS:-833}
 +WORK=${HDN_QEMU_WORK:-"${TMPDIR:-/tmp}/hdn-qemu-smoke.$$"}
 +LOG=${HDN_QEMU_LOG:-"$WORK/qemu.log"}
 +QMP=${HDN_QEMU_QMP:-"$WORK/qmp.sock"}

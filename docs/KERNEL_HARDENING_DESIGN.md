@@ -990,8 +990,9 @@ also covers explicit `access(2)`/`faccessat(2)` probes through
 `deny-access`, and makes `R_OK`/`W_OK`/`X_OK` probes observe regular-file
 deny-read, deny-write, and deny-exec policy. Metadata discovery through the
 common VFS getattr path is covered by `deny-stat`, including path-based stat
-calls and `fstat(2)` on descriptors opened before policy commit. Directory
-name discovery through the common VFS `iterate_dir()` path is covered by
+calls, `fstat(2)` on descriptors opened before policy commit, and VFS
+file-attribute reads such as `FS_IOC_GETFLAGS`. Directory name discovery
+through the common VFS `iterate_dir()` path is covered by
 `deny-list`, including `readdir(3)`/`getdents64(2)` and directory descriptors
 opened before policy commit. Pure lookup-style discovery is covered by
 	`deny-find` for `open(2)` with `O_PATH` and `name_to_handle_at(2)`, returning
