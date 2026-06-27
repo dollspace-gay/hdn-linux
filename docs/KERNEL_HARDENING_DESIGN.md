@@ -211,7 +211,10 @@ hide ASLR-sensitive addresses unless the caller has `AUTH_PROC_DISCLOSE`.
 Cross-process `/proc/<pid>/pagemap` reads and the binary `PROCMAP_QUERY` ioctl
 are denied without disclosure authority so they cannot become lower-friction
 address or page-state oracles. Self and same-thread-group reads remain
-compatible. `/proc/ioports` and `/proc/iomem` retain resource names for
+compatible. Cross-process `/proc/<pid>/cmdline`, `/proc/<pid>/environ`, and
+`/proc/<pid>/auxv` reads also require `AUTH_PROC_DISCLOSE` because they expose
+argument shape, environment secrets, and loader metadata for another address
+space. `/proc/ioports` and `/proc/iomem` retain resource names for
 hardware inventory, but their address ranges collapse to zero unless a capable
 caller also has `AUTH_PROC_DISCLOSE`. Global page-monitoring metadata in
 `/proc/kpagecount`, `/proc/kpageflags`, and `/proc/kpagecgroup` is denied
@@ -1821,6 +1824,9 @@ Core oracle groups:
 - cross-process `/proc/<pid>/pagemap`, `PROCMAP_QUERY`, and global
   `/proc/kpage*` page-monitoring metadata denied without `PROC_DISCLOSE`,
   while `/proc/self/pagemap` remains usable
+- cross-process `/proc/<pid>/cmdline`, `/proc/<pid>/environ`, and
+  `/proc/<pid>/auxv` denied without `PROC_DISCLOSE`, while self reads remain
+  usable
 - `/proc/ioports` and `/proc/iomem` address ranges redacted without
   `PROC_DISCLOSE`, while resource names remain visible for compatibility
 - owner-only sysfs attributes and sensitive world-readable sysfs metadata such
