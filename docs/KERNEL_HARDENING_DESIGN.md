@@ -846,6 +846,19 @@ real actions reach the desktop daemon and preserve the read-only reseal
 invariant, stdio rejection of non-commit policy dry-runs, and an approved
 compiled policy workflow plus one-shot and stdio commit preflight reaching the
 policy daemon.
+`hdn-settings-panel` is the graphical-settings-facing command above
+`hdn-control-center`. Product UI calls `status` for product health,
+`action SETTINGS_ACTION` for an approved settings verb, or `update` for the
+normal package/update operation. Its root-owned settings-panel config maps
+settings verbs to control-center action names and never exposes control-center,
+desktop-daemon, prompt, token, broker, or helper command lines to the caller.
+Real settings actions first run the mapped control-center action with
+`--dry-run`; only a successful preflight allows the real action. QEMU proves
+unknown settings actions and unsafe settings-panel configs fail closed, proves
+approved settings action dry-run leaves the sealed mount unchanged, and proves
+the real approved `updates.install` action reaches control-center,
+authenticates through the desktop chain, updates the sealed product mount, and
+reseals it read-only.
 `hdn-image-seal` is the installer/first-boot/image-updater facade for sealing
 the base image. Product config maps stable seal names to ordered brokered
 steps such as signed policy commit and read-only mount-list application, so
@@ -1832,6 +1845,10 @@ Core oracle groups:
   changing the sealed mount, runs an approved UI action through stdio, rejects
   non-commit policy dry-runs through stdio, and runs an approved policy
   workflow plus signed-commit preflight through hdn-policy-daemon
+- the settings-panel helper rejects unknown settings actions, rejects unsafe
+  settings-panel configs, maps approved settings verbs to control-center
+  actions, dry-runs the mapped route without prompting or changing the sealed
+  mount, and runs the real action only after that preflight succeeds
 - the image seal helper rejects unknown seal names, rejects unsafe image seal
   configs, dry-runs an approved brokered read-only mount list without changing
   mount state, and applies that list while leaving the sealed mount read-only
@@ -2039,12 +2056,12 @@ Core oracle groups:
 - Lock down BPF, perf, ptrace, user namespaces, debugfs, tracefs, procfs, module loading, kexec, and kernel log reads/writes through available upstream controls and HDN authorities.
 - Integrate Secure Boot, module signing, fs-verity, IMA/IPE/AppArmor/SELinux/Landlock where appropriate.
 - Build the graphical prompt daemon and settings panel on top of the
-  control-center and desktop-daemon contracts for normal desktop action
-  requests, on the prompt-session contract when the product frontend needs to
-  select its own session backend, or on the lower-level prompt-describe and
-  prompt-dispatch contracts when the frontend needs to own authentication
-  directly. Keep metadata, token, and broker details behind those root-side
-  facades.
+  settings-panel, control-center, and desktop-daemon contracts for normal
+  desktop action requests, on the prompt-session contract when the product
+  frontend needs to select its own session backend, or on the lower-level
+  prompt-describe and prompt-dispatch contracts when the frontend needs to own
+  authentication directly. Keep metadata, token, and broker details behind
+  those root-side facades.
 
 ### Phase 2: Authority Gates
 

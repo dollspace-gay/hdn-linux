@@ -109,6 +109,13 @@ daemon stdio protocol also accepts `dry-run commit WORKFLOW` below it. The
 QEMU smoke path now proves real and dry-run `updates.install` through both
 one-shot and stdio control-center routes, and proves unknown stdio UI actions
 fail closed without changing the protected mount state.
+`hdn-settings-panel` now gives graphical settings apps a root-owned product
+manifest above `hdn-control-center`, including `status`, mapped
+`action SETTINGS_ACTION`, and a normal `update` shortcut. Real settings actions
+first preflight the same control-center route with `--dry-run`; QEMU proves
+unknown settings actions and unsafe settings manifests fail closed, and proves
+dry-run plus real `updates.install` keeps the protected mount sealed before
+resealing after the approved update.
 Package and image update preflight now uses the same `--dry-run` contract
 through `hdn-image-seal`, `hdn-system-transaction`, and `hdn-package-hook`;
 QEMU proves those approved routes validate without changing the protected
@@ -134,9 +141,10 @@ The exploit-mitigation baseline also enables and enforces upstream page-table
 checking on supported architectures, with sealed status and QEMU coverage.
 
 The largest remaining gaps are richer RBAC/userspace integration beyond the
-current policy workflow/daemon facade, full desktop and recovery UI around the
-admin broker, final image-specific update wiring, deeper internal symbol
-hiding, and PaX-style compiler/architecture mechanisms beyond the
+current policy workflow/daemon facade, full branded desktop and recovery UI
+around the settings/control-center/admin-broker contracts, final image-specific
+update wiring, deeper internal symbol hiding, and PaX-style
+compiler/architecture mechanisms beyond the
 upstream-equivalent families already grouped in status.
 
 ## Apply The Patch
@@ -162,16 +170,16 @@ The hardening smoke suite in the development tree is run under QEMU. Latest
 local result before this publication checkpoint:
 
 ```text
-QEMU hardening smoke: 970/970 pass
+QEMU hardening smoke: 973/973 pass
 ```
 
 Patch artifact at this checkpoint:
 
 ```text
 patch: patches/hdn-linux-7.0.12.patch
-lines: 68,058
-bytes: 2,026,505
-sha256: 0c2ffe3c54f9319278772cfc3f4cf95f07f74d3964f450a25f7f761c3cdbab37
+lines: 69,040
+bytes: 2,058,700
+sha256: ef739c4ca26e7d2ecf1246e1c8cc5b770b614f4c1211f911c87f31b0509ed3b5
 ```
 
 ## Development Rule
