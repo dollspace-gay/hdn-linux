@@ -19238,8 +19238,8 @@ diff -ruN --exclude .git linux-7.0.12/tools/hardening/Makefile linux-7.0.12-hdn/
 +.PHONY: all clean install
 diff -ruN --exclude .git linux-7.0.12/tools/hardening/README.rst linux-7.0.12-hdn/tools/hardening/README.rst
 --- linux-7.0.12/tools/hardening/README.rst	1969-12-31 18:00:00.000000000 -0600
-+++ linux-7.0.12-hdn/tools/hardening/README.rst	2026-06-27 03:25:42.753478556 -0500
-@@ -0,0 +1,1534 @@
++++ linux-7.0.12-hdn/tools/hardening/README.rst	2026-06-27 03:34:01.945434862 -0500
+@@ -0,0 +1,1544 @@
 +.. SPDX-License-Identifier: GPL-2.0-only
 +
 +Linux Hardening Policy Tools
@@ -19305,7 +19305,8 @@ diff -ruN --exclude .git linux-7.0.12/tools/hardening/README.rst linux-7.0.12-hd
 +entries of the form ``action NAME policy-rollback`` or
 +``action NAME system-transaction TRANSACTION`` and dispatches the matching
 +backend. The config must be a regular root-owned file that is not group/world
-+writable.
++writable. ``--dry-run`` preflights the approved rollback or repair backend
++without rolling policy back or changing protected mounts.
 +
 +``hdn-recovery-describe`` is the read-only recovery metadata facade for
 +recovery UI. It maps product recovery actions such as ``policy-rollback`` or
@@ -19323,7 +19324,8 @@ diff -ruN --exclude .git linux-7.0.12/tools/hardening/README.rst linux-7.0.12-hd
 +``/etc/hdn/recovery-session.conf`` selects the describe helper, confirmation
 +helper, and action helper with absolute paths. The helper never invokes a shell
 +and rejects unsafe configs, failed confirmation, or unknown actions before
-+repair work can run.
++repair work can run. ``--dry-run`` still validates metadata and the approved
++action route, but skips confirmation and protected-state mutation.
 +
 +``hdn-recovery-portal`` is the product recovery UI entrypoint above
 +``hdn-recovery-session``. Recovery panels and rescue shells call a branded
@@ -19332,7 +19334,9 @@ diff -ruN --exclude .git linux-7.0.12/tools/hardening/README.rst linux-7.0.12-hd
 +helper path or backend action names. The config maps ``action
 +RECOVERY_UI_ACTION RECOVERY_SESSION_ACTION`` and may set
 +``session-helper PATH``. Unknown recovery UI actions, unsafe configs, and
-+shell-style command construction fail closed.
++shell-style command construction fail closed. ``--dry-run`` follows the same
++branded action mapping without showing confirmation UI or changing protected
++state.
 +
 +``hdn-recovery-prompt`` is the dependency-light recovery confirmation frontend
 +for that session contract. It reads ``HDN_RECOVERY_METADATA_V1`` from stdin,
@@ -19549,9 +19553,12 @@ diff -ruN --exclude .git linux-7.0.12/tools/hardening/README.rst linux-7.0.12-hd
 +  sudo tools/hardening/hdn-package-hook --dry-run package-update
 +  sudo tools/hardening/hdn-package-hook package-update
 +  sudo tools/hardening/hdn-recovery-describe policy-rollback
++  sudo tools/hardening/hdn-recovery-action --dry-run package-repair
 +  sudo tools/hardening/hdn-recovery-action policy-rollback
 +  sudo tools/hardening/hdn-recovery-action package-repair
++  sudo tools/hardening/hdn-recovery-session --dry-run package-repair
 +  sudo tools/hardening/hdn-recovery-session package-repair
++  sudo tools/hardening/hdn-recovery-portal --dry-run repair-system
 +  sudo tools/hardening/hdn-recovery-portal repair-system
 +  sudo tools/hardening/hdn-recovery-portal rollback-policy
 +  sudo install -d -o root -g root -m 0700 /run/hdn/approvals
@@ -20544,19 +20551,22 @@ diff -ruN --exclude .git linux-7.0.12/tools/hardening/README.rst linux-7.0.12-hd
 +The recovery facade is smoke-tested as well: unknown
 +actions and unsafe recovery configs are denied, an approved
 +``policy-rollback`` action rolls the policy back through the broker, and an
-+approved ``package-repair`` action runs the named package transaction and
-+reseals the product mount read-only. The recovery metadata facade is tested
-+too: unknown recovery actions and unsafe metadata configs are denied, while an
-+approved ``policy-rollback`` action emits stable
++approved ``package-repair`` dry-run preflights the named transaction backend
++without changing the sealed mount before the real action runs the named package
++transaction and reseals the product mount read-only. The recovery metadata
++facade is tested too: unknown recovery actions and unsafe metadata configs are
++denied, while an approved ``policy-rollback`` action emits stable
 +title/message/consequence/risk metadata for recovery UI. The recovery session
 +facade is tested too: unknown actions, unsafe session configs, and failed
 +confirmation are denied before repair work, while an approved
-+``package-repair`` session describes the action, confirms it, runs the named
-+recovery repair action, and reseals the product mount read-only. The recovery
-+portal facade is tested too: unknown recovery UI actions and unsafe portal
-+configs are denied before session dispatch, while approved ``repair-system``
-+and ``rollback-policy`` actions map to recovery-session, preserve rollback
-+behavior, and reseal the product mount read-only after repair. The shipped
++``package-repair`` session dry-runs without confirmation or mount change before
++the real session describes the action, confirms it, runs the named recovery
++repair action, and reseals the product mount read-only. The recovery portal
++facade is tested too: unknown recovery UI actions and unsafe portal configs are
++denied before session dispatch, while approved ``repair-system`` and
++``rollback-policy`` actions map to recovery-session, preserve rollback
++behavior, and ``repair-system`` dry-runs without confirmation or mount change
++before real repair reseals the product mount read-only. The shipped
 +``readonly-mounts.conf`` is a product baseline: ``/usr`` is required, while
 +``/boot``, ``/boot/efi``, ``/opt``, ``/usr/local``,
 +``/var/lib/flatpak``, and ``/var/lib/snapd`` are optional mounted
@@ -33042,8 +33052,8 @@ diff -ruN --exclude .git linux-7.0.12/tools/hardening/hdn-prompt-session.c linux
 +}
 diff -ruN --exclude .git linux-7.0.12/tools/hardening/hdn-recovery-action.c linux-7.0.12-hdn/tools/hardening/hdn-recovery-action.c
 --- linux-7.0.12/tools/hardening/hdn-recovery-action.c	1969-12-31 18:00:00.000000000 -0600
-+++ linux-7.0.12-hdn/tools/hardening/hdn-recovery-action.c	2026-06-25 14:45:56.003761215 -0500
-@@ -0,0 +1,425 @@
++++ linux-7.0.12-hdn/tools/hardening/hdn-recovery-action.c	2026-06-27 03:33:03.885434833 -0500
+@@ -0,0 +1,442 @@
 +// SPDX-License-Identifier: GPL-2.0-only
 +
 +#define _GNU_SOURCE
@@ -33090,7 +33100,7 @@ diff -ruN --exclude .git linux-7.0.12/tools/hardening/hdn-recovery-action.c linu
 +static void usage(const char *prog)
 +{
 +	fprintf(stderr,
-+		"Usage: %s [--config FILE] [--broker PATH] [--system-transaction PATH] ACTION\n"
++		"Usage: %s [--config FILE] [--broker PATH] [--system-transaction PATH] [--dry-run] ACTION\n"
 +		"\n"
 +		"Runs a product-approved recovery action.\n"
 +		"Config lines:\n"
@@ -33369,29 +33379,41 @@ diff -ruN --exclude .git linux-7.0.12/tools/hardening/hdn-recovery-action.c linu
 +}
 +
 +static int run_rule(const char *broker, const char *system_transaction,
-+		    const struct hdn_recovery_rule *rule)
++		    const struct hdn_recovery_rule *rule, bool dry_run)
 +{
 +	if (rule->backend == HDN_RECOVERY_POLICY_ROLLBACK) {
-+		char *const argv[] = {
++		char *const dry_argv[] = {
++			(char *)broker,
++			"--dry-run",
++			"policy-rollback",
++			NULL,
++		};
++		char *const real_argv[] = {
 +			(char *)broker,
 +			"policy-rollback",
 +			NULL,
 +		};
 +
-+		execv(broker, argv);
++		execv(broker, dry_run ? dry_argv : real_argv);
 +		fprintf(stderr, "hdn-recovery-action: exec %s failed: %s\n",
 +			broker, strerror(errno));
 +		return errno == ENOENT ? 127 : 126;
 +	}
 +
 +	if (rule->backend == HDN_RECOVERY_SYSTEM_TRANSACTION) {
-+		char *const argv[] = {
++		char *const dry_argv[] = {
++			(char *)system_transaction,
++			"--dry-run",
++			rule->argument,
++			NULL,
++		};
++		char *const real_argv[] = {
 +			(char *)system_transaction,
 +			rule->argument,
 +			NULL,
 +		};
 +
-+		execv(system_transaction, argv);
++		execv(system_transaction, dry_run ? dry_argv : real_argv);
 +		fprintf(stderr, "hdn-recovery-action: exec %s failed: %s\n",
 +			system_transaction, strerror(errno));
 +		return errno == ENOENT ? 127 : 126;
@@ -33408,6 +33430,7 @@ diff -ruN --exclude .git linux-7.0.12/tools/hardening/hdn-recovery-action.c linu
 +	const char *action = NULL;
 +	const struct hdn_recovery_rule *rule;
 +	struct hdn_recovery_config config;
++	bool dry_run = false;
 +	int ret = 0;
 +	int i;
 +
@@ -33432,6 +33455,10 @@ diff -ruN --exclude .git linux-7.0.12/tools/hardening/hdn-recovery-action.c linu
 +			if (++i >= argc)
 +				goto bad_args;
 +			system_transaction_path = argv[i];
++			continue;
++		}
++		if (!strcmp(argv[i], "--dry-run")) {
++			dry_run = true;
 +			continue;
 +		}
 +		if (argv[i][0] == '-')
@@ -33461,7 +33488,7 @@ diff -ruN --exclude .git linux-7.0.12/tools/hardening/hdn-recovery-action.c linu
 +		return 1;
 +	}
 +
-+	ret = run_rule(broker_path, system_transaction_path, rule);
++	ret = run_rule(broker_path, system_transaction_path, rule, dry_run);
 +	free_config(&config);
 +	return ret;
 +
@@ -33891,8 +33918,8 @@ diff -ruN --exclude .git linux-7.0.12/tools/hardening/hdn-recovery-describe.c li
 +}
 diff -ruN --exclude .git linux-7.0.12/tools/hardening/hdn-recovery-portal.c linux-7.0.12-hdn/tools/hardening/hdn-recovery-portal.c
 --- linux-7.0.12/tools/hardening/hdn-recovery-portal.c	1969-12-31 18:00:00.000000000 -0600
-+++ linux-7.0.12-hdn/tools/hardening/hdn-recovery-portal.c	2026-06-25 19:57:10.274597504 -0500
-@@ -0,0 +1,410 @@
++++ linux-7.0.12-hdn/tools/hardening/hdn-recovery-portal.c	2026-06-27 03:33:03.885434833 -0500
+@@ -0,0 +1,419 @@
 +// SPDX-License-Identifier: GPL-2.0-only
 +
 +#define _GNU_SOURCE
@@ -33931,7 +33958,7 @@ diff -ruN --exclude .git linux-7.0.12/tools/hardening/hdn-recovery-portal.c linu
 +static void usage(const char *prog)
 +{
 +	fprintf(stderr,
-+		"Usage: %s [--config FILE] ACTION\n"
++		"Usage: %s [--config FILE] [--dry-run] ACTION\n"
 +		"\n"
 +		"Runs a product-approved recovery UI action.\n"
 +		"Config lines:\n"
@@ -34232,7 +34259,8 @@ diff -ruN --exclude .git linux-7.0.12/tools/hardening/hdn-recovery-portal.c linu
 +	return WEXITSTATUS(status);
 +}
 +
-+static int run_recovery_session(const char *helper, const char *action)
++static int run_recovery_session(const char *helper, const char *action,
++				bool dry_run)
 +{
 +	pid_t child;
 +
@@ -34244,7 +34272,11 @@ diff -ruN --exclude .git linux-7.0.12/tools/hardening/hdn-recovery-portal.c linu
 +	}
 +
 +	if (!child) {
-+		execl(helper, "hdn-recovery-session", action, NULL);
++		if (dry_run)
++			execl(helper, "hdn-recovery-session", "--dry-run",
++			      action, NULL);
++		else
++			execl(helper, "hdn-recovery-session", action, NULL);
 +		fprintf(stderr, "hdn-recovery-portal: exec %s failed: %s\n",
 +			helper, strerror(errno));
 +		_exit(errno == ENOENT ? 127 : 126);
@@ -34259,6 +34291,7 @@ diff -ruN --exclude .git linux-7.0.12/tools/hardening/hdn-recovery-portal.c linu
 +	const struct hdn_recovery_portal_rule *rule;
 +	const char *config_path = HDN_RECOVERY_PORTAL_CONFIG;
 +	const char *action = NULL;
++	bool dry_run = false;
 +	int ret;
 +	int i;
 +
@@ -34273,6 +34306,8 @@ diff -ruN --exclude .git linux-7.0.12/tools/hardening/hdn-recovery-portal.c linu
 +			   !strcmp(argv[i], "--help")) {
 +			usage(argv[0]);
 +			return 0;
++		} else if (!strcmp(argv[i], "--dry-run")) {
++			dry_run = true;
 +		} else if (!action) {
 +			action = argv[i];
 +		} else {
@@ -34299,7 +34334,8 @@ diff -ruN --exclude .git linux-7.0.12/tools/hardening/hdn-recovery-portal.c linu
 +		return 1;
 +	}
 +
-+	ret = run_recovery_session(config.session_helper, rule->session_action);
++	ret = run_recovery_session(config.session_helper, rule->session_action,
++				   dry_run);
 +	free_config(&config);
 +	return ret ? 1 : 0;
 +}
@@ -34645,8 +34681,8 @@ diff -ruN --exclude .git linux-7.0.12/tools/hardening/hdn-recovery-prompt.c linu
 +}
 diff -ruN --exclude .git linux-7.0.12/tools/hardening/hdn-recovery-session.c linux-7.0.12-hdn/tools/hardening/hdn-recovery-session.c
 --- linux-7.0.12/tools/hardening/hdn-recovery-session.c	1969-12-31 18:00:00.000000000 -0600
-+++ linux-7.0.12-hdn/tools/hardening/hdn-recovery-session.c	2026-06-25 16:03:03.839950612 -0500
-@@ -0,0 +1,652 @@
++++ linux-7.0.12-hdn/tools/hardening/hdn-recovery-session.c	2026-06-27 03:33:03.885434833 -0500
+@@ -0,0 +1,662 @@
 +// SPDX-License-Identifier: GPL-2.0-only
 +
 +#define _GNU_SOURCE
@@ -34690,7 +34726,7 @@ diff -ruN --exclude .git linux-7.0.12/tools/hardening/hdn-recovery-session.c lin
 +static void usage(const char *prog)
 +{
 +	fprintf(stderr,
-+		"Usage: %s [--config FILE] ACTION\n"
++		"Usage: %s [--config FILE] [--dry-run] ACTION\n"
 +		"\n"
 +		"Runs a named recovery session: describe, confirm, then act.\n"
 +		"Config lines:\n"
@@ -35213,7 +35249,8 @@ diff -ruN --exclude .git linux-7.0.12/tools/hardening/hdn-recovery-session.c lin
 +	return status ? 1 : 0;
 +}
 +
-+static int run_action_helper(const char *helper, const char *action)
++static int run_action_helper(const char *helper, const char *action,
++			     bool dry_run)
 +{
 +	pid_t child;
 +
@@ -35225,7 +35262,11 @@ diff -ruN --exclude .git linux-7.0.12/tools/hardening/hdn-recovery-session.c lin
 +	}
 +
 +	if (!child) {
-+		execl(helper, "hdn-recovery-action", action, NULL);
++		if (dry_run)
++			execl(helper, "hdn-recovery-action", "--dry-run",
++			      action, NULL);
++		else
++			execl(helper, "hdn-recovery-action", action, NULL);
 +		fprintf(stderr, "hdn-recovery-session: exec %s failed: %s\n",
 +			helper, strerror(errno));
 +		_exit(errno == ENOENT ? 127 : 126);
@@ -35240,6 +35281,7 @@ diff -ruN --exclude .git linux-7.0.12/tools/hardening/hdn-recovery-session.c lin
 +	const char *config_path = HDN_RECOVERY_SESSION_CONFIG;
 +	const char *action = NULL;
 +	char *metadata = NULL;
++	bool dry_run = false;
 +	int ret;
 +	int i;
 +
@@ -35254,6 +35296,8 @@ diff -ruN --exclude .git linux-7.0.12/tools/hardening/hdn-recovery-session.c lin
 +			   !strcmp(argv[i], "--help")) {
 +			usage(argv[0]);
 +			return 0;
++		} else if (!strcmp(argv[i], "--dry-run")) {
++			dry_run = true;
 +		} else if (!action) {
 +			action = argv[i];
 +		} else {
@@ -35280,15 +35324,17 @@ diff -ruN --exclude .git linux-7.0.12/tools/hardening/hdn-recovery-session.c lin
 +	if (ret)
 +		goto out;
 +
-+	ret = run_confirm_helper(&config, action, metadata);
-+	if (ret) {
-+		fprintf(stderr,
-+			"hdn-recovery-session: recovery confirmation denied: %s\n",
-+			action);
-+		goto out;
++	if (!dry_run) {
++		ret = run_confirm_helper(&config, action, metadata);
++		if (ret) {
++			fprintf(stderr,
++				"hdn-recovery-session: recovery confirmation denied: %s\n",
++				action);
++			goto out;
++		}
 +	}
 +
-+	ret = run_action_helper(config.action_helper, action);
++	ret = run_action_helper(config.action_helper, action, dry_run);
 +	if (ret)
 +		fprintf(stderr,
 +			"hdn-recovery-session: recovery action failed for %s\n",
@@ -38186,8 +38232,8 @@ diff -ruN --exclude .git linux-7.0.12/tools/testing/selftests/hardening/hdn_elfn
 +}
 diff -ruN --exclude .git linux-7.0.12/tools/testing/selftests/hardening/hdn_smoke.c linux-7.0.12-hdn/tools/testing/selftests/hardening/hdn_smoke.c
 --- linux-7.0.12/tools/testing/selftests/hardening/hdn_smoke.c	1969-12-31 18:00:00.000000000 -0600
-+++ linux-7.0.12-hdn/tools/testing/selftests/hardening/hdn_smoke.c	2026-06-27 03:23:08.781489295 -0500
-@@ -0,0 +1,27815 @@
++++ linux-7.0.12-hdn/tools/testing/selftests/hardening/hdn_smoke.c	2026-06-27 03:33:38.873436169 -0500
+@@ -0,0 +1,27944 @@
 +// SPDX-License-Identifier: GPL-2.0-only
 +
 +#define _GNU_SOURCE
@@ -53039,6 +53085,47 @@ diff -ruN --exclude .git linux-7.0.12/tools/testing/selftests/hardening/hdn_smok
 +		return KSFT_SKIP;
 +	}
 +
++	count = product_rofs_sentinel_update_count();
++	child = fork();
++	if (child < 0)
++		return 2;
++
++	if (!child) {
++		execl(HDN_RECOVERY_ACTION_EXEC, "hdn-recovery-action",
++		      "--dry-run", "package-repair", NULL);
++		fprintf(stderr, "recovery repair dry-run exec failed: %s\n",
++			strerror(errno));
++		_exit(2);
++	}
++
++	ret = child_exit_result(child);
++	if (ret) {
++		fprintf(stderr, "recovery repair dry-run exited with %d\n",
++			ret);
++		return ret;
++	}
++	if (product_rofs_sentinel_update_count() != count) {
++		fprintf(stderr, "recovery repair dry-run changed sentinel\n");
++		return 1;
++	}
++
++	errno = 0;
++	fd = open(HDN_PRODUCT_ROFS_SENTINEL,
++		  O_WRONLY | O_APPEND | O_CLOEXEC);
++	saved_errno = errno;
++	if (fd >= 0) {
++		fprintf(stderr,
++			"recovery repair dry-run left product mount writable\n");
++		close(fd);
++		return 1;
++	}
++	if (saved_errno != EROFS) {
++		fprintf(stderr,
++			"post-recovery-repair-dry-run write-open failed with %s\n",
++			strerror(saved_errno));
++		return 2;
++	}
++
 +	child = fork();
 +	if (child < 0)
 +		return 2;
@@ -53098,6 +53185,50 @@ diff -ruN --exclude .git linux-7.0.12/tools/testing/selftests/hardening/hdn_smok
 +		return KSFT_SKIP;
 +	}
 +
++	count = product_rofs_sentinel_update_count();
++	child = fork();
++	if (child < 0)
++		return 2;
++
++	if (!child) {
++		execl(HDN_RECOVERY_SESSION_EXEC, "hdn-recovery-session",
++		      "--dry-run", "package-repair", NULL);
++		fprintf(stderr,
++			"recovery session repair dry-run exec failed: %s\n",
++			strerror(errno));
++		_exit(2);
++	}
++
++	ret = child_exit_result(child);
++	if (ret) {
++		fprintf(stderr,
++			"recovery session repair dry-run exited with %d\n",
++			ret);
++		return ret;
++	}
++	if (product_rofs_sentinel_update_count() != count) {
++		fprintf(stderr,
++			"recovery session repair dry-run changed sentinel\n");
++		return 1;
++	}
++
++	errno = 0;
++	fd = open(HDN_PRODUCT_ROFS_SENTINEL,
++		  O_WRONLY | O_APPEND | O_CLOEXEC);
++	saved_errno = errno;
++	if (fd >= 0) {
++		fprintf(stderr,
++			"recovery session repair dry-run left product mount writable\n");
++		close(fd);
++		return 1;
++	}
++	if (saved_errno != EROFS) {
++		fprintf(stderr,
++			"post-recovery-session-repair-dry-run write-open failed with %s\n",
++			strerror(saved_errno));
++		return 2;
++	}
++
 +	child = fork();
 +	if (child < 0)
 +		return 2;
@@ -53155,6 +53286,50 @@ diff -ruN --exclude .git linux-7.0.12/tools/testing/selftests/hardening/hdn_smok
 +			"recovery portal helper is not executable: %s\n",
 +			strerror(errno));
 +		return KSFT_SKIP;
++	}
++
++	count = product_rofs_sentinel_update_count();
++	child = fork();
++	if (child < 0)
++		return 2;
++
++	if (!child) {
++		execl(HDN_RECOVERY_PORTAL_EXEC, "hdn-recovery-portal",
++		      "--dry-run", "repair-system", NULL);
++		fprintf(stderr,
++			"recovery portal repair dry-run exec failed: %s\n",
++			strerror(errno));
++		_exit(2);
++	}
++
++	ret = child_exit_result(child);
++	if (ret) {
++		fprintf(stderr,
++			"recovery portal repair dry-run exited with %d\n",
++			ret);
++		return ret;
++	}
++	if (product_rofs_sentinel_update_count() != count) {
++		fprintf(stderr,
++			"recovery portal repair dry-run changed sentinel\n");
++		return 1;
++	}
++
++	errno = 0;
++	fd = open(HDN_PRODUCT_ROFS_SENTINEL,
++		  O_WRONLY | O_APPEND | O_CLOEXEC);
++	saved_errno = errno;
++	if (fd >= 0) {
++		fprintf(stderr,
++			"recovery portal repair dry-run left product mount writable\n");
++		close(fd);
++		return 1;
++	}
++	if (saved_errno != EROFS) {
++		fprintf(stderr,
++			"post-recovery-portal-repair-dry-run write-open failed with %s\n",
++			strerror(saved_errno));
++		return 2;
 +	}
 +
 +	child = fork();

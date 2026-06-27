@@ -113,6 +113,10 @@ Package and image update preflight now uses the same `--dry-run` contract
 through `hdn-image-seal`, `hdn-system-transaction`, and `hdn-package-hook`;
 QEMU proves those approved routes validate without changing the protected
 mount state before the real update/seal path runs.
+Recovery repair preflight now uses the same `--dry-run` contract through
+`hdn-recovery-action`, `hdn-recovery-session`, and `hdn-recovery-portal`; QEMU
+proves those approved routes validate without confirmation UI or sealed-mount
+changes before the real repair path runs and reseals.
 Other-user proc task visibility now has grouped proc mount compatibility plus
 an HDN-native global task-view group for proc, pidfd, and proc task-directory
 mode visibility.
@@ -162,9 +166,9 @@ Patch artifact at this checkpoint:
 
 ```text
 patch: patches/hdn-linux-7.0.12.patch
-lines: 67,825
-bytes: 2,019,753
-sha256: 2bbf520b9dcfa5e720b86825be04c42ced865fa951268e8264361b9d6470f05e
+lines: 68,000
+bytes: 2,024,619
+sha256: 68ebba64f2b95b22aa610e33dca38c980df6203314340c5905c768307334b152
 ```
 
 ## Development Rule
