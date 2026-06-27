@@ -929,6 +929,15 @@ validates that a subject-selected profile with a `077` floor creates regular
 files as private `0600` files and directories as private `0700` directories even
 after the process explicitly sets its own umask to `000`.
 
+Signed resource-limit rules add profile-scoped ceilings without making every
+ordinary resource write promptable. Text policy can declare
+`resource PROFILE RLIMIT SOFT HARD`, where `RLIMIT` is a Linux resource name or
+number and either limit can be `infinity`. Enforcement runs in the shared
+`setrlimit(2)`/`prlimit64(2)` path against the target task's active HDN profile,
+so a privileged helper cannot accidentally raise a restricted profile beyond the
+sealed ceiling. QEMU validates `NOFILE` soft and hard ceiling denials and records
+them with the `RESOURCE_PROFILE_LIMIT` reason.
+
 The signed exec identity map supports both explicit `exec PROFILE ...`
 transitions and `exec inherit ...` rules. Inheritance rules match executable
 identity the same way as ordinary exec rules but preserve the caller's active
@@ -1830,6 +1839,7 @@ Core oracle groups:
   `CHROOT_SYSCTL` reason in QEMU
 - successful time changes emit structured time-change audit events
 - successful resource-limit writes emit structured resource-limit audit events
+- signed profile resource ceilings deny soft and hard limit raises above policy
 - `RLIMIT_NOFILE`, `RLIMIT_FSIZE`, `RLIMIT_CORE`, `RLIMIT_AS`,
   `RLIMIT_DATA`, `RLIMIT_STACK`, `RLIMIT_NPROC`, `RLIMIT_MEMLOCK`,
   `RLIMIT_MSGQUEUE`, `RLIMIT_SIGPENDING`, `RLIMIT_CPU`, `RLIMIT_RTTIME`,

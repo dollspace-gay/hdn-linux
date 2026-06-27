@@ -3633,8 +3633,8 @@ diff -ruN --exclude .git /home/doll/distro/linux-7.0.12/include/linux/fs_struct.
  #endif /* _LINUX_FS_STRUCT_H */
 diff -ruN --exclude .git /home/doll/distro/linux-7.0.12/include/linux/hardening.h /home/doll/distro/linux-7.0.12-hdn/include/linux/hardening.h
 --- /home/doll/distro/linux-7.0.12/include/linux/hardening.h	1969-12-31 18:00:00.000000000 -0600
-+++ /home/doll/distro/linux-7.0.12-hdn/include/linux/hardening.h	2026-06-26 23:05:20.490898038 -0500
-@@ -0,0 +1,1009 @@
++++ /home/doll/distro/linux-7.0.12-hdn/include/linux/hardening.h	2026-06-26 23:45:37.498677104 -0500
+@@ -0,0 +1,1020 @@
 +/* SPDX-License-Identifier: GPL-2.0-only */
 +#ifndef _LINUX_HARDENING_H
 +#define _LINUX_HARDENING_H
@@ -3656,6 +3656,7 @@ diff -ruN --exclude .git /home/doll/distro/linux-7.0.12/include/linux/hardening.
 +struct pid;
 +struct sockaddr;
 +struct signal_struct;
++struct rlimit;
 +struct sk_buff;
 +struct sock;
 +struct socket;
@@ -3844,6 +3845,9 @@ diff -ruN --exclude .git /home/doll/distro/linux-7.0.12/include/linux/hardening.
 +int hdn_authorize_time_change(enum hdn_time_operation operation);
 +void hdn_record_time_change(enum hdn_time_operation operation);
 +int hdn_authorize_resource_limit(unsigned int resource);
++int hdn_authorize_profile_resource_limit(struct task_struct *target,
++					 unsigned int resource,
++					 const struct rlimit *new_rlim);
 +void hdn_record_resource_limit(unsigned int resource);
 +void hdn_record_resource_pressure(unsigned int resource, unsigned long wanted);
 +int hdn_authorize_block_device(dev_t dev);
@@ -4394,6 +4398,13 @@ diff -ruN --exclude .git /home/doll/distro/linux-7.0.12/include/linux/hardening.
 +	return 0;
 +}
 +
++static inline int hdn_authorize_profile_resource_limit(struct task_struct *target,
++						      unsigned int resource,
++						      const struct rlimit *new_rlim)
++{
++	return 0;
++}
++
 +static inline void hdn_record_resource_limit(unsigned int resource)
 +{
 +}
@@ -4830,15 +4841,15 @@ diff -ruN --exclude .git /home/doll/distro/linux-7.0.12/include/trace/events/mma
  TRACE_EVENT(exit_mmap,
 diff -ruN --exclude .git /home/doll/distro/linux-7.0.12/include/uapi/linux/hardening.h /home/doll/distro/linux-7.0.12-hdn/include/uapi/linux/hardening.h
 --- /home/doll/distro/linux-7.0.12/include/uapi/linux/hardening.h	1969-12-31 18:00:00.000000000 -0600
-+++ /home/doll/distro/linux-7.0.12-hdn/include/uapi/linux/hardening.h	2026-06-26 23:34:25.074732969 -0500
-@@ -0,0 +1,631 @@
++++ /home/doll/distro/linux-7.0.12-hdn/include/uapi/linux/hardening.h	2026-06-26 23:45:29.386677962 -0500
+@@ -0,0 +1,644 @@
 +/* SPDX-License-Identifier: GPL-2.0 WITH Linux-syscall-note */
 +#ifndef _UAPI_LINUX_HARDENING_H
 +#define _UAPI_LINUX_HARDENING_H
 +
 +#include <linux/types.h>
 +
-+#define HDN_POLICY_ABI_VERSION 88
++#define HDN_POLICY_ABI_VERSION 89
 +#define HDN_POLICY_MAGIC 0x48444e50 /* "HDNP" */
 +#define HDN_PROFILE_NAME_LEN 32
 +#define HDN_POLICY_PATH_LEN 256
@@ -4854,9 +4865,11 @@ diff -ruN --exclude .git /home/doll/distro/linux-7.0.12/include/uapi/linux/harde
 +#define HDN_MAX_EXEC_RULES 1024
 +#define HDN_MAX_MODULE_RULES 1024
 +#define HDN_MAX_FIRMWARE_RULES 2048
++#define HDN_MAX_RESOURCE_RULES 1024
 +#define HDN_FIRMWARE_NAME_LEN 256
 +#define HDN_MAX_POLICY_SIZE (1024 * 1024)
 +#define HDN_POLICY_EXPECT_ANY (~0ULL)
++#define HDN_RESOURCE_LIMIT_INFINITY (~0ULL)
 +
 +#define HDN_AUTHORITY_WORD_BITS 64
 +#define HDN_AUTHORITY_WORDS 2
@@ -5239,6 +5252,7 @@ diff -ruN --exclude .git /home/doll/distro/linux-7.0.12/include/uapi/linux/harde
 +	HDN_REASON_PRIVILEGED_DESCENDANT_COREDUMP = 53,
 +	HDN_REASON_BRUTE_DAEMON_THROTTLED = 54,
 +	HDN_REASON_KERNEL_LOCKOUT = 55,
++	HDN_REASON_RESOURCE_PROFILE_LIMIT = 56,
 +};
 +
 +enum hdn_phase {
@@ -5391,6 +5405,8 @@ diff -ruN --exclude .git /home/doll/distro/linux-7.0.12/include/uapi/linux/harde
 +	__u32 module_rule_count;
 +	__u32 firmware_rule_size;
 +	__u32 firmware_rule_count;
++	__u32 resource_rule_size;
++	__u32 resource_rule_count;
 +	__u64 generation;
 +	__u64 expected_generation;
 +	__u64 default_profile_id;
@@ -5460,6 +5476,14 @@ diff -ruN --exclude .git /home/doll/distro/linux-7.0.12/include/uapi/linux/harde
 +	__u64 profile_id;
 +	__u64 flags;
 +	char name[HDN_FIRMWARE_NAME_LEN];
++};
++
++struct hdn_resource_rule_record {
++	__u64 profile_id;
++	__u32 resource;
++	__u32 reserved;
++	__u64 soft_limit;
++	__u64 hard_limit;
 +};
 +
 +#endif /* _UAPI_LINUX_HARDENING_H */
@@ -7862,7 +7886,7 @@ diff -ruN --exclude .git /home/doll/distro/linux-7.0.12/kernel/signal.c /home/do
  	info.si_errno = 0;
 diff -ruN --exclude .git /home/doll/distro/linux-7.0.12/kernel/sys.c /home/doll/distro/linux-7.0.12-hdn/kernel/sys.c
 --- /home/doll/distro/linux-7.0.12/kernel/sys.c	2026-06-09 05:32:51.000000000 -0500
-+++ /home/doll/distro/linux-7.0.12-hdn/kernel/sys.c	2026-06-25 08:22:18.130491412 -0500
++++ /home/doll/distro/linux-7.0.12-hdn/kernel/sys.c	2026-06-26 23:46:20.070672696 -0500
 @@ -12,6 +12,7 @@
  #include <linux/mman.h>
  #include <linux/reboot.h>
@@ -7889,7 +7913,15 @@ diff -ruN --exclude .git /home/doll/distro/linux-7.0.12/kernel/sys.c /home/doll/
  	int retval = 0;
  
  	if (resource >= RLIM_NLIMITS)
-@@ -1517,17 +1522,27 @@
+@@ -1513,21 +1518,35 @@
+ 		if (resource == RLIMIT_NOFILE &&
+ 				new_rlim->rlim_max > sysctl_nr_open)
+ 			return -EPERM;
++		retval = hdn_authorize_profile_resource_limit(tsk, resource,
++							      new_rlim);
++		if (retval)
++			return retval;
+ 	}
  
  	/* Holding a refcount on tsk protects tsk->signal from disappearing. */
  	rlim = tsk->signal->rlim + resource;
@@ -7919,7 +7951,7 @@ diff -ruN --exclude .git /home/doll/distro/linux-7.0.12/kernel/sys.c /home/doll/
  	}
  	if (!retval) {
  		if (old_rlim)
-@@ -1557,6 +1572,9 @@
+@@ -1557,6 +1576,9 @@
  		update_rlimit_cpu(tsk->group_leader, new_rlim->rlim_cur);
  	}
  
@@ -10842,8 +10874,8 @@ diff -ruN --exclude .git /home/doll/distro/linux-7.0.12/security/hardening/Makef
 +obj-$(CONFIG_SECURITY_HARDENING) += core.o
 diff -ruN --exclude .git /home/doll/distro/linux-7.0.12/security/hardening/core.c /home/doll/distro/linux-7.0.12-hdn/security/hardening/core.c
 --- /home/doll/distro/linux-7.0.12/security/hardening/core.c	1969-12-31 18:00:00.000000000 -0600
-+++ /home/doll/distro/linux-7.0.12-hdn/security/hardening/core.c	2026-06-26 23:34:25.082732969 -0500
-@@ -0,0 +1,7607 @@
++++ /home/doll/distro/linux-7.0.12-hdn/security/hardening/core.c	2026-06-26 23:47:18.162666848 -0500
+@@ -0,0 +1,7706 @@
 +// SPDX-License-Identifier: GPL-2.0-only
 +
 +#include <linux/binfmts.h>
@@ -11017,6 +11049,7 @@ diff -ruN --exclude .git /home/doll/distro/linux-7.0.12/security/hardening/core.
 +	u32 exec_rule_count;
 +	u32 module_rule_count;
 +	u32 firmware_rule_count;
++	u32 resource_rule_count;
 +	u64 generation;
 +	u64 expected_generation;
 +	u64 default_profile_id;
@@ -11028,6 +11061,7 @@ diff -ruN --exclude .git /home/doll/distro/linux-7.0.12/security/hardening/core.
 +	struct hdn_exec_rule_record *exec_rules;
 +	struct hdn_module_rule_record *module_rules;
 +	struct hdn_firmware_rule_record *firmware_rules;
++	struct hdn_resource_rule_record *resource_rules;
 +	struct hdn_profile_record profiles[];
 +};
 +
@@ -16208,6 +16242,57 @@ diff -ruN --exclude .git /home/doll/distro/linux-7.0.12/security/hardening/core.
 +	       min_t(u64, wanted, HDN_RESOURCE_OBJECT_WANTED_MASK);
 +}
 +
++int hdn_authorize_profile_resource_limit(struct task_struct *target,
++					 unsigned int resource,
++					 const struct rlimit *new_rlim)
++{
++	const struct hdn_resource_rule_record *rule;
++	struct hdn_policy *policy;
++	unsigned long wanted = 0;
++	u64 profile_id;
++	u32 i;
++	bool denied = false;
++
++	if (!new_rlim || resource >= RLIM_NLIMITS)
++		return 0;
++
++	profile_id = hdn_task_profile_id(target);
++
++	rcu_read_lock();
++	policy = rcu_dereference(hdn_active_policy);
++	if (!policy)
++		goto out;
++
++	for (i = 0; i < policy->resource_rule_count; i++) {
++		rule = &policy->resource_rules[i];
++		if (rule->profile_id != profile_id || rule->resource != resource)
++			continue;
++
++		if (rule->soft_limit != HDN_RESOURCE_LIMIT_INFINITY &&
++		    (u64)new_rlim->rlim_cur > rule->soft_limit) {
++			wanted = new_rlim->rlim_cur;
++			denied = true;
++			break;
++		}
++		if (rule->hard_limit != HDN_RESOURCE_LIMIT_INFINITY &&
++		    (u64)new_rlim->rlim_max > rule->hard_limit) {
++			wanted = new_rlim->rlim_max;
++			denied = true;
++			break;
++		}
++	}
++
++out:
++	rcu_read_unlock();
++	if (!denied)
++		return 0;
++
++	return hdn_deny_object(HDN_AUTH_RESOURCE_ADMIN,
++			       HDN_TRANS_RESOURCE_LIMIT,
++			       HDN_REASON_RESOURCE_PROFILE_LIMIT, -EPERM,
++			       hdn_resource_pressure_object(resource, wanted));
++}
++
 +void hdn_record_resource_pressure(unsigned int resource, unsigned long wanted)
 +{
 +	if (!IS_ENABLED(CONFIG_SECURITY_HARDENING_RESOURCE_AUDIT))
@@ -17005,6 +17090,20 @@ diff -ruN --exclude .git /home/doll/distro/linux-7.0.12/security/hardening/core.
 +			return -EINVAL;
 +	}
 +
++	for (i = 0; i < policy->resource_rule_count; i++) {
++		const struct hdn_resource_rule_record *rule =
++			&policy->resource_rules[i];
++
++		if (!hdn_policy_has_profile(policy, rule->profile_id))
++			return -EINVAL;
++		if (rule->resource >= RLIM_NLIMITS)
++			return -EINVAL;
++		if (rule->reserved)
++			return -EINVAL;
++		if (rule->soft_limit > rule->hard_limit)
++			return -EINVAL;
++	}
++
 +	return 0;
 +}
 +
@@ -17355,6 +17454,7 @@ diff -ruN --exclude .git /home/doll/distro/linux-7.0.12/security/hardening/core.
 +	size_t exec_rule_bytes;
 +	size_t module_rule_bytes;
 +	size_t firmware_rule_bytes;
++	size_t resource_rule_bytes;
 +	size_t alloc_size;
 +	u32 i;
 +	int ret;
@@ -17402,6 +17502,8 @@ diff -ruN --exclude .git /home/doll/distro/linux-7.0.12/security/hardening/core.
 +		goto out_blob;
 +	if (header->firmware_rule_size < sizeof(struct hdn_firmware_rule_record))
 +		goto out_blob;
++	if (header->resource_rule_size < sizeof(struct hdn_resource_rule_record))
++		goto out_blob;
 +	if (header->flags)
 +		goto out_blob;
 +	if (!header->profile_count ||
@@ -17416,6 +17518,8 @@ diff -ruN --exclude .git /home/doll/distro/linux-7.0.12/security/hardening/core.
 +	if (header->module_rule_count > HDN_MAX_MODULE_RULES)
 +		goto out_blob;
 +	if (header->firmware_rule_count > HDN_MAX_FIRMWARE_RULES)
++		goto out_blob;
++	if (header->resource_rule_count > HDN_MAX_RESOURCE_RULES)
 +		goto out_blob;
 +	if (check_mul_overflow((size_t)header->profile_count,
 +			       (size_t)header->profile_size, &profile_bytes))
@@ -17440,6 +17544,10 @@ diff -ruN --exclude .git /home/doll/distro/linux-7.0.12/security/hardening/core.
 +			       (size_t)header->firmware_rule_size,
 +			       &firmware_rule_bytes))
 +		goto out_blob;
++	if (check_mul_overflow((size_t)header->resource_rule_count,
++			       (size_t)header->resource_rule_size,
++			       &resource_rule_bytes))
++		goto out_blob;
 +	if (check_add_overflow((size_t)header->header_size, profile_bytes,
 +			       &expect))
 +		goto out_blob;
@@ -17452,6 +17560,8 @@ diff -ruN --exclude .git /home/doll/distro/linux-7.0.12/security/hardening/core.
 +	if (check_add_overflow(expect, module_rule_bytes, &expect))
 +		goto out_blob;
 +	if (check_add_overflow(expect, firmware_rule_bytes, &expect))
++		goto out_blob;
++	if (check_add_overflow(expect, resource_rule_bytes, &expect))
 +		goto out_blob;
 +	if (expect != payload_len)
 +		goto out_blob;
@@ -17482,6 +17592,11 @@ diff -ruN --exclude .git /home/doll/distro/linux-7.0.12/security/hardening/core.
 +					  sizeof(struct hdn_firmware_rule_record)),
 +			       &alloc_size))
 +		goto out_blob;
++	if (check_add_overflow(alloc_size,
++			       array_size(header->resource_rule_count,
++					  sizeof(struct hdn_resource_rule_record)),
++			       &alloc_size))
++		goto out_blob;
 +	policy = vzalloc(alloc_size);
 +	if (!policy) {
 +		ret = -ENOMEM;
@@ -17495,6 +17610,7 @@ diff -ruN --exclude .git /home/doll/distro/linux-7.0.12/security/hardening/core.
 +	policy->exec_rule_count = header->exec_rule_count;
 +	policy->module_rule_count = header->module_rule_count;
 +	policy->firmware_rule_count = header->firmware_rule_count;
++	policy->resource_rule_count = header->resource_rule_count;
 +	policy->generation = header->generation;
 +	policy->expected_generation = header->expected_generation;
 +	policy->default_profile_id = header->default_profile_id;
@@ -17509,6 +17625,8 @@ diff -ruN --exclude .git /home/doll/distro/linux-7.0.12/security/hardening/core.
 +		(struct hdn_module_rule_record *)&policy->exec_rules[header->exec_rule_count];
 +	policy->firmware_rules =
 +		(struct hdn_firmware_rule_record *)&policy->module_rules[header->module_rule_count];
++	policy->resource_rules =
++		(struct hdn_resource_rule_record *)&policy->firmware_rules[header->firmware_rule_count];
 +
 +	for (i = 0; i < header->profile_count; i++) {
 +		const u8 *src = blob + header->header_size +
@@ -17562,6 +17680,17 @@ diff -ruN --exclude .git /home/doll/distro/linux-7.0.12/security/hardening/core.
 +
 +		memcpy(&policy->firmware_rules[i], src,
 +		       sizeof(policy->firmware_rules[i]));
++	}
++
++	for (i = 0; i < header->resource_rule_count; i++) {
++		const u8 *src = blob + header->header_size + profile_bytes +
++				subject_rule_bytes + object_rule_bytes +
++				exec_rule_bytes + module_rule_bytes +
++				firmware_rule_bytes +
++				((size_t)i * header->resource_rule_size);
++
++		memcpy(&policy->resource_rules[i], src,
++		       sizeof(policy->resource_rules[i]));
 +	}
 +
 +	ret = hdn_validate_profile_ids(policy);
@@ -17933,6 +18062,8 @@ diff -ruN --exclude .git /home/doll/distro/linux-7.0.12/security/hardening/core.
 +		   policy ? policy->module_rule_count : 0);
 +	seq_printf(m, "firmware_rule_count: %u\n",
 +		   policy ? policy->firmware_rule_count : 0);
++	seq_printf(m, "resource_rule_count: %u\n",
++		   policy ? policy->resource_rule_count : 0);
 +	seq_printf(m, "default_profile: %llu\n",
 +		   policy ? (unsigned long long)policy->default_profile_id :
 +			    (unsigned long long)HDN_PROFILE_DEFAULT);
@@ -18826,8 +18957,8 @@ diff -ruN --exclude .git /home/doll/distro/linux-7.0.12/tools/hardening/Makefile
 +.PHONY: all clean install
 diff -ruN --exclude .git /home/doll/distro/linux-7.0.12/tools/hardening/README.rst /home/doll/distro/linux-7.0.12-hdn/tools/hardening/README.rst
 --- /home/doll/distro/linux-7.0.12/tools/hardening/README.rst	1969-12-31 18:00:00.000000000 -0600
-+++ /home/doll/distro/linux-7.0.12-hdn/tools/hardening/README.rst	2026-06-26 23:40:53.874701879 -0500
-@@ -0,0 +1,1435 @@
++++ /home/doll/distro/linux-7.0.12-hdn/tools/hardening/README.rst	2026-06-26 23:55:52.298621520 -0500
+@@ -0,0 +1,1446 @@
 +.. SPDX-License-Identifier: GPL-2.0-only
 +
 +Linux Hardening Policy Tools
@@ -19226,6 +19357,7 @@ diff -ruN --exclude .git /home/doll/distro/linux-7.0.12/tools/hardening/README.r
 +  subject uid 1000 3
 +  subject gid 100 3
 +  umask 7 077
++  resource 2 NOFILE 64 128
 +
 +  object 2 deny-write path /etc/hdn/protected.conf
 +  object 2 deny-read path /etc/hdn/secret.conf
@@ -19365,6 +19497,16 @@ diff -ruN --exclude .git /home/doll/distro/linux-7.0.12/tools/hardening/README.r
 +mask. The QEMU subject policy gives profile 7 ``077`` and proves a task that
 +sets its own umask to ``000`` still creates regular files as ``0600`` and
 +directories as ``0700``.
++
++``resource <profile> <rlimit> <soft> <hard>`` sets a profile-level resource
++ceiling for future ``setrlimit(2)`` and ``prlimit64(2)`` writes. ``rlimit`` may
++be a numeric Linux resource id or a name such as ``NOFILE``, ``NPROC``, ``CORE``,
++``AS``, or ``RTTIME``; ``soft`` and ``hard`` are unsigned integers or
++``infinity``/``unlimited``. The ceiling follows the target task's hardening
++profile, so a helper cannot raise a restricted profile beyond its signed cap
++through ``prlimit64(2)``. QEMU gives the restricted profile a ``NOFILE`` ceiling
++and proves both soft-limit and hard-limit raises above that ceiling are denied
++with ``HDN_REASON_RESOURCE_PROFILE_LIMIT``.
 +
 +``object`` rules are signed object constraints under a profile. The implemented
 +operations are ``object <profile> deny-write path <absolute-path>``,
@@ -20168,7 +20310,7 @@ diff -ruN --exclude .git /home/doll/distro/linux-7.0.12/tools/hardening/README.r
 +the most recent flood-suppressed action, authority, transition, and reason to
 +the same UAPI names used by the event decoder. The QEMU smoke suite proves live
 +status reporting and a synthetic audit-flood fixture with decoded
-+``DENY_AUDIT``, ``USB_MONITOR``, and ``KERNEL_LOCKOUT`` names. The
++``DENY_AUDIT``, ``USB_MONITOR``, and ``RESOURCE_PROFILE_LIMIT`` names. The
 +``hdn-control-center status`` facade is covered as the intended desktop entry
 +point above ``hdn-status``.
 +
@@ -23182,8 +23324,8 @@ diff -ruN --exclude .git /home/doll/distro/linux-7.0.12/tools/hardening/hdn-desk
 Binary files /home/doll/distro/linux-7.0.12/tools/hardening/hdn-event-decode and /home/doll/distro/linux-7.0.12-hdn/tools/hardening/hdn-event-decode differ
 diff -ruN --exclude .git /home/doll/distro/linux-7.0.12/tools/hardening/hdn-event-decode.c /home/doll/distro/linux-7.0.12-hdn/tools/hardening/hdn-event-decode.c
 --- /home/doll/distro/linux-7.0.12/tools/hardening/hdn-event-decode.c	1969-12-31 18:00:00.000000000 -0600
-+++ /home/doll/distro/linux-7.0.12-hdn/tools/hardening/hdn-event-decode.c	2026-06-26 23:07:02.510888380 -0500
-@@ -0,0 +1,927 @@
++++ /home/doll/distro/linux-7.0.12-hdn/tools/hardening/hdn-event-decode.c	2026-06-26 23:49:56.602654226 -0500
+@@ -0,0 +1,928 @@
 +// SPDX-License-Identifier: GPL-2.0-only
 +
 +#define _GNU_SOURCE
@@ -23505,6 +23647,7 @@ diff -ruN --exclude .git /home/doll/distro/linux-7.0.12/tools/hardening/hdn-even
 +	{ HDN_REASON_BRUTE_DAEMON_THROTTLED,
 +	  "BRUTE_DAEMON_THROTTLED" },
 +	{ HDN_REASON_KERNEL_LOCKOUT, "KERNEL_LOCKOUT" },
++	{ HDN_REASON_RESOURCE_PROFILE_LIMIT, "RESOURCE_PROFILE_LIMIT" },
 +};
 +
 +static const struct hdn_name resource_names[] = {
@@ -24960,8 +25103,8 @@ Binary files /home/doll/distro/linux-7.0.12/tools/hardening/hdn-policy and /home
 Binary files /home/doll/distro/linux-7.0.12/tools/hardening/hdn-policy-learn and /home/doll/distro/linux-7.0.12-hdn/tools/hardening/hdn-policy-learn differ
 diff -ruN --exclude .git /home/doll/distro/linux-7.0.12/tools/hardening/hdn-policy-learn.c /home/doll/distro/linux-7.0.12-hdn/tools/hardening/hdn-policy-learn.c
 --- /home/doll/distro/linux-7.0.12/tools/hardening/hdn-policy-learn.c	1969-12-31 18:00:00.000000000 -0600
-+++ /home/doll/distro/linux-7.0.12-hdn/tools/hardening/hdn-policy-learn.c	2026-06-26 23:07:02.514888379 -0500
-@@ -0,0 +1,875 @@
++++ /home/doll/distro/linux-7.0.12-hdn/tools/hardening/hdn-policy-learn.c	2026-06-26 23:50:13.438652688 -0500
+@@ -0,0 +1,879 @@
 +// SPDX-License-Identifier: GPL-2.0-only
 +
 +#define _GNU_SOURCE
@@ -25285,6 +25428,7 @@ diff -ruN --exclude .git /home/doll/distro/linux-7.0.12/tools/hardening/hdn-poli
 +	{ HDN_REASON_BRUTE_DAEMON_THROTTLED,
 +	  "BRUTE_DAEMON_THROTTLED" },
 +	{ HDN_REASON_KERNEL_LOCKOUT, "KERNEL_LOCKOUT" },
++	{ HDN_REASON_RESOURCE_PROFILE_LIMIT, "RESOURCE_PROFILE_LIMIT" },
 +};
 +
 +struct hdn_mem_name {
@@ -25653,6 +25797,9 @@ diff -ruN --exclude .git /home/doll/distro/linux-7.0.12/tools/hardening/hdn-poli
 +		return 0;
 +	}
 +
++	if (event->reason == HDN_REASON_RESOURCE_PROFILE_LIMIT)
++		return add_review(reviews, event);
++
 +	if (event->authority < HDN_AUTH__MAX &&
 +	    !authority_is_review_only(event->authority)) {
 +		if (add_authority_mask(event->authority,
@@ -25837,6 +25984,7 @@ diff -ruN --exclude .git /home/doll/distro/linux-7.0.12/tools/hardening/hdn-poli
 +	usage(argv[0]);
 +	return 2;
 +}
+Binary files /home/doll/distro/linux-7.0.12/tools/hardening/hdn-policy-merge and /home/doll/distro/linux-7.0.12-hdn/tools/hardening/hdn-policy-merge differ
 diff -ruN --exclude .git /home/doll/distro/linux-7.0.12/tools/hardening/hdn-policy-merge.c /home/doll/distro/linux-7.0.12-hdn/tools/hardening/hdn-policy-merge.c
 --- /home/doll/distro/linux-7.0.12/tools/hardening/hdn-policy-merge.c	1969-12-31 18:00:00.000000000 -0600
 +++ /home/doll/distro/linux-7.0.12-hdn/tools/hardening/hdn-policy-merge.c	2026-06-26 22:05:18.595221838 -0500
@@ -27006,8 +27154,8 @@ diff -ruN --exclude .git /home/doll/distro/linux-7.0.12/tools/hardening/hdn-poli
 +}
 diff -ruN --exclude .git /home/doll/distro/linux-7.0.12/tools/hardening/hdn-policy.c /home/doll/distro/linux-7.0.12-hdn/tools/hardening/hdn-policy.c
 --- /home/doll/distro/linux-7.0.12/tools/hardening/hdn-policy.c	1969-12-31 18:00:00.000000000 -0600
-+++ /home/doll/distro/linux-7.0.12-hdn/tools/hardening/hdn-policy.c	2026-06-26 23:34:25.082732969 -0500
-@@ -0,0 +1,2127 @@
++++ /home/doll/distro/linux-7.0.12-hdn/tools/hardening/hdn-policy.c	2026-06-26 23:49:35.562656159 -0500
+@@ -0,0 +1,2294 @@
 +// SPDX-License-Identifier: GPL-2.0-only
 +
 +#include <ctype.h>
@@ -27018,6 +27166,7 @@ diff -ruN --exclude .git /home/doll/distro/linux-7.0.12/tools/hardening/hdn-poli
 +#include <stdio.h>
 +#include <stdlib.h>
 +#include <string.h>
++#include <sys/resource.h>
 +#include <sys/stat.h>
 +#include <sys/sysmacros.h>
 +#include <unistd.h>
@@ -27072,6 +27221,7 @@ diff -ruN --exclude .git /home/doll/distro/linux-7.0.12/tools/hardening/hdn-poli
 +	struct hdn_exec_rule_record exec_rules[HDN_MAX_EXEC_RULES];
 +	struct hdn_module_rule_record module_rules[HDN_MAX_MODULE_RULES];
 +	struct hdn_firmware_rule_record firmware_rules[HDN_MAX_FIRMWARE_RULES];
++	struct hdn_resource_rule_record resource_rules[HDN_MAX_RESOURCE_RULES];
 +	uint32_t role_use_count;
 +	uint32_t role_include_count;
 +	uint32_t subject_rule_count;
@@ -27079,6 +27229,7 @@ diff -ruN --exclude .git /home/doll/distro/linux-7.0.12/tools/hardening/hdn-poli
 +	uint32_t exec_rule_count;
 +	uint32_t module_rule_count;
 +	uint32_t firmware_rule_count;
++	uint32_t resource_rule_count;
 +};
 +
 +struct name_value {
@@ -27157,6 +27308,25 @@ diff -ruN --exclude .git /home/doll/distro/linux-7.0.12/tools/hardening/hdn-poli
 +	  HDN_PROFILE_DENY_UNTRUSTED_USER_EXEC },
 +	{ "AUDIT_PROCESS_ACCOUNT",
 +	  HDN_PROFILE_AUDIT_PROCESS_ACCOUNT },
++};
++
++static const struct name_value resource_names[] = {
++	{ "CPU", RLIMIT_CPU },
++	{ "FSIZE", RLIMIT_FSIZE },
++	{ "DATA", RLIMIT_DATA },
++	{ "STACK", RLIMIT_STACK },
++	{ "CORE", RLIMIT_CORE },
++	{ "RSS", RLIMIT_RSS },
++	{ "NPROC", RLIMIT_NPROC },
++	{ "NOFILE", RLIMIT_NOFILE },
++	{ "MEMLOCK", RLIMIT_MEMLOCK },
++	{ "AS", RLIMIT_AS },
++	{ "LOCKS", RLIMIT_LOCKS },
++	{ "SIGPENDING", RLIMIT_SIGPENDING },
++	{ "MSGQUEUE", RLIMIT_MSGQUEUE },
++	{ "NICE", RLIMIT_NICE },
++	{ "RTPRIO", RLIMIT_RTPRIO },
++	{ "RTTIME", RLIMIT_RTTIME },
 +};
 +
 +static void usage(const char *prog)
@@ -27623,6 +27793,116 @@ diff -ruN --exclude .git /home/doll/distro/linux-7.0.12/tools/hardening/hdn-poli
 +	}
 +
 +	profile->record.umask = (uint16_t)mask;
++	return 0;
++}
++
++static int parse_resource_id(const char *text, uint32_t *resource)
++{
++	uint64_t value;
++	int ret;
++
++	ret = lookup_name(resource_names, ARRAY_SIZE(resource_names), text,
++			  &value);
++	if (ret)
++		ret = parse_u64(text, &value);
++	if (ret)
++		return ret;
++	if (value >= RLIM_NLIMITS)
++		return -EINVAL;
++
++	*resource = (uint32_t)value;
++	return 0;
++}
++
++static int parse_resource_limit(const char *text, uint64_t *limit)
++{
++	char normalized[64];
++
++	normalize_token(text, normalized, sizeof(normalized));
++	if (!strcmp(normalized, "INFINITY") ||
++	    !strcmp(normalized, "UNLIMITED") ||
++	    !strcmp(normalized, "RLIM_INFINITY")) {
++		*limit = HDN_RESOURCE_LIMIT_INFINITY;
++		return 0;
++	}
++
++	return parse_u64(text, limit);
++}
++
++static int parse_resource_command(struct hdn_policy_builder *builder,
++				  char *save, unsigned int line)
++{
++	struct hdn_resource_rule_record *rule;
++	char *profile_text;
++	char *resource_text;
++	char *soft_text;
++	char *hard_text;
++	uint64_t profile_id;
++	uint64_t soft_limit;
++	uint64_t hard_limit;
++	uint32_t resource;
++	int ret;
++
++	if (builder->resource_rule_count >= HDN_MAX_RESOURCE_RULES)
++		return -ENOSPC;
++
++	profile_text = strtok_r(NULL, " \t\r\n", &save);
++	resource_text = strtok_r(NULL, " \t\r\n", &save);
++	soft_text = strtok_r(NULL, " \t\r\n", &save);
++	hard_text = strtok_r(NULL, " \t\r\n", &save);
++	if (!profile_text || !resource_text || !soft_text || !hard_text ||
++	    strtok_r(NULL, " \t\r\n", &save)) {
++		fprintf(stderr,
++			"%u: resource needs PROFILE RLIMIT SOFT HARD\n",
++			line);
++		return -EINVAL;
++	}
++
++	ret = parse_u64(profile_text, &profile_id);
++	if (ret) {
++		fprintf(stderr, "%u: invalid resource profile '%s'\n", line,
++			profile_text);
++		return ret;
++	}
++	if (!find_profile(builder->profiles, profile_id)) {
++		fprintf(stderr, "%u: unknown resource profile %llu\n", line,
++			(unsigned long long)profile_id);
++		return -ENOENT;
++	}
++
++	ret = parse_resource_id(resource_text, &resource);
++	if (ret) {
++		fprintf(stderr, "%u: invalid resource '%s'\n", line,
++			resource_text);
++		return ret;
++	}
++
++	ret = parse_resource_limit(soft_text, &soft_limit);
++	if (ret) {
++		fprintf(stderr, "%u: invalid resource soft limit '%s'\n",
++			line, soft_text);
++		return ret;
++	}
++	ret = parse_resource_limit(hard_text, &hard_limit);
++	if (ret) {
++		fprintf(stderr, "%u: invalid resource hard limit '%s'\n",
++			line, hard_text);
++		return ret;
++	}
++	if (soft_limit > hard_limit) {
++		fprintf(stderr,
++			"%u: resource soft limit may not exceed hard limit\n",
++			line);
++		return -EINVAL;
++	}
++
++	rule = &builder->resource_rules[builder->resource_rule_count];
++	memset(rule, 0, sizeof(*rule));
++	rule->profile_id = profile_id;
++	rule->resource = resource;
++	rule->soft_limit = soft_limit;
++	rule->hard_limit = hard_limit;
++	builder->resource_rule_count++;
 +	return 0;
 +}
 +
@@ -28779,6 +29059,8 @@ diff -ruN --exclude .git /home/doll/distro/linux-7.0.12/tools/hardening/hdn-poli
 +	if (!strcmp(command, "umask") || !strcmp(command, "profile-umask"))
 +		return parse_umask_command(builder->profiles, save,
 +					   line_number);
++	if (!strcmp(command, "resource") || !strcmp(command, "rlimit"))
++		return parse_resource_command(builder, save, line_number);
 +	if (!strcmp(command, "subject"))
 +		return parse_subject_command(builder, save, line_number);
 +	if (!strcmp(command, "object"))
@@ -28962,7 +29244,9 @@ diff -ruN --exclude .git /home/doll/distro/linux-7.0.12/tools/hardening/hdn-poli
 +			const struct hdn_module_rule_record *module_rules,
 +			uint32_t module_rule_count,
 +			const struct hdn_firmware_rule_record *firmware_rules,
-+			uint32_t firmware_rule_count, uint64_t generation,
++			uint32_t firmware_rule_count,
++			const struct hdn_resource_rule_record *resource_rules,
++			uint32_t resource_rule_count, uint64_t generation,
 +			uint64_t expected_generation,
 +			uint64_t default_profile, uint64_t privileged_profile)
 +{
@@ -28982,6 +29266,8 @@ diff -ruN --exclude .git /home/doll/distro/linux-7.0.12/tools/hardening/hdn-poli
 +		.module_rule_count = module_rule_count,
 +		.firmware_rule_size = sizeof(firmware_rules[0]),
 +		.firmware_rule_count = firmware_rule_count,
++		.resource_rule_size = sizeof(resource_rules[0]),
++		.resource_rule_count = resource_rule_count,
 +		.generation = generation,
 +		.expected_generation = expected_generation,
 +		.default_profile_id = default_profile,
@@ -29006,7 +29292,9 @@ diff -ruN --exclude .git /home/doll/distro/linux-7.0.12/tools/hardening/hdn-poli
 +	    fwrite(module_rules, sizeof(module_rules[0]), module_rule_count,
 +		   file) != module_rule_count ||
 +	    fwrite(firmware_rules, sizeof(firmware_rules[0]),
-+		   firmware_rule_count, file) != firmware_rule_count) {
++		   firmware_rule_count, file) != firmware_rule_count ||
++	    fwrite(resource_rules, sizeof(resource_rules[0]),
++		   resource_rule_count, file) != resource_rule_count) {
 +		perror(path);
 +		fclose(file);
 +		return -EIO;
@@ -29039,6 +29327,8 @@ diff -ruN --exclude .git /home/doll/distro/linux-7.0.12/tools/hardening/hdn-poli
 +			   uint32_t subject_rule_count,
 +			   const struct hdn_object_rule_record *object_rules,
 +			   uint32_t object_rule_count,
++			   const struct hdn_resource_rule_record *resource_rules,
++			   uint32_t resource_rule_count,
 +			   uint64_t default_profile, uint64_t privileged_profile)
 +{
 +	uint32_t i;
@@ -29073,6 +29363,29 @@ diff -ruN --exclude .git /home/doll/distro/linux-7.0.12/tools/hardening/hdn-poli
 +				"object rule %u profile %llu is missing\n",
 +				i,
 +				(unsigned long long)object_rules[i].profile_id);
++			return -EINVAL;
++		}
++	}
++
++	for (i = 0; i < resource_rule_count; i++) {
++		if (!profile_id_present(records, count,
++					resource_rules[i].profile_id)) {
++			fprintf(stderr,
++				"resource rule %u profile %llu is missing\n",
++				i,
++				(unsigned long long)resource_rules[i].profile_id);
++			return -EINVAL;
++		}
++		if (resource_rules[i].resource >= RLIM_NLIMITS) {
++			fprintf(stderr, "resource rule %u has invalid resource\n",
++				i);
++			return -EINVAL;
++		}
++		if (resource_rules[i].soft_limit >
++		    resource_rules[i].hard_limit) {
++			fprintf(stderr,
++				"resource rule %u soft limit exceeds hard limit\n",
++				i);
 +			return -EINVAL;
 +		}
 +	}
@@ -29117,7 +29430,8 @@ diff -ruN --exclude .git /home/doll/distro/linux-7.0.12/tools/hardening/hdn-poli
 +
 +	ret = validate_policy(records, count, builder.subject_rules,
 +			      builder.subject_rule_count, builder.object_rules,
-+			      builder.object_rule_count, default_profile,
++			      builder.object_rule_count, builder.resource_rules,
++			      builder.resource_rule_count, default_profile,
 +			      privileged_profile);
 +	if (ret)
 +		return 1;
@@ -29127,7 +29441,8 @@ diff -ruN --exclude .git /home/doll/distro/linux-7.0.12/tools/hardening/hdn-poli
 +			   builder.object_rule_count, builder.exec_rules,
 +			   builder.exec_rule_count, builder.module_rules,
 +			   builder.module_rule_count, builder.firmware_rules,
-+			   builder.firmware_rule_count, generation,
++			   builder.firmware_rule_count, builder.resource_rules,
++			   builder.resource_rule_count, generation,
 +			   expected_generation,
 +			   default_profile, privileged_profile);
 +	if (ret)
@@ -34057,8 +34372,8 @@ diff -ruN --exclude .git /home/doll/distro/linux-7.0.12/tools/hardening/hdn-rofs
 Binary files /home/doll/distro/linux-7.0.12/tools/hardening/hdn-status and /home/doll/distro/linux-7.0.12-hdn/tools/hardening/hdn-status differ
 diff -ruN --exclude .git /home/doll/distro/linux-7.0.12/tools/hardening/hdn-status.c /home/doll/distro/linux-7.0.12-hdn/tools/hardening/hdn-status.c
 --- /home/doll/distro/linux-7.0.12/tools/hardening/hdn-status.c	1969-12-31 18:00:00.000000000 -0600
-+++ /home/doll/distro/linux-7.0.12-hdn/tools/hardening/hdn-status.c	2026-06-26 23:07:02.510888380 -0500
-@@ -0,0 +1,940 @@
++++ /home/doll/distro/linux-7.0.12-hdn/tools/hardening/hdn-status.c	2026-06-26 23:50:40.846650243 -0500
+@@ -0,0 +1,942 @@
 +// SPDX-License-Identifier: GPL-2.0-only
 +
 +#define _GNU_SOURCE
@@ -34373,6 +34688,7 @@ diff -ruN --exclude .git /home/doll/distro/linux-7.0.12/tools/hardening/hdn-stat
 +	  "PRIVILEGED_DESCENDANT_COREDUMP" },
 +	{ HDN_REASON_BRUTE_DAEMON_THROTTLED, "BRUTE_DAEMON_THROTTLED" },
 +	{ HDN_REASON_KERNEL_LOCKOUT, "KERNEL_LOCKOUT" },
++	{ HDN_REASON_RESOURCE_PROFILE_LIMIT, "RESOURCE_PROFILE_LIMIT" },
 +};
 +
 +static void usage(const char *prog)
@@ -34698,7 +35014,8 @@ diff -ruN --exclude .git /home/doll/distro/linux-7.0.12/tools/hardening/hdn-stat
 +		     status_u64_default(status, "object_rule_count", 0) +
 +		     status_u64_default(status, "exec_rule_count", 0) +
 +		     status_u64_default(status, "module_rule_count", 0) +
-+		     status_u64_default(status, "firmware_rule_count", 0);
++		     status_u64_default(status, "firmware_rule_count", 0) +
++		     status_u64_default(status, "resource_rule_count", 0);
 +	attention = attention_reason(status);
 +
 +	ret = output_add(outputs, "HDN_STATUS_V1", "1");
@@ -36191,8 +36508,8 @@ diff -ruN --exclude .git /home/doll/distro/linux-7.0.12/tools/testing/selftests/
 Binary files /home/doll/distro/linux-7.0.12/tools/testing/selftests/hardening/hdn_smoke and /home/doll/distro/linux-7.0.12-hdn/tools/testing/selftests/hardening/hdn_smoke differ
 diff -ruN --exclude .git /home/doll/distro/linux-7.0.12/tools/testing/selftests/hardening/hdn_smoke.c /home/doll/distro/linux-7.0.12-hdn/tools/testing/selftests/hardening/hdn_smoke.c
 --- /home/doll/distro/linux-7.0.12/tools/testing/selftests/hardening/hdn_smoke.c	1969-12-31 18:00:00.000000000 -0600
-+++ /home/doll/distro/linux-7.0.12-hdn/tools/testing/selftests/hardening/hdn_smoke.c	2026-06-26 23:35:23.474730185 -0500
-@@ -0,0 +1,26540 @@
++++ /home/doll/distro/linux-7.0.12-hdn/tools/testing/selftests/hardening/hdn_smoke.c	2026-06-26 23:52:45.774639963 -0500
+@@ -0,0 +1,26607 @@
 +// SPDX-License-Identifier: GPL-2.0-only
 +
 +#define _GNU_SOURCE
@@ -37055,6 +37372,8 @@ diff -ruN --exclude .git /home/doll/distro/linux-7.0.12/tools/testing/selftests/
 +#define HDN_BRUTE_DAEMON_DELAY_MIN_MS 25000ULL
 +#define HDN_RLIMIT_STACK_LOW (64UL * 1024UL)
 +#define HDN_RLIMIT_STACK_CONSUME (8UL * 1024UL * 1024UL)
++#define HDN_RESOURCE_NOFILE_SOFT_CAP 64
++#define HDN_RESOURCE_NOFILE_HARD_CAP 128
 +#define HDN_AUDIT_FLOOD_TEST_ATTEMPTS 64
 +#define HDN_POSIX_MQ_NAME "/hdn-posix-mqueue"
 +
@@ -39731,7 +40050,7 @@ diff -ruN --exclude .git /home/doll/distro/linux-7.0.12/tools/testing/selftests/
 +static int status_helper_decodes_audit_flood_fixture(void)
 +{
 +	static const char fixture[] =
-+		"abi_version: 88\n"
++		"abi_version: 89\n"
 +		"phase: runtime\n"
 +		"phase_id: 3\n"
 +		"policy_loaded: 1\n"
@@ -39746,6 +40065,7 @@ diff -ruN --exclude .git /home/doll/distro/linux-7.0.12/tools/testing/selftests/
 +		"exec_rule_count: 5\n"
 +		"module_rule_count: 7\n"
 +		"firmware_rule_count: 11\n"
++		"resource_rule_count: 13\n"
 +		"current_profile: 2\n"
 +		"current_mntns_profile: 2\n"
 +		"current_exec_memory_flags: 0x0\n"
@@ -39757,7 +40077,7 @@ diff -ruN --exclude .git /home/doll/distro/linux-7.0.12/tools/testing/selftests/
 +		"audit_flood_last_action: 4\n"
 +		"audit_flood_last_authority: 78\n"
 +		"audit_flood_last_transition: 90\n"
-+		"audit_flood_last_reason: 55\n";
++		"audit_flood_last_reason: 56\n";
 +	pid_t child;
 +	int ret;
 +
@@ -39779,14 +40099,14 @@ diff -ruN --exclude .git /home/doll/distro/linux-7.0.12/tools/testing/selftests/
 +		      "--status-path", HDN_STATUS_HELPER_FIXTURE, "--quiet",
 +		      "--expect", "state=active",
 +		      "--expect", "attention=0",
-+		      "--expect", "rule_count=28",
++		      "--expect", "rule_count=41",
 +		      "--expect", "mitigation_known=3",
 +		      "--expect", "mitigation_enabled=2",
 +		      "--expect", "audit_flood_active=1",
 +		      "--expect", "audit_flood_last_action=DENY_AUDIT",
 +		      "--expect", "audit_flood_last_authority=USB_MONITOR",
 +		      "--expect", "audit_flood_last_transition=USB_MONITOR",
-+		      "--expect", "audit_flood_last_reason=KERNEL_LOCKOUT",
++		      "--expect", "audit_flood_last_reason=RESOURCE_PROFILE_LIMIT",
 +		      NULL);
 +		fprintf(stderr, "status helper exec failed: %s\n",
 +			strerror(errno));
@@ -54104,6 +54424,56 @@ diff -ruN --exclude .git /home/doll/distro/linux-7.0.12/tools/testing/selftests/
 +	return errno_is_denial(errno) ? 0 : 2;
 +}
 +
++static int resource_profile_soft_cap_denied(void)
++{
++	struct rlimit orig;
++	struct rlimit capped = {
++		.rlim_cur = HDN_RESOURCE_NOFILE_SOFT_CAP,
++		.rlim_max = HDN_RESOURCE_NOFILE_HARD_CAP,
++	};
++	struct rlimit raised = capped;
++
++	if (getrlimit(RLIMIT_NOFILE, &orig))
++		return 2;
++	if (orig.rlim_max != RLIM_INFINITY &&
++	    orig.rlim_max < HDN_RESOURCE_NOFILE_HARD_CAP)
++		return KSFT_SKIP;
++
++	if (setrlimit(RLIMIT_NOFILE, &capped))
++		return 2;
++
++	raised.rlim_cur = HDN_RESOURCE_NOFILE_SOFT_CAP + 1;
++	errno = 0;
++	if (!setrlimit(RLIMIT_NOFILE, &raised))
++		return 1;
++	return errno_is_denial(errno) ? 0 : 2;
++}
++
++static int resource_profile_hard_cap_denied(void)
++{
++	struct rlimit orig;
++	struct rlimit capped = {
++		.rlim_cur = HDN_RESOURCE_NOFILE_SOFT_CAP,
++		.rlim_max = HDN_RESOURCE_NOFILE_HARD_CAP,
++	};
++	struct rlimit raised = capped;
++
++	if (getrlimit(RLIMIT_NOFILE, &orig))
++		return 2;
++	if (orig.rlim_max != RLIM_INFINITY &&
++	    orig.rlim_max < HDN_RESOURCE_NOFILE_HARD_CAP)
++		return KSFT_SKIP;
++
++	if (setrlimit(RLIMIT_NOFILE, &capped))
++		return 2;
++
++	raised.rlim_max = HDN_RESOURCE_NOFILE_HARD_CAP + 1;
++	errno = 0;
++	if (!setrlimit(RLIMIT_NOFILE, &raised))
++		return 1;
++	return errno_is_denial(errno) ? 0 : 2;
++}
++
 +static pid_t spawn_chroot_outside_target(int *release_fd)
 +{
 +	int pipefd[2];
@@ -56021,6 +56391,8 @@ diff -ruN --exclude .git /home/doll/distro/linux-7.0.12/tools/testing/selftests/
 +		ksft_test_result_skip("restricted profile denies USB monitor capture\n");
 +		ksft_test_result_skip("restricted profile denies system time change\n");
 +		ksft_test_result_skip("restricted resource-limit hard raise denied\n");
++		ksft_test_result_skip("restricted profile resource soft ceiling denied\n");
++		ksft_test_result_skip("restricted profile resource hard ceiling denied\n");
 +		ksft_test_result_skip("restricted raw block-device access denied\n");
 +		ksft_test_result_skip("restricted hardening policy rollback succeeds\n");
 +		ksft_test_result_skip("restricted rollback restores previous active generation\n");
@@ -57070,6 +57442,10 @@ diff -ruN --exclude .git /home/doll/distro/linux-7.0.12/tools/testing/selftests/
 +				    "restricted profile denies system time change");
 +		report_forked_child_result(resource_limit_without_authority_denied,
 +					   "restricted resource-limit hard raise denied");
++		report_forked_child_result(resource_profile_soft_cap_denied,
++					   "restricted profile resource soft ceiling denied");
++		report_forked_child_result(resource_profile_hard_cap_denied,
++					   "restricted profile resource hard ceiling denied");
 +		report_forked_child_result(block_device_open_without_authority_denied,
 +					   "restricted raw block-device access denied");
 +		} else {
@@ -57111,6 +57487,10 @@ diff -ruN --exclude .git /home/doll/distro/linux-7.0.12/tools/testing/selftests/
 +					    "restricted profile denies system time change");
 +			report_child_result(2,
 +					    "restricted profile denies resource-limit hard raise");
++			report_child_result(2,
++					    "restricted profile resource soft ceiling denied");
++			report_child_result(2,
++					    "restricted profile resource hard ceiling denied");
 +			report_child_result(2,
 +					    "restricted profile denies raw block-device access");
 +		}
@@ -60671,6 +61051,8 @@ diff -ruN --exclude .git /home/doll/distro/linux-7.0.12/tools/testing/selftests/
 +			 "hardening events report restricted time-change denial\n");
 +	ksft_test_result(securityfs_events_contains("authority=33"),
 +			 "hardening events report restricted resource-limit denial\n");
++	ksft_test_result(securityfs_events_contains("reason=56"),
++			 "hardening events report resource profile ceiling denial\n");
 +	ksft_test_result(securityfs_events_contains("authority=34"),
 +			 "hardening events report restricted block-device denial\n");
 +	ksft_test_result(securityfs_events_contains("reason=19"),
@@ -62348,11 +62730,11 @@ diff -ruN --exclude .git /home/doll/distro/linux-7.0.12/tools/testing/selftests/
 +	if (access(HDN_STATUS, R_OK))
 +		ksft_exit_skip("hardening securityfs status not present\n");
 +
-+	ksft_set_plan(938);
++	ksft_set_plan(942);
 +	test_securityfs_status();
 +	test_symbol_test_module_load();
-+	test_securityfs_status_contains("abi_version: 88",
-+					"hardening status reports policy ABI 88");
++	test_securityfs_status_contains("abi_version: 89",
++					"hardening status reports policy ABI 89");
 +	test_securityfs_status_contains("phase:",
 +					"hardening status reports sealing phase");
 +	test_securityfs_status_contains("policy_staged:",
@@ -62371,6 +62753,8 @@ diff -ruN --exclude .git /home/doll/distro/linux-7.0.12/tools/testing/selftests/
 +					"hardening status reports module trust rule count");
 +	test_securityfs_status_contains("firmware_rule_count:",
 +					"hardening status reports firmware trust rule count");
++	test_securityfs_status_contains("resource_rule_count:",
++					"hardening status reports resource limit rule count");
 +	test_securityfs_status_contains("mitigations_sealed: 1",
 +					"hardening status reports sealed mitigation state");
 +	test_securityfs_status_contains("mitigation_hardened_usercopy: 1",
@@ -63088,8 +63472,8 @@ diff -ruN --exclude .git /home/doll/distro/linux-7.0.12/tools/testing/selftests/
 +feature 2 AUDIT_PROCESS_ACCOUNT
 diff -ruN --exclude .git /home/doll/distro/linux-7.0.12/tools/testing/selftests/hardening/restricted.policy /home/doll/distro/linux-7.0.12-hdn/tools/testing/selftests/hardening/restricted.policy
 --- /home/doll/distro/linux-7.0.12/tools/testing/selftests/hardening/restricted.policy	1969-12-31 18:00:00.000000000 -0600
-+++ /home/doll/distro/linux-7.0.12-hdn/tools/testing/selftests/hardening/restricted.policy	2026-06-25 18:48:38.323128269 -0500
-@@ -0,0 +1,15 @@
++++ /home/doll/distro/linux-7.0.12-hdn/tools/testing/selftests/hardening/restricted.policy	2026-06-26 23:52:58.482638589 -0500
+@@ -0,0 +1,16 @@
 +# SPDX-License-Identifier: GPL-2.0-only
 +# Root-profile policy used by the QEMU smoke test to prove profile-denied
 +# authority gates that normal Unix permissions would otherwise mask.
@@ -63105,6 +63489,7 @@ diff -ruN --exclude .git /home/doll/distro/linux-7.0.12/tools/testing/selftests/
 +allow 2 POLICY_ADMIN CRED_CHANGE
 +feature 1 DENY_UNTRUSTED_USER_EXEC
 +feature 2 ENFORCE_TRUSTED_EXEC CHROOT_CONTAINED
++resource 2 NOFILE 64 128
 diff -ruN --exclude .git /home/doll/distro/linux-7.0.12/tools/testing/selftests/hardening/role.policy /home/doll/distro/linux-7.0.12-hdn/tools/testing/selftests/hardening/role.policy
 --- /home/doll/distro/linux-7.0.12/tools/testing/selftests/hardening/role.policy	1969-12-31 18:00:00.000000000 -0600
 +++ /home/doll/distro/linux-7.0.12-hdn/tools/testing/selftests/hardening/role.policy	2026-06-25 21:12:56.514647776 -0500
@@ -63125,7 +63510,7 @@ diff -ruN --exclude .git /home/doll/distro/linux-7.0.12/tools/testing/selftests/
 +use-role 2 desktop-admin
 diff -ruN --exclude .git /home/doll/distro/linux-7.0.12/tools/testing/selftests/hardening/run-qemu-smoke.sh /home/doll/distro/linux-7.0.12-hdn/tools/testing/selftests/hardening/run-qemu-smoke.sh
 --- /home/doll/distro/linux-7.0.12/tools/testing/selftests/hardening/run-qemu-smoke.sh	1969-12-31 18:00:00.000000000 -0600
-+++ /home/doll/distro/linux-7.0.12-hdn/tools/testing/selftests/hardening/run-qemu-smoke.sh	2026-06-26 23:35:23.478730185 -0500
++++ /home/doll/distro/linux-7.0.12-hdn/tools/testing/selftests/hardening/run-qemu-smoke.sh	2026-06-26 23:52:51.026639340 -0500
 @@ -0,0 +1,1221 @@
 +#!/bin/sh
 +# SPDX-License-Identifier: GPL-2.0
@@ -63160,7 +63545,7 @@ diff -ruN --exclude .git /home/doll/distro/linux-7.0.12/tools/testing/selftests/
 +QEMU_MEMORY=${QEMU_MEMORY:-1024M}
 +QEMU_SMP=${QEMU_SMP:-2}
 +QEMU_MACHINE=${QEMU_MACHINE:-q35,accel=tcg}
-+HDN_SMOKE_EXPECTED_PASS=${HDN_SMOKE_EXPECTED_PASS:-938}
++HDN_SMOKE_EXPECTED_PASS=${HDN_SMOKE_EXPECTED_PASS:-942}
 +WORK=${HDN_QEMU_WORK:-"${TMPDIR:-/tmp}/hdn-qemu-smoke.$$"}
 +LOG=${HDN_QEMU_LOG:-"$WORK/qemu.log"}
 +QMP=${HDN_QEMU_QMP:-"$WORK/qmp.sock"}
