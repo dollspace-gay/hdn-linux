@@ -699,7 +699,7 @@ diff -ruN --exclude .git /home/doll/distro/linux-7.0.12/fs/aio.c /home/doll/dist
  			kiocb_start_write(req);
 diff -ruN --exclude .git /home/doll/distro/linux-7.0.12/fs/attr.c /home/doll/distro/linux-7.0.12-hdn/fs/attr.c
 --- /home/doll/distro/linux-7.0.12/fs/attr.c	2026-06-09 05:32:51.000000000 -0500
-+++ /home/doll/distro/linux-7.0.12-hdn/fs/attr.c	2026-06-25 22:06:50.054513162 -0500
++++ /home/doll/distro/linux-7.0.12-hdn/fs/attr.c	2026-06-26 23:05:57.922894038 -0500
 @@ -13,6 +13,7 @@
  #include <linux/sched/signal.h>
  #include <linux/capability.h>
@@ -720,7 +720,7 @@ diff -ruN --exclude .git /home/doll/distro/linux-7.0.12/fs/attr.c /home/doll/dis
  	if (error)
  		return error;
  
-+	error = hdn_authorize_object_attr(dentry, ia_valid);
++	error = hdn_authorize_object_attr(dentry, ia_valid, attr->ia_mode);
 +	if (error)
 +		return error;
 +
@@ -1210,7 +1210,7 @@ diff -ruN --exclude .git /home/doll/distro/linux-7.0.12/fs/mount.h /home/doll/di
  	struct fsnotify_mark_connector __rcu *n_fsnotify_marks;
 diff -ruN --exclude .git /home/doll/distro/linux-7.0.12/fs/namei.c /home/doll/distro/linux-7.0.12-hdn/fs/namei.c
 --- /home/doll/distro/linux-7.0.12/fs/namei.c	2026-06-09 05:32:51.000000000 -0500
-+++ /home/doll/distro/linux-7.0.12-hdn/fs/namei.c	2026-06-26 22:23:17.087126882 -0500
++++ /home/doll/distro/linux-7.0.12-hdn/fs/namei.c	2026-06-26 23:06:04.514893458 -0500
 @@ -35,6 +35,7 @@
  #include <linux/fcntl.h>
  #include <linux/device_cgroup.h>
@@ -1506,7 +1506,7 @@ diff -ruN --exclude .git /home/doll/distro/linux-7.0.12/fs/namei.c /home/doll/di
  	if (error)
  		return error;
  
-+	error = hdn_authorize_object_creat(dentry->d_parent);
++	error = hdn_authorize_object_creat(dentry->d_parent, mode);
 +	if (error)
 +		return error;
 +
@@ -1546,7 +1546,7 @@ diff -ruN --exclude .git /home/doll/distro/linux-7.0.12/fs/namei.c /home/doll/di
  	if (error)
  		return error;
  
-+	error = hdn_authorize_object_creat(dir->dentry);
++	error = hdn_authorize_object_creat(dir->dentry, mode);
 +	if (error)
 +		return error;
 +
@@ -1581,7 +1581,7 @@ diff -ruN --exclude .git /home/doll/distro/linux-7.0.12/fs/namei.c /home/doll/di
  	error = inode_permission(idmap, dir, MAY_WRITE | MAY_EXEC);
  	if (error)
  		return error;
-+	error = hdn_authorize_object_creat(parentpath->dentry);
++	error = hdn_authorize_object_creat(parentpath->dentry, mode);
 +	if (error)
 +		return error;
  	if (!dir->i_op->tmpfile)
@@ -1605,7 +1605,7 @@ diff -ruN --exclude .git /home/doll/distro/linux-7.0.12/fs/namei.c /home/doll/di
  	if (error)
  		return error;
  
-+	error = hdn_authorize_object_mknod(dentry->d_parent);
++	error = hdn_authorize_object_mknod(dentry->d_parent, mode);
 +	if (error)
 +		return error;
 +
@@ -3610,8 +3610,8 @@ diff -ruN --exclude .git /home/doll/distro/linux-7.0.12/include/linux/btf.h /hom
  
 diff -ruN --exclude .git /home/doll/distro/linux-7.0.12/include/linux/hardening.h /home/doll/distro/linux-7.0.12-hdn/include/linux/hardening.h
 --- /home/doll/distro/linux-7.0.12/include/linux/hardening.h	1969-12-31 18:00:00.000000000 -0600
-+++ /home/doll/distro/linux-7.0.12-hdn/include/linux/hardening.h	2026-06-26 22:47:32.222995307 -0500
-@@ -0,0 +1,1006 @@
++++ /home/doll/distro/linux-7.0.12-hdn/include/linux/hardening.h	2026-06-26 23:05:20.490898038 -0500
+@@ -0,0 +1,1009 @@
 +/* SPDX-License-Identifier: GPL-2.0-only */
 +#ifndef _LINUX_HARDENING_H
 +#define _LINUX_HARDENING_H
@@ -3749,9 +3749,9 @@ diff -ruN --exclude .git /home/doll/distro/linux-7.0.12/include/linux/hardening.
 +int hdn_authorize_firmware(const char *name);
 +int hdn_authorize_object_create(const struct dentry *dir);
 +int hdn_authorize_object_delete(const struct dentry *dentry);
-+int hdn_authorize_object_creat(const struct dentry *dir);
++int hdn_authorize_object_creat(const struct dentry *dir, umode_t mode);
 +int hdn_authorize_object_mkdir(const struct dentry *dir);
-+int hdn_authorize_object_mknod(const struct dentry *dir);
++int hdn_authorize_object_mknod(const struct dentry *dir, umode_t mode);
 +int hdn_authorize_object_symlink(const struct dentry *dir);
 +int hdn_authorize_object_unlink(const struct dentry *dentry);
 +int hdn_authorize_object_rmdir(const struct dentry *dentry);
@@ -3768,7 +3768,7 @@ diff -ruN --exclude .git /home/doll/distro/linux-7.0.12/include/linux/hardening.
 +int hdn_authorize_object_read(const struct path *path);
 +int hdn_authorize_object_readlink(const struct path *path);
 +int hdn_authorize_object_attr(const struct dentry *dentry,
-+			      unsigned int ia_valid);
++			      unsigned int ia_valid, umode_t mode);
 +int hdn_authorize_object_fileattr(const struct dentry *dentry);
 +int hdn_authorize_object_filegetattr(const struct dentry *dentry);
 +int hdn_authorize_object_xattr(const struct dentry *dentry,
@@ -4117,7 +4117,8 @@ diff -ruN --exclude .git /home/doll/distro/linux-7.0.12/include/linux/hardening.
 +	return 0;
 +}
 +
-+static inline int hdn_authorize_object_creat(const struct dentry *dir)
++static inline int hdn_authorize_object_creat(const struct dentry *dir,
++					     umode_t mode)
 +{
 +	return 0;
 +}
@@ -4127,7 +4128,8 @@ diff -ruN --exclude .git /home/doll/distro/linux-7.0.12/include/linux/hardening.
 +	return 0;
 +}
 +
-+static inline int hdn_authorize_object_mknod(const struct dentry *dir)
++static inline int hdn_authorize_object_mknod(const struct dentry *dir,
++					     umode_t mode)
 +{
 +	return 0;
 +}
@@ -4205,7 +4207,8 @@ diff -ruN --exclude .git /home/doll/distro/linux-7.0.12/include/linux/hardening.
 +}
 +
 +static inline int hdn_authorize_object_attr(const struct dentry *dentry,
-+					    unsigned int ia_valid)
++					    unsigned int ia_valid,
++					    umode_t mode)
 +{
 +	return 0;
 +}
@@ -4804,15 +4807,15 @@ diff -ruN --exclude .git /home/doll/distro/linux-7.0.12/include/trace/events/mma
  TRACE_EVENT(exit_mmap,
 diff -ruN --exclude .git /home/doll/distro/linux-7.0.12/include/uapi/linux/hardening.h /home/doll/distro/linux-7.0.12-hdn/include/uapi/linux/hardening.h
 --- /home/doll/distro/linux-7.0.12/include/uapi/linux/hardening.h	1969-12-31 18:00:00.000000000 -0600
-+++ /home/doll/distro/linux-7.0.12-hdn/include/uapi/linux/hardening.h	2026-06-26 22:47:32.222995307 -0500
-@@ -0,0 +1,623 @@
++++ /home/doll/distro/linux-7.0.12-hdn/include/uapi/linux/hardening.h	2026-06-26 23:05:09.190899126 -0500
+@@ -0,0 +1,627 @@
 +/* SPDX-License-Identifier: GPL-2.0 WITH Linux-syscall-note */
 +#ifndef _UAPI_LINUX_HARDENING_H
 +#define _UAPI_LINUX_HARDENING_H
 +
 +#include <linux/types.h>
 +
-+#define HDN_POLICY_ABI_VERSION 85
++#define HDN_POLICY_ABI_VERSION 86
 +#define HDN_POLICY_MAGIC 0x48444e50 /* "HDNP" */
 +#define HDN_PROFILE_NAME_LEN 32
 +#define HDN_POLICY_PATH_LEN 256
@@ -4930,6 +4933,7 @@ diff -ruN --exclude .git /home/doll/distro/linux-7.0.12/include/uapi/linux/harde
 +	HDN_AUTH_OBJECT_RENAME_TARGET = 85,
 +	HDN_AUTH_OBJECT_LINK_TARGET = 86,
 +	HDN_AUTH_OBJECT_MOUNT_SOURCE = 87,
++	HDN_AUTH_OBJECT_SETID = 88,
 +	HDN_AUTH__MAX,
 +};
 +
@@ -5034,6 +5038,7 @@ diff -ruN --exclude .git /home/doll/distro/linux-7.0.12/include/uapi/linux/harde
 +	HDN_TRANS_OBJECT_RENAME_TARGET = 97,
 +	HDN_TRANS_OBJECT_LINK_TARGET = 98,
 +	HDN_TRANS_OBJECT_MOUNT_SOURCE = 99,
++	HDN_TRANS_OBJECT_SETID = 100,
 +	HDN_TRANS__MAX,
 +};
 +
@@ -5138,6 +5143,7 @@ diff -ruN --exclude .git /home/doll/distro/linux-7.0.12/include/uapi/linux/harde
 +	HDN_EVENT_ID_OBJECT_RENAME_TARGET = HDN_TRANS_OBJECT_RENAME_TARGET,
 +	HDN_EVENT_ID_OBJECT_LINK_TARGET = HDN_TRANS_OBJECT_LINK_TARGET,
 +	HDN_EVENT_ID_OBJECT_MOUNT_SOURCE = HDN_TRANS_OBJECT_MOUNT_SOURCE,
++	HDN_EVENT_ID_OBJECT_SETID = HDN_TRANS_OBJECT_SETID,
 +};
 +
 +enum hdn_decision_action {
@@ -5322,6 +5328,7 @@ diff -ruN --exclude .git /home/doll/distro/linux-7.0.12/include/uapi/linux/harde
 +	HDN_OBJECT_DENY_RENAME_TARGET = 1ULL << 44,
 +	HDN_OBJECT_DENY_LINK_TARGET = 1ULL << 45,
 +	HDN_OBJECT_DENY_MOUNT_SOURCE = 1ULL << 46,
++	HDN_OBJECT_DENY_SETID = 1ULL << 47,
 +};
 +
 +struct hdn_event {
@@ -10808,8 +10815,8 @@ diff -ruN --exclude .git /home/doll/distro/linux-7.0.12/security/hardening/Makef
 +obj-$(CONFIG_SECURITY_HARDENING) += core.o
 diff -ruN --exclude .git /home/doll/distro/linux-7.0.12/security/hardening/core.c /home/doll/distro/linux-7.0.12-hdn/security/hardening/core.c
 --- /home/doll/distro/linux-7.0.12/security/hardening/core.c	1969-12-31 18:00:00.000000000 -0600
-+++ /home/doll/distro/linux-7.0.12-hdn/security/hardening/core.c	2026-06-26 22:47:32.230995306 -0500
-@@ -0,0 +1,7519 @@
++++ /home/doll/distro/linux-7.0.12-hdn/security/hardening/core.c	2026-06-26 23:05:50.346894722 -0500
+@@ -0,0 +1,7571 @@
 +// SPDX-License-Identifier: GPL-2.0-only
 +
 +#include <linux/binfmts.h>
@@ -13535,6 +13542,40 @@ diff -ruN --exclude .git /home/doll/distro/linux-7.0.12/security/hardening/core.
 +	return hdn_authorize_object_create(dir);
 +}
 +
++static bool hdn_object_mode_requests_setid(umode_t mode)
++{
++	if (mode & S_ISUID)
++		return true;
++
++	return (mode & (S_ISGID | S_IXGRP)) == (S_ISGID | S_IXGRP);
++}
++
++static int hdn_authorize_object_setid_dentry(const struct dentry *dentry,
++					     bool require_dir)
++{
++	return hdn_authorize_object_dentry_flag(
++		dentry, HDN_OBJECT_DENY_SETID, HDN_AUTH_OBJECT_SETID,
++		HDN_TRANS_OBJECT_SETID, require_dir);
++}
++
++static int hdn_authorize_object_setid_create(const struct dentry *dir,
++					     umode_t mode)
++{
++	if (!hdn_object_mode_requests_setid(mode))
++		return 0;
++
++	return hdn_authorize_object_setid_dentry(dir, true);
++}
++
++static int hdn_authorize_object_setid_attr(const struct dentry *dentry,
++					   umode_t mode)
++{
++	if (!hdn_object_mode_requests_setid(mode))
++		return 0;
++
++	return hdn_authorize_object_setid_dentry(dentry, false);
++}
++
 +static int hdn_authorize_object_delete_operation(
 +	const struct dentry *dentry, u64 deny_flag,
 +	enum hdn_authority authority, enum hdn_transition transition)
@@ -13548,8 +13589,14 @@ diff -ruN --exclude .git /home/doll/distro/linux-7.0.12/security/hardening/core.
 +	return hdn_authorize_object_delete(dentry);
 +}
 +
-+int hdn_authorize_object_creat(const struct dentry *dir)
++int hdn_authorize_object_creat(const struct dentry *dir, umode_t mode)
 +{
++	int ret;
++
++	ret = hdn_authorize_object_setid_create(dir, mode);
++	if (ret)
++		return ret;
++
 +	return hdn_authorize_object_create_operation(
 +		dir, HDN_OBJECT_DENY_CREAT, HDN_AUTH_OBJECT_CREAT,
 +		HDN_TRANS_OBJECT_CREAT);
@@ -13562,8 +13609,14 @@ diff -ruN --exclude .git /home/doll/distro/linux-7.0.12/security/hardening/core.
 +		HDN_TRANS_OBJECT_MKDIR);
 +}
 +
-+int hdn_authorize_object_mknod(const struct dentry *dir)
++int hdn_authorize_object_mknod(const struct dentry *dir, umode_t mode)
 +{
++	int ret;
++
++	ret = hdn_authorize_object_setid_create(dir, mode);
++	if (ret)
++		return ret;
++
 +	return hdn_authorize_object_create_operation(
 +		dir, HDN_OBJECT_DENY_MKNOD, HDN_AUTH_OBJECT_MKNOD,
 +		HDN_TRANS_OBJECT_MKNOD);
@@ -13680,7 +13733,7 @@ diff -ruN --exclude .git /home/doll/distro/linux-7.0.12/security/hardening/core.
 +}
 +
 +int hdn_authorize_object_attr(const struct dentry *dentry,
-+			      unsigned int ia_valid)
++			      unsigned int ia_valid, umode_t mode)
 +{
 +	int ret;
 +
@@ -13691,6 +13744,10 @@ diff -ruN --exclude .git /home/doll/distro/linux-7.0.12/security/hardening/core.
 +	}
 +
 +	if (ia_valid & ATTR_MODE) {
++		ret = hdn_authorize_object_setid_attr(dentry, mode);
++		if (ret)
++			return ret;
++
 +		ret = hdn_authorize_object_dentry_policy(
 +			dentry, HDN_OBJECT_DENY_CHMOD, HDN_AUTH_OBJECT_CHMOD,
 +			HDN_TRANS_OBJECT_CHMOD);
@@ -16681,7 +16738,8 @@ diff -ruN --exclude .git /home/doll/distro/linux-7.0.12/security/hardening/core.
 +					 HDN_OBJECT_DENY_UNIX_RECV |
 +					 HDN_OBJECT_DENY_RENAME_TARGET |
 +					 HDN_OBJECT_DENY_LINK_TARGET |
-+					 HDN_OBJECT_DENY_MOUNT_SOURCE;
++					 HDN_OBJECT_DENY_MOUNT_SOURCE |
++					 HDN_OBJECT_DENY_SETID;
 +	u64 valid_module_flags = HDN_MODULE_MATCH_FILE_ID |
 +				 HDN_MODULE_MATCH_VERITY_DIGEST |
 +				 HDN_MODULE_RESOLVE_FILE_PATH;
@@ -16789,7 +16847,8 @@ diff -ruN --exclude .git /home/doll/distro/linux-7.0.12/security/hardening/core.
 +					     HDN_OBJECT_DENY_UNIX_RECV |
 +					     HDN_OBJECT_DENY_RENAME_TARGET |
 +					     HDN_OBJECT_DENY_LINK_TARGET |
-+					     HDN_OBJECT_DENY_MOUNT_SOURCE)))
++					     HDN_OBJECT_DENY_MOUNT_SOURCE |
++					     HDN_OBJECT_DENY_SETID)))
 +					return -EINVAL;
 +		if ((rule->flags & HDN_OBJECT_MATCH_FILE_ID) &&
 +		    (rule->flags & HDN_OBJECT_RESOLVE_FILE_PATH))
@@ -18704,8 +18763,8 @@ diff -ruN --exclude .git /home/doll/distro/linux-7.0.12/tools/hardening/Makefile
 +.PHONY: all clean install
 diff -ruN --exclude .git /home/doll/distro/linux-7.0.12/tools/hardening/README.rst /home/doll/distro/linux-7.0.12-hdn/tools/hardening/README.rst
 --- /home/doll/distro/linux-7.0.12/tools/hardening/README.rst	1969-12-31 18:00:00.000000000 -0600
-+++ /home/doll/distro/linux-7.0.12-hdn/tools/hardening/README.rst	2026-06-26 22:57:42.226934714 -0500
-@@ -0,0 +1,1412 @@
++++ /home/doll/distro/linux-7.0.12-hdn/tools/hardening/README.rst	2026-06-26 23:15:38.946839789 -0500
+@@ -0,0 +1,1421 @@
 +.. SPDX-License-Identifier: GPL-2.0-only
 +
 +Linux Hardening Policy Tools
@@ -19122,6 +19181,7 @@ diff -ruN --exclude .git /home/doll/distro/linux-7.0.12/tools/hardening/README.r
 +  object 2 deny-chmod path /etc/hdn/mode-locked.conf
 +  object 2 deny-chown path /etc/hdn/owner-locked.conf
 +  object 2 deny-utime path /etc/hdn/timestamps-locked.conf
++  object 2 deny-setid path /etc/hdn/no-setid
 +  object 2 deny-xattr path /etc/hdn/hidden-xattrs.conf
 +  object 2 deny-setxattr path /etc/hdn/xattr-write-locked.conf
 +  object 2 deny-removexattr path /etc/hdn/xattr-remove-locked.conf
@@ -19253,6 +19313,7 @@ diff -ruN --exclude .git /home/doll/distro/linux-7.0.12/tools/hardening/README.r
 +``object <profile> deny-chmod path <absolute-path>``,
 +``object <profile> deny-chown path <absolute-path>``,
 +``object <profile> deny-utime path <absolute-path>``,
++``object <profile> deny-setid path <absolute-path>``,
 +``object <profile> deny-xattr path <absolute-path>``,
 +``object <profile> deny-setxattr path <absolute-path>``,
 +``object <profile> deny-removexattr path <absolute-path>``,
@@ -19283,7 +19344,9 @@ diff -ruN --exclude .git /home/doll/distro/linux-7.0.12/tools/hardening/README.r
 +recursive ``object <profile> <operation> tree <absolute-directory>`` form, and
 +the equivalent ``inode <major> <minor> <ino>`` forms. ``deny-create``,
 +``deny-creat``, ``deny-mkdir``, ``deny-mknod``, ``deny-symlink``, and
-+``deny-unix-bind`` match the parent directory identity.
++``deny-unix-bind`` match the parent directory identity. ``deny-setid`` matches
++the target object for mode changes and the parent directory for creation,
++tmpfile, and mknod requests that ask for setuid or executable-setgid mode bits.
 +``deny-unix-listen`` and ``deny-unix-accept`` match the bound filesystem
 +socket identity. ``deny-unix-send`` matches the destination filesystem socket
 +identity for pathname and connected datagram sends. ``deny-unix-recv`` matches
@@ -19346,7 +19409,11 @@ diff -ruN --exclude .git /home/doll/distro/linux-7.0.12/tools/hardening/README.r
 +through the common VFS xattr/ACL paths. The split ``deny-chmod``, ``deny-chown``,
 +``deny-utime``, ``deny-setxattr``, and ``deny-removexattr`` operations provide
 +exact gates for those metadata and xattr mutations when a policy does not want
-+the aggregate behavior. It enforces deny-xattr for extended attribute
++the aggregate behavior. ``deny-setid`` is a narrower setid-bit gate for
++``chmod(2)``/``fchmodat(2)`` changes that would result in setuid or
++executable-setgid bits, plus ``O_CREAT``/tmpfile/``mknod(2)`` requests that ask
++for those bits, without blocking ordinary mode changes or ordinary creates. It
++enforces deny-xattr for extended attribute
 +name/value discovery through ``getxattr(2)`` and ``listxattr(2)``, POSIX ACL
 +xattr reads through the common ACL helper, and aggregate xattr mutation control
 +through the common xattr/ACL paths. It enforces
@@ -19407,12 +19474,13 @@ diff -ruN --exclude .git /home/doll/distro/linux-7.0.12/tools/hardening/README.r
 +	AF_UNIX datagram receives by bound socket identity.
 +QEMU stages a
 +dedicated object policy and proves protected
-+read/write/delete/create/creat/mkdir/mknod/symlink/unlink/rmdir/exec/link/link-target/attr/chmod/chown/utime/xattr/setxattr/removexattr/access/stat/list/find/ioctl/lock/watch/receive/fcntl/chdir/mount/mount-source/umount/truncate/rename/rename-target/unix-connect/unix-bind/unix-listen/unix-accept/unix-send/unix-recv targets, protected
++read/write/delete/create/creat/mkdir/mknod/symlink/unlink/rmdir/exec/link/link-target/attr/chmod/chown/utime/setid/xattr/setxattr/removexattr/access/stat/list/find/ioctl/lock/watch/receive/fcntl/chdir/mount/mount-source/umount/truncate/rename/rename-target/unix-connect/unix-bind/unix-listen/unix-accept/unix-send/unix-recv targets, protected
 +	file-capability xattr get/list/set/remove attempts, protected POSIX ACL xattr reads, preopened descriptor reads, readable mmap, and readable mprotect,
 +	unmatched readable mmap and mprotect,
 +		protected FIFO, character-device, and block-device read/write open denial,
 +			protected truncate plus preopened ftruncate/fallocate denial,
-+			truncate-only ordinary write allowance, path truncate
++				setuid chmod/create and executable-setgid mknod denial,
++				ordinary chmod/create/mknod allowance, truncate-only ordinary write allowance, path truncate
 +			denial, unmatched truncate allowance, and preopened
 +			ftruncate and fallocate denial,
 +			protected rename denial and unmatched rename allowance,
@@ -23034,10 +23102,11 @@ diff -ruN --exclude .git /home/doll/distro/linux-7.0.12/tools/hardening/hdn-desk
 +	free_config(&config);
 +	return ret ? 1 : 0;
 +}
+Binary files /home/doll/distro/linux-7.0.12/tools/hardening/hdn-event-decode and /home/doll/distro/linux-7.0.12-hdn/tools/hardening/hdn-event-decode differ
 diff -ruN --exclude .git /home/doll/distro/linux-7.0.12/tools/hardening/hdn-event-decode.c /home/doll/distro/linux-7.0.12-hdn/tools/hardening/hdn-event-decode.c
 --- /home/doll/distro/linux-7.0.12/tools/hardening/hdn-event-decode.c	1969-12-31 18:00:00.000000000 -0600
-+++ /home/doll/distro/linux-7.0.12-hdn/tools/hardening/hdn-event-decode.c	2026-06-26 22:47:32.234995306 -0500
-@@ -0,0 +1,925 @@
++++ /home/doll/distro/linux-7.0.12-hdn/tools/hardening/hdn-event-decode.c	2026-06-26 23:07:02.510888380 -0500
+@@ -0,0 +1,927 @@
 +// SPDX-License-Identifier: GPL-2.0-only
 +
 +#define _GNU_SOURCE
@@ -23172,6 +23241,7 @@ diff -ruN --exclude .git /home/doll/distro/linux-7.0.12/tools/hardening/hdn-even
 +	{ HDN_AUTH_OBJECT_CHMOD, "OBJECT_CHMOD" },
 +	{ HDN_AUTH_OBJECT_CHOWN, "OBJECT_CHOWN" },
 +	{ HDN_AUTH_OBJECT_UTIME, "OBJECT_UTIME" },
++	{ HDN_AUTH_OBJECT_SETID, "OBJECT_SETID" },
 +	{ HDN_AUTH_OBJECT_SETXATTR, "OBJECT_SETXATTR" },
 +	{ HDN_AUTH_OBJECT_REMOVEXATTR, "OBJECT_REMOVEXATTR" },
 +	{ HDN_AUTH_OBJECT_CREAT, "OBJECT_CREAT" },
@@ -23271,6 +23341,7 @@ diff -ruN --exclude .git /home/doll/distro/linux-7.0.12/tools/hardening/hdn-even
 +	{ HDN_TRANS_OBJECT_CHMOD, "OBJECT_CHMOD" },
 +	{ HDN_TRANS_OBJECT_CHOWN, "OBJECT_CHOWN" },
 +	{ HDN_TRANS_OBJECT_UTIME, "OBJECT_UTIME" },
++	{ HDN_TRANS_OBJECT_SETID, "OBJECT_SETID" },
 +	{ HDN_TRANS_OBJECT_SETXATTR, "OBJECT_SETXATTR" },
 +	{ HDN_TRANS_OBJECT_REMOVEXATTR, "OBJECT_REMOVEXATTR" },
 +	{ HDN_TRANS_OBJECT_CREAT, "OBJECT_CREAT" },
@@ -24808,10 +24879,12 @@ diff -ruN --exclude .git /home/doll/distro/linux-7.0.12/tools/hardening/hdn-pack
 +	free_config(&config);
 +	return ret ? 1 : 0;
 +}
+Binary files /home/doll/distro/linux-7.0.12/tools/hardening/hdn-policy and /home/doll/distro/linux-7.0.12-hdn/tools/hardening/hdn-policy differ
+Binary files /home/doll/distro/linux-7.0.12/tools/hardening/hdn-policy-learn and /home/doll/distro/linux-7.0.12-hdn/tools/hardening/hdn-policy-learn differ
 diff -ruN --exclude .git /home/doll/distro/linux-7.0.12/tools/hardening/hdn-policy-learn.c /home/doll/distro/linux-7.0.12-hdn/tools/hardening/hdn-policy-learn.c
 --- /home/doll/distro/linux-7.0.12/tools/hardening/hdn-policy-learn.c	1969-12-31 18:00:00.000000000 -0600
-+++ /home/doll/distro/linux-7.0.12-hdn/tools/hardening/hdn-policy-learn.c	2026-06-26 22:47:32.238995306 -0500
-@@ -0,0 +1,872 @@
++++ /home/doll/distro/linux-7.0.12-hdn/tools/hardening/hdn-policy-learn.c	2026-06-26 23:07:02.514888379 -0500
+@@ -0,0 +1,875 @@
 +// SPDX-License-Identifier: GPL-2.0-only
 +
 +#define _GNU_SOURCE
@@ -24948,6 +25021,7 @@ diff -ruN --exclude .git /home/doll/distro/linux-7.0.12/tools/hardening/hdn-poli
 +	{ HDN_AUTH_OBJECT_CHMOD, "OBJECT_CHMOD" },
 +	{ HDN_AUTH_OBJECT_CHOWN, "OBJECT_CHOWN" },
 +	{ HDN_AUTH_OBJECT_UTIME, "OBJECT_UTIME" },
++	{ HDN_AUTH_OBJECT_SETID, "OBJECT_SETID" },
 +	{ HDN_AUTH_OBJECT_SETXATTR, "OBJECT_SETXATTR" },
 +	{ HDN_AUTH_OBJECT_REMOVEXATTR, "OBJECT_REMOVEXATTR" },
 +	{ HDN_AUTH_OBJECT_CREAT, "OBJECT_CREAT" },
@@ -25047,6 +25121,7 @@ diff -ruN --exclude .git /home/doll/distro/linux-7.0.12/tools/hardening/hdn-poli
 +	{ HDN_TRANS_OBJECT_CHMOD, "OBJECT_CHMOD" },
 +	{ HDN_TRANS_OBJECT_CHOWN, "OBJECT_CHOWN" },
 +	{ HDN_TRANS_OBJECT_UTIME, "OBJECT_UTIME" },
++	{ HDN_TRANS_OBJECT_SETID, "OBJECT_SETID" },
 +	{ HDN_TRANS_OBJECT_SETXATTR, "OBJECT_SETXATTR" },
 +	{ HDN_TRANS_OBJECT_REMOVEXATTR, "OBJECT_REMOVEXATTR" },
 +	{ HDN_TRANS_OBJECT_CREAT, "OBJECT_CREAT" },
@@ -25418,6 +25493,7 @@ diff -ruN --exclude .git /home/doll/distro/linux-7.0.12/tools/hardening/hdn-poli
 +	case HDN_AUTH_OBJECT_CHMOD:
 +	case HDN_AUTH_OBJECT_CHOWN:
 +	case HDN_AUTH_OBJECT_UTIME:
++	case HDN_AUTH_OBJECT_SETID:
 +	case HDN_AUTH_OBJECT_SETXATTR:
 +	case HDN_AUTH_OBJECT_REMOVEXATTR:
 +	case HDN_AUTH_OBJECT_CREAT:
@@ -26853,8 +26929,8 @@ diff -ruN --exclude .git /home/doll/distro/linux-7.0.12/tools/hardening/hdn-poli
 +}
 diff -ruN --exclude .git /home/doll/distro/linux-7.0.12/tools/hardening/hdn-policy.c /home/doll/distro/linux-7.0.12-hdn/tools/hardening/hdn-policy.c
 --- /home/doll/distro/linux-7.0.12/tools/hardening/hdn-policy.c	1969-12-31 18:00:00.000000000 -0600
-+++ /home/doll/distro/linux-7.0.12-hdn/tools/hardening/hdn-policy.c	2026-06-26 22:47:32.234995306 -0500
-@@ -0,0 +1,2072 @@
++++ /home/doll/distro/linux-7.0.12-hdn/tools/hardening/hdn-policy.c	2026-06-26 23:06:30.230891272 -0500
+@@ -0,0 +1,2075 @@
 +// SPDX-License-Identifier: GPL-2.0-only
 +
 +#include <ctype.h>
@@ -27653,7 +27729,7 @@ diff -ruN --exclude .git /home/doll/distro/linux-7.0.12/tools/hardening/hdn-poli
 +	mode = strtok_r(NULL, " \t\r\n", &save);
 +	if (!profile_text || !action || !mode) {
 +		fprintf(stderr,
-+			"%u: object needs PROFILE deny-read|deny-write|deny-delete|deny-create|deny-creat|deny-mkdir|deny-mknod|deny-symlink|deny-unlink|deny-rmdir|deny-exec|append-only|deny-link|deny-link-target|deny-attr|deny-chmod|deny-chown|deny-utime|deny-xattr|deny-setxattr|deny-removexattr|deny-access|deny-stat|deny-list|deny-find|deny-ioctl|deny-lock|deny-watch|deny-receive|deny-fcntl|deny-chdir|deny-mount|deny-mount-source|deny-umount|deny-truncate|deny-rename|deny-rename-target|deny-unix-connect|deny-unix-bind|deny-unix-listen|deny-unix-accept|deny-unix-send|deny-unix-recv path|nofollow-path|tree|inode\n",
++			"%u: object needs PROFILE deny-read|deny-write|deny-delete|deny-create|deny-creat|deny-mkdir|deny-mknod|deny-symlink|deny-unlink|deny-rmdir|deny-exec|append-only|deny-link|deny-link-target|deny-attr|deny-chmod|deny-chown|deny-utime|deny-setid|deny-xattr|deny-setxattr|deny-removexattr|deny-access|deny-stat|deny-list|deny-find|deny-ioctl|deny-lock|deny-watch|deny-receive|deny-fcntl|deny-chdir|deny-mount|deny-mount-source|deny-umount|deny-truncate|deny-rename|deny-rename-target|deny-unix-connect|deny-unix-bind|deny-unix-listen|deny-unix-accept|deny-unix-send|deny-unix-recv path|nofollow-path|tree|inode\n",
 +			line);
 +		return -EINVAL;
 +	}
@@ -27686,6 +27762,7 @@ diff -ruN --exclude .git /home/doll/distro/linux-7.0.12/tools/hardening/hdn-poli
 +	    strcmp(action_name, "DENY_CHMOD") &&
 +	    strcmp(action_name, "DENY_CHOWN") &&
 +	    strcmp(action_name, "DENY_UTIME") &&
++	    strcmp(action_name, "DENY_SETID") &&
 +	    strcmp(action_name, "DENY_ACCESS") &&
 +	    strcmp(action_name, "DENY_STAT") &&
 +	    strcmp(action_name, "DENY_LIST") &&
@@ -27755,6 +27832,8 @@ diff -ruN --exclude .git /home/doll/distro/linux-7.0.12/tools/hardening/hdn-poli
 +		rule->flags = HDN_OBJECT_DENY_CHOWN;
 +	else if (!strcmp(action_name, "DENY_UTIME"))
 +		rule->flags = HDN_OBJECT_DENY_UTIME;
++	else if (!strcmp(action_name, "DENY_SETID"))
++		rule->flags = HDN_OBJECT_DENY_SETID;
 +	else if (!strcmp(action_name, "DENY_ACCESS"))
 +		rule->flags = HDN_OBJECT_DENY_ACCESS;
 +	else if (!strcmp(action_name, "DENY_STAT"))
@@ -33846,10 +33925,11 @@ diff -ruN --exclude .git /home/doll/distro/linux-7.0.12/tools/hardening/hdn-rofs
 +
 +	return command_status;
 +}
+Binary files /home/doll/distro/linux-7.0.12/tools/hardening/hdn-status and /home/doll/distro/linux-7.0.12-hdn/tools/hardening/hdn-status differ
 diff -ruN --exclude .git /home/doll/distro/linux-7.0.12/tools/hardening/hdn-status.c /home/doll/distro/linux-7.0.12-hdn/tools/hardening/hdn-status.c
 --- /home/doll/distro/linux-7.0.12/tools/hardening/hdn-status.c	1969-12-31 18:00:00.000000000 -0600
-+++ /home/doll/distro/linux-7.0.12-hdn/tools/hardening/hdn-status.c	2026-06-26 22:47:32.238995306 -0500
-@@ -0,0 +1,938 @@
++++ /home/doll/distro/linux-7.0.12-hdn/tools/hardening/hdn-status.c	2026-06-26 23:07:02.510888380 -0500
+@@ -0,0 +1,940 @@
 +// SPDX-License-Identifier: GPL-2.0-only
 +
 +#define _GNU_SOURCE
@@ -33977,6 +34057,7 @@ diff -ruN --exclude .git /home/doll/distro/linux-7.0.12/tools/hardening/hdn-stat
 +	{ HDN_AUTH_OBJECT_CHMOD, "OBJECT_CHMOD" },
 +	{ HDN_AUTH_OBJECT_CHOWN, "OBJECT_CHOWN" },
 +	{ HDN_AUTH_OBJECT_UTIME, "OBJECT_UTIME" },
++	{ HDN_AUTH_OBJECT_SETID, "OBJECT_SETID" },
 +	{ HDN_AUTH_OBJECT_SETXATTR, "OBJECT_SETXATTR" },
 +	{ HDN_AUTH_OBJECT_REMOVEXATTR, "OBJECT_REMOVEXATTR" },
 +	{ HDN_AUTH_OBJECT_CREAT, "OBJECT_CREAT" },
@@ -34076,6 +34157,7 @@ diff -ruN --exclude .git /home/doll/distro/linux-7.0.12/tools/hardening/hdn-stat
 +	{ HDN_TRANS_OBJECT_CHMOD, "OBJECT_CHMOD" },
 +	{ HDN_TRANS_OBJECT_CHOWN, "OBJECT_CHOWN" },
 +	{ HDN_TRANS_OBJECT_UTIME, "OBJECT_UTIME" },
++	{ HDN_TRANS_OBJECT_SETID, "OBJECT_SETID" },
 +	{ HDN_TRANS_OBJECT_SETXATTR, "OBJECT_SETXATTR" },
 +	{ HDN_TRANS_OBJECT_REMOVEXATTR, "OBJECT_REMOVEXATTR" },
 +	{ HDN_TRANS_OBJECT_CREAT, "OBJECT_CREAT" },
@@ -35654,6 +35736,7 @@ diff -ruN --exclude .git /home/doll/distro/linux-7.0.12/tools/testing/selftests/
 +audit 2 FIRMWARE_LOAD
 +
 +firmware 2 name hdn-allowed-fw.bin
+Binary files /home/doll/distro/linux-7.0.12/tools/testing/selftests/hardening/hdn_elfnote_jit and /home/doll/distro/linux-7.0.12-hdn/tools/testing/selftests/hardening/hdn_elfnote_jit differ
 diff -ruN --exclude .git /home/doll/distro/linux-7.0.12/tools/testing/selftests/hardening/hdn_elfnote_jit.c /home/doll/distro/linux-7.0.12-hdn/tools/testing/selftests/hardening/hdn_elfnote_jit.c
 --- /home/doll/distro/linux-7.0.12/tools/testing/selftests/hardening/hdn_elfnote_jit.c	1969-12-31 18:00:00.000000000 -0600
 +++ /home/doll/distro/linux-7.0.12-hdn/tools/testing/selftests/hardening/hdn_elfnote_jit.c	2026-06-26 11:12:01.046968436 -0500
@@ -35976,10 +36059,11 @@ diff -ruN --exclude .git /home/doll/distro/linux-7.0.12/tools/testing/selftests/
 +
 +	return 2;
 +}
+Binary files /home/doll/distro/linux-7.0.12/tools/testing/selftests/hardening/hdn_smoke and /home/doll/distro/linux-7.0.12-hdn/tools/testing/selftests/hardening/hdn_smoke differ
 diff -ruN --exclude .git /home/doll/distro/linux-7.0.12/tools/testing/selftests/hardening/hdn_smoke.c /home/doll/distro/linux-7.0.12-hdn/tools/testing/selftests/hardening/hdn_smoke.c
 --- /home/doll/distro/linux-7.0.12/tools/testing/selftests/hardening/hdn_smoke.c	1969-12-31 18:00:00.000000000 -0600
-+++ /home/doll/distro/linux-7.0.12-hdn/tools/testing/selftests/hardening/hdn_smoke.c	2026-06-26 22:53:46.686959047 -0500
-@@ -0,0 +1,26234 @@
++++ /home/doll/distro/linux-7.0.12-hdn/tools/testing/selftests/hardening/hdn_smoke.c	2026-06-26 23:13:15.610847976 -0500
+@@ -0,0 +1,26398 @@
 +// SPDX-License-Identifier: GPL-2.0-only
 +
 +#define _GNU_SOURCE
@@ -36382,6 +36466,22 @@ diff -ruN --exclude .git /home/doll/distro/linux-7.0.12/tools/testing/selftests/
 +#define HDN_OBJECT_FILEGETATTR_UNPROTECTED \
 +	HDN_OBJECT_FILEATTR_DIR "/stat-unprotected"
 +#define HDN_OBJECT_CHMOD_PROTECTED "/hdn-object-chmod-protected"
++#define HDN_OBJECT_SETID_PROTECTED "/hdn-object-setid-protected"
++#define HDN_OBJECT_SETID_UNPROTECTED "/hdn-object-setid-unprotected"
++#define HDN_OBJECT_SETID_CREATE_PROTECTED_DIR \
++	"/hdn-object-setid-create-protected"
++#define HDN_OBJECT_SETID_CREATE_PROTECTED_PATH \
++	HDN_OBJECT_SETID_CREATE_PROTECTED_DIR "/setuid-file"
++#define HDN_OBJECT_SETID_CREATE_ORDINARY_PATH \
++	HDN_OBJECT_SETID_CREATE_PROTECTED_DIR "/ordinary-file"
++#define HDN_OBJECT_SETID_MKNOD_PROTECTED_FIFO \
++	HDN_OBJECT_SETID_CREATE_PROTECTED_DIR "/setgid-fifo"
++#define HDN_OBJECT_SETID_MKNOD_ORDINARY_FIFO \
++	HDN_OBJECT_SETID_CREATE_PROTECTED_DIR "/ordinary-fifo"
++#define HDN_OBJECT_SETID_CREATE_UNPROTECTED_DIR \
++	"/hdn-object-setid-create-unprotected"
++#define HDN_OBJECT_SETID_CREATE_UNPROTECTED_PATH \
++	HDN_OBJECT_SETID_CREATE_UNPROTECTED_DIR "/setuid-file"
 +#define HDN_OBJECT_CHOWN_PROTECTED "/hdn-object-chown-protected"
 +#define HDN_OBJECT_UTIME_PROTECTED "/hdn-object-utime-protected"
 +#define HDN_OBJECT_SETXATTR_PROTECTED "/hdn-object-setxattr-protected"
@@ -39300,6 +39400,30 @@ diff -ruN --exclude .git /home/doll/distro/linux-7.0.12/tools/testing/selftests/
 +	return child_exit_result(child);
 +}
 +
++static int event_decoder_finds_object_setid_denial(void)
++{
++	pid_t child;
++
++	if (access(HDN_EVENT_DECODE_EXEC, X_OK))
++		return KSFT_SKIP;
++
++	child = fork();
++	if (child < 0)
++		return 2;
++
++	if (!child) {
++		execl(HDN_EVENT_DECODE_EXEC, "hdn-event-decode", "--quiet",
++		      "--expect", "authority=OBJECT_SETID",
++		      "--expect", "transition=OBJECT_SETID",
++		      "--expect", "action=DENY_AUDIT", NULL);
++		fprintf(stderr, "event decoder exec failed: %s\n",
++			strerror(errno));
++		_exit(2);
++	}
++
++	return child_exit_result(child);
++}
++
 +static int event_decoder_read_output(int fd, char *buf, size_t size)
 +{
 +	size_t offset = 0;
@@ -39473,7 +39597,7 @@ diff -ruN --exclude .git /home/doll/distro/linux-7.0.12/tools/testing/selftests/
 +static int status_helper_decodes_audit_flood_fixture(void)
 +{
 +	static const char fixture[] =
-+		"abi_version: 85\n"
++		"abi_version: 86\n"
 +		"phase: runtime\n"
 +		"phase_id: 3\n"
 +		"policy_loaded: 1\n"
@@ -42737,6 +42861,91 @@ diff -ruN --exclude .git /home/doll/distro/linux-7.0.12/tools/testing/selftests/
 +	if (!chmod(HDN_OBJECT_CHMOD_PROTECTED, 0600))
 +		return 1;
 +	return errno_is_denial(errno) ? 0 : 2;
++}
++
++static int object_setid_chmod_denied(void)
++{
++	if (!chmod(HDN_OBJECT_SETID_PROTECTED, 04755))
++		return 1;
++	return errno_is_denial(errno) ? 0 : 2;
++}
++
++static int object_setid_chmod_ordinary_allowed(void)
++{
++	if (chmod(HDN_OBJECT_SETID_PROTECTED, 0600))
++		return 2;
++	return chmod(HDN_OBJECT_SETID_PROTECTED, 0644) ? 2 : 0;
++}
++
++static int object_setid_chmod_unmatched_allowed(void)
++{
++	if (chmod(HDN_OBJECT_SETID_UNPROTECTED, 04755))
++		return 2;
++	return chmod(HDN_OBJECT_SETID_UNPROTECTED, 0644) ? 2 : 0;
++}
++
++static int object_setid_create_path(const char *path, mode_t mode,
++				    bool expect_denied)
++{
++	int saved_errno;
++	int fd;
++
++	unlink(path);
++	fd = open(path, O_CREAT | O_EXCL | O_WRONLY | O_CLOEXEC, mode);
++	saved_errno = errno;
++	if (fd >= 0) {
++		close(fd);
++		unlink(path);
++		return expect_denied ? 1 : 0;
++	}
++
++	return expect_denied && errno_is_denial(saved_errno) ? 0 : 2;
++}
++
++static int object_setid_create_denied(void)
++{
++	return object_setid_create_path(HDN_OBJECT_SETID_CREATE_PROTECTED_PATH,
++					04755, true);
++}
++
++static int object_setid_create_ordinary_allowed(void)
++{
++	return object_setid_create_path(HDN_OBJECT_SETID_CREATE_ORDINARY_PATH,
++					0644, false);
++}
++
++static int object_setid_create_unmatched_allowed(void)
++{
++	return object_setid_create_path(HDN_OBJECT_SETID_CREATE_UNPROTECTED_PATH,
++					04755, false);
++}
++
++static int object_setid_mknod_fifo(const char *path, mode_t mode,
++				   bool expect_denied)
++{
++	int saved_errno;
++
++	unlink(path);
++	errno = 0;
++	if (!mkfifo(path, mode)) {
++		unlink(path);
++		return expect_denied ? 1 : 0;
++	}
++
++	saved_errno = errno;
++	return expect_denied && errno_is_denial(saved_errno) ? 0 : 2;
++}
++
++static int object_setid_mknod_denied(void)
++{
++	return object_setid_mknod_fifo(HDN_OBJECT_SETID_MKNOD_PROTECTED_FIFO,
++				       02750, true);
++}
++
++static int object_setid_mknod_ordinary_allowed(void)
++{
++	return object_setid_mknod_fifo(HDN_OBJECT_SETID_MKNOD_ORDINARY_FIFO,
++				       0600, false);
 +}
 +
 +static int object_chown_denied(void)
@@ -55877,6 +56086,14 @@ diff -ruN --exclude .git /home/doll/distro/linux-7.0.12/tools/testing/selftests/
 +			ksft_test_result_skip("object removexattr policy denies protected removexattr\n");
 +			ksft_test_result_skip("object split metadata policy allows unmatched metadata/xattr changes\n");
 +			ksft_test_result_skip("object xattr policy denies protected getxattr\n");
++			ksft_test_result_skip("object setid policy denies protected setuid chmod\n");
++			ksft_test_result_skip("object setid policy allows ordinary chmod\n");
++			ksft_test_result_skip("object setid policy allows unmatched setuid chmod\n");
++			ksft_test_result_skip("object setid policy denies protected setuid create\n");
++			ksft_test_result_skip("object setid policy allows ordinary create\n");
++			ksft_test_result_skip("object setid policy allows unmatched setuid create\n");
++			ksft_test_result_skip("object setid policy denies protected setgid mknod\n");
++			ksft_test_result_skip("object setid policy allows ordinary mknod\n");
 +				ksft_test_result_skip("object xattr policy denies protected listxattr\n");
 +				ksft_test_result_skip("object xattr policy denies protected POSIX ACL getxattr\n");
 +				ksft_test_result_skip("object xattr policy allows unmatched getxattr\n");
@@ -56036,6 +56253,8 @@ diff -ruN --exclude .git /home/doll/distro/linux-7.0.12/tools/testing/selftests/
 +				ksft_test_result_skip("hardening events report object chmod denial\n");
 +			ksft_test_result_skip("hardening events report object chown denial\n");
 +			ksft_test_result_skip("hardening events report object utime denial\n");
++			ksft_test_result_skip("hardening events report object setid denial\n");
++			ksft_test_result_skip("event decoder names object setid denial\n");
 +			ksft_test_result_skip("hardening events report object setxattr denial\n");
 +			ksft_test_result_skip("hardening events report object removexattr denial\n");
 +			ksft_test_result_skip("hardening events report object creat denial\n");
@@ -58748,7 +58967,7 @@ diff -ruN --exclude .git /home/doll/distro/linux-7.0.12/tools/testing/selftests/
 +		ksft_test_result(object_policy_committed,
 +				 "object-write hardening policy commits\n");
 +		ksft_test_result(object_policy_committed &&
-+							 securityfs_status_has_line("object_rule_count: 98"),
++							 securityfs_status_has_line("object_rule_count: 100"),
 +						 "object-write policy reports object rule count\n");
 +	report_child_result(object_policy_committed ?
 +			    object_protected_write_denied() : 2,
@@ -59210,6 +59429,30 @@ diff -ruN --exclude .git /home/doll/distro/linux-7.0.12/tools/testing/selftests/
 +	report_child_result(object_policy_committed ?
 +			    object_chmod_denied() : 2,
 +			    "object chmod policy denies protected chmod");
++	report_child_result(object_policy_committed ?
++			    object_setid_chmod_denied() : 2,
++			    "object setid policy denies protected setuid chmod");
++	report_child_result(object_policy_committed ?
++			    object_setid_chmod_ordinary_allowed() : 2,
++			    "object setid policy allows ordinary chmod");
++	report_child_result(object_policy_committed ?
++			    object_setid_chmod_unmatched_allowed() : 2,
++			    "object setid policy allows unmatched setuid chmod");
++	report_child_result(object_policy_committed ?
++			    object_setid_create_denied() : 2,
++			    "object setid policy denies protected setuid create");
++	report_child_result(object_policy_committed ?
++			    object_setid_create_ordinary_allowed() : 2,
++			    "object setid policy allows ordinary create");
++	report_child_result(object_policy_committed ?
++			    object_setid_create_unmatched_allowed() : 2,
++			    "object setid policy allows unmatched setuid create");
++	report_child_result(object_policy_committed ?
++			    object_setid_mknod_denied() : 2,
++			    "object setid policy denies protected setgid mknod");
++	report_child_result(object_policy_committed ?
++			    object_setid_mknod_ordinary_allowed() : 2,
++			    "object setid policy allows ordinary mknod");
 +	report_child_result(object_policy_committed ?
 +			    object_chown_denied() : 2,
 +			    "object chown policy denies protected chown");
@@ -59711,6 +59954,11 @@ diff -ruN --exclude .git /home/doll/distro/linux-7.0.12/tools/testing/selftests/
 +						"hardening events report object chown denial");
 +		test_securityfs_events_contains("authority=69",
 +						"hardening events report object utime denial");
++		test_securityfs_events_line_contains("authority=88 transition=100",
++						     "reason=52",
++						     "hardening events report object setid denial");
++		report_child_result(event_decoder_finds_object_setid_denial(),
++				    "event decoder names object setid denial");
 +		test_securityfs_events_contains("authority=70",
 +						"hardening events report object setxattr denial");
 +		test_securityfs_events_contains("authority=71",
@@ -61829,11 +62077,11 @@ diff -ruN --exclude .git /home/doll/distro/linux-7.0.12/tools/testing/selftests/
 +	if (access(HDN_STATUS, R_OK))
 +		ksft_exit_skip("hardening securityfs status not present\n");
 +
-+	ksft_set_plan(923);
++	ksft_set_plan(933);
 +	test_securityfs_status();
 +	test_symbol_test_module_load();
-+	test_securityfs_status_contains("abi_version: 85",
-+					"hardening status reports policy ABI 85");
++	test_securityfs_status_contains("abi_version: 86",
++					"hardening status reports policy ABI 86");
 +	test_securityfs_status_contains("phase:",
 +					"hardening status reports sealing phase");
 +	test_securityfs_status_contains("policy_staged:",
@@ -62396,10 +62644,10 @@ diff -ruN --exclude .git /home/doll/distro/linux-7.0.12/tools/testing/selftests/
 +allow 2 POLICY_ADMIN CRED_CHANGE PTRACE NAMESPACE_ADMIN PROC_TASK_VIEW
 diff -ruN --exclude .git /home/doll/distro/linux-7.0.12/tools/testing/selftests/hardening/object-write.policy /home/doll/distro/linux-7.0.12-hdn/tools/testing/selftests/hardening/object-write.policy
 --- /home/doll/distro/linux-7.0.12/tools/testing/selftests/hardening/object-write.policy	1969-12-31 18:00:00.000000000 -0600
-+++ /home/doll/distro/linux-7.0.12-hdn/tools/testing/selftests/hardening/object-write.policy	2026-06-26 22:53:46.670959045 -0500
-@@ -0,0 +1,114 @@
++++ /home/doll/distro/linux-7.0.12-hdn/tools/testing/selftests/hardening/object-write.policy	2026-06-26 23:08:40.822880256 -0500
+@@ -0,0 +1,116 @@
 +# Root-profile policy used by the QEMU smoke test to prove object
-+# read/write/delete/create/creat/mkdir/mknod/symlink/unlink/rmdir/exec/link/link-target/attr/chmod/chown/utime/xattr/setxattr/removexattr/access/stat/list/find/ioctl/lock/watch/receive/fcntl/chdir/mount/umount/truncate/rename/rename-target/unix-connect/unix-bind/unix-listen/unix-accept/unix-send/unix-recv denial,
++# read/write/delete/create/creat/mkdir/mknod/symlink/unlink/rmdir/exec/link/link-target/attr/chmod/chown/utime/setid/xattr/setxattr/removexattr/access/stat/list/find/ioctl/lock/watch/receive/fcntl/chdir/mount/umount/truncate/rename/rename-target/unix-connect/unix-bind/unix-listen/unix-accept/unix-send/unix-recv denial,
 +# recursive tree denial, recursive tree denial for descriptor and IPC
 +# operations, recursive split-operation and split metadata tree denial, and
 +# append-only enforcement
@@ -62441,6 +62689,8 @@ diff -ruN --exclude .git /home/doll/distro/linux-7.0.12/tools/testing/selftests/
 +object 2 deny-chmod path /hdn-object-chmod-protected
 +object 2 deny-chown path /hdn-object-chown-protected
 +object 2 deny-utime path /hdn-object-utime-protected
++object 2 deny-setid path /hdn-object-setid-protected
++object 2 deny-setid path /hdn-object-setid-create-protected
 +object 2 deny-access path /hdn-object-access-protected
 +object 2 deny-stat path /hdn-object-stat-protected
 +object 2 deny-stat path /hdn-object-fileattr-tmpfs/stat-protected
@@ -62602,8 +62852,8 @@ diff -ruN --exclude .git /home/doll/distro/linux-7.0.12/tools/testing/selftests/
 +use-role 2 desktop-admin
 diff -ruN --exclude .git /home/doll/distro/linux-7.0.12/tools/testing/selftests/hardening/run-qemu-smoke.sh /home/doll/distro/linux-7.0.12-hdn/tools/testing/selftests/hardening/run-qemu-smoke.sh
 --- /home/doll/distro/linux-7.0.12/tools/testing/selftests/hardening/run-qemu-smoke.sh	1969-12-31 18:00:00.000000000 -0600
-+++ /home/doll/distro/linux-7.0.12-hdn/tools/testing/selftests/hardening/run-qemu-smoke.sh	2026-06-26 22:53:46.670959045 -0500
-@@ -0,0 +1,1209 @@
++++ /home/doll/distro/linux-7.0.12-hdn/tools/testing/selftests/hardening/run-qemu-smoke.sh	2026-06-26 23:08:40.822880256 -0500
+@@ -0,0 +1,1219 @@
 +#!/bin/sh
 +# SPDX-License-Identifier: GPL-2.0
 +
@@ -62637,7 +62887,7 @@ diff -ruN --exclude .git /home/doll/distro/linux-7.0.12/tools/testing/selftests/
 +QEMU_MEMORY=${QEMU_MEMORY:-1024M}
 +QEMU_SMP=${QEMU_SMP:-2}
 +QEMU_MACHINE=${QEMU_MACHINE:-q35,accel=tcg}
-+HDN_SMOKE_EXPECTED_PASS=${HDN_SMOKE_EXPECTED_PASS:-923}
++HDN_SMOKE_EXPECTED_PASS=${HDN_SMOKE_EXPECTED_PASS:-933}
 +WORK=${HDN_QEMU_WORK:-"${TMPDIR:-/tmp}/hdn-qemu-smoke.$$"}
 +LOG=${HDN_QEMU_LOG:-"$WORK/qemu.log"}
 +QMP=${HDN_QEMU_QMP:-"$WORK/qmp.sock"}
@@ -63376,6 +63626,16 @@ diff -ruN --exclude .git /home/doll/distro/linux-7.0.12/tools/testing/selftests/
 +printf '%s\n' 'protected object chmod target' \
 +	> "$WORK/initramfs/hdn-object-chmod-protected"
 +chmod 0644 "$WORK/initramfs/hdn-object-chmod-protected"
++printf '%s\n' 'protected object setid target' \
++	> "$WORK/initramfs/hdn-object-setid-protected"
++chmod 0644 "$WORK/initramfs/hdn-object-setid-protected"
++printf '%s\n' 'unprotected object setid target' \
++	> "$WORK/initramfs/hdn-object-setid-unprotected"
++chmod 0644 "$WORK/initramfs/hdn-object-setid-unprotected"
++mkdir -p "$WORK/initramfs/hdn-object-setid-create-protected"
++chmod 0755 "$WORK/initramfs/hdn-object-setid-create-protected"
++mkdir -p "$WORK/initramfs/hdn-object-setid-create-unprotected"
++chmod 0755 "$WORK/initramfs/hdn-object-setid-create-unprotected"
 +printf '%s\n' 'protected object chown target' \
 +	> "$WORK/initramfs/hdn-object-chown-protected"
 +chmod 0644 "$WORK/initramfs/hdn-object-chown-protected"
