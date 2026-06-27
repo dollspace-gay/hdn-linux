@@ -831,10 +831,13 @@ desktop actions, and policy workflows. Settings panels and shells call
 `hdn-control-center action DESKTOP_ACTION` for an allowlisted UI verb, or
 `hdn-control-center policy COMMAND WORKFLOW` for policy learning, candidate
 generation, compile, brokered commit, and `--dry-run policy commit WORKFLOW`
-preflight; the helper validates absolute backend paths and safe action or
-workflow names and never invokes a shell. QEMU proves status routing, unknown
-UI action denial, an approved `updates.install` action reaching the desktop
-daemon while preserving the read-only reseal invariant, and an approved
+preflight. Its `--stdio` mode accepts `status`, `action DESKTOP_ACTION`,
+`policy COMMAND WORKFLOW`, and `dry-run policy commit WORKFLOW` for supervised
+settings-panel backends; the helper validates absolute backend paths and safe
+action or workflow names and never invokes a shell. QEMU proves one-shot and
+stdio status routing, unknown UI action denial, an approved `updates.install`
+action reaching the desktop daemon while preserving the read-only reseal
+invariant, stdio rejection of non-commit policy dry-runs, and an approved
 compiled policy workflow plus one-shot and stdio commit preflight reaching the
 policy daemon.
 `hdn-image-seal` is the installer/first-boot/image-updater facade for sealing
@@ -1804,8 +1807,9 @@ Core oracle groups:
   and runs an approved stdio UI action through desktop-action
 - the control-center helper reports product status through hdn-status, rejects
   unknown UI actions, runs an approved UI action through hdn-desktop-daemon,
-  and runs an approved policy workflow plus signed-commit preflight through
-  hdn-policy-daemon, whose stdio mode rejects non-commit dry-runs
+  reports product status through stdio, rejects non-commit policy dry-runs
+  through stdio, and runs an approved policy workflow plus signed-commit
+  preflight through hdn-policy-daemon
 - the image seal helper rejects unknown seal names, rejects unsafe image seal
   configs, and applies an approved brokered read-only mount list while leaving
   the sealed mount read-only
