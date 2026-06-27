@@ -225,11 +225,12 @@ desktop prompt. The smoke harness packet-proves the remote behavior by
 injecting closed-port TCP and UDP packets through a TUN device.
 
 Anonymous thread-stack placement randomization is also a build-time mitigation,
-not a promptable authority. For private anonymous no-hint `MAP_STACK`
-allocations, HDN asks the unmapped-area search to reserve a small random
-page-aligned gap when process ASLR is enabled and `ADDR_NO_RANDOMIZE` is not
-set. This keeps ordinary pthread-style stack allocation invisible to users
-while making adjacent thread-stack layouts less predictable.
+not a promptable authority. For private anonymous no-hint `MAP_STACK` and
+stack-like `MAP_GROWSDOWN` allocations, HDN asks the unmapped-area search to
+reserve a small random page-aligned gap when process ASLR is enabled and
+`ADDR_NO_RANDOMIZE` is not set. This keeps ordinary pthread-style and legacy
+grow-down stack allocation invisible to users while making adjacent
+thread-stack layouts less predictable.
 
 ### 7. Fail Closed, Recover Deliberately
 
@@ -1891,8 +1892,8 @@ Core oracle groups:
   enabled
 - non-loopback closed TCP/UDP responses are suppressed when network blackhole
   is enabled
-- anonymous `MAP_STACK` mappings receive varied page-aligned random placement
-  gaps when ASLR is enabled
+- anonymous `MAP_STACK` and `MAP_GROWSDOWN` mappings receive varied
+  page-aligned random placement gaps when ASLR is enabled
 - sealed mitigation status reports vmapped kernel stacks, separated
   `thread_info`, and strong stack protector
 - kernel lockout reports enabled status, bans a non-root uid through the

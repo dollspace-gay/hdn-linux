@@ -129,13 +129,13 @@ diff -ruN --exclude .git /home/doll/distro/linux-7.0.12/arch/x86/kernel/msr.c /h
  
 diff -ruN --exclude .git /home/doll/distro/linux-7.0.12/arch/x86/kernel/sys_x86_64.c /home/doll/distro/linux-7.0.12-hdn/arch/x86/kernel/sys_x86_64.c
 --- /home/doll/distro/linux-7.0.12/arch/x86/kernel/sys_x86_64.c	2026-06-09 05:32:51.000000000 -0500
-+++ /home/doll/distro/linux-7.0.12-hdn/arch/x86/kernel/sys_x86_64.c	2026-06-25 13:56:50.894255640 -0500
++++ /home/doll/distro/linux-7.0.12-hdn/arch/x86/kernel/sys_x86_64.c	2026-06-27 01:04:40.082247922 -0500
 @@ -131,6 +131,8 @@
  	struct vm_area_struct *vma;
  	struct vm_unmapped_area_info info = {};
  	unsigned long begin, end;
 +	unsigned long threadstack_offset =
-+		hdn_rand_threadstack_offset(filp, addr, flags);
++		hdn_rand_threadstack_offset(filp, addr, flags, vm_flags);
  
  	if (flags & MAP_FIXED)
  		return addr;
@@ -152,7 +152,7 @@ diff -ruN --exclude .git /home/doll/distro/linux-7.0.12/arch/x86/kernel/sys_x86_
  	unsigned long addr = addr0;
  	struct vm_unmapped_area_info info = {};
 +	unsigned long threadstack_offset =
-+		hdn_rand_threadstack_offset(filp, addr0, flags);
++		hdn_rand_threadstack_offset(filp, addr0, flags, vm_flags);
  
  	/* requested length too big for entire address space */
  	if (len > TASK_SIZE)
@@ -4779,8 +4779,8 @@ diff -ruN --exclude .git /home/doll/distro/linux-7.0.12/include/linux/kmod.h /ho
  static inline int request_module_nowait(const char *name, ...) { return -ENOSYS; }
 diff -ruN --exclude .git /home/doll/distro/linux-7.0.12/include/linux/mm.h /home/doll/distro/linux-7.0.12-hdn/include/linux/mm.h
 --- /home/doll/distro/linux-7.0.12/include/linux/mm.h	2026-06-09 05:32:51.000000000 -0500
-+++ /home/doll/distro/linux-7.0.12-hdn/include/linux/mm.h	2026-06-25 13:56:50.890255247 -0500
-@@ -3913,8 +3913,12 @@
++++ /home/doll/distro/linux-7.0.12-hdn/include/linux/mm.h	2026-06-27 01:04:20.050249260 -0500
+@@ -3913,8 +3913,13 @@
  	unsigned long align_mask;
  	unsigned long align_offset;
  	unsigned long start_gap;
@@ -4789,7 +4789,8 @@ diff -ruN --exclude .git /home/doll/distro/linux-7.0.12/include/linux/mm.h /home
  
 +unsigned long hdn_rand_threadstack_offset(const struct file *filp,
 +					  unsigned long addr,
-+					  unsigned long flags);
++					  unsigned long flags,
++					  vm_flags_t vm_flags);
  extern unsigned long vm_unmapped_area(struct vm_unmapped_area_info *info);
  
  /* truncate.c */
@@ -9020,7 +9021,7 @@ diff -ruN --exclude .git /home/doll/distro/linux-7.0.12/mm/mlock.c /home/doll/di
  	}
 diff -ruN --exclude .git /home/doll/distro/linux-7.0.12/mm/mmap.c /home/doll/distro/linux-7.0.12-hdn/mm/mmap.c
 --- /home/doll/distro/linux-7.0.12/mm/mmap.c	2026-06-09 05:32:51.000000000 -0500
-+++ /home/doll/distro/linux-7.0.12-hdn/mm/mmap.c	2026-06-25 18:13:07.103404237 -0500
++++ /home/doll/distro/linux-7.0.12-hdn/mm/mmap.c	2026-06-27 01:04:31.766248486 -0500
 @@ -23,6 +23,7 @@
  #include <linux/init.h>
  #include <linux/file.h>
@@ -9140,21 +9141,35 @@ diff -ruN --exclude .git /home/doll/distro/linux-7.0.12/mm/mmap.c /home/doll/dis
  	if (!IS_ERR_VALUE(addr) &&
  	    ((vm_flags & VM_LOCKED) ||
  	     (flags & (MAP_POPULATE | MAP_NONBLOCK)) == MAP_POPULATE))
-@@ -652,6 +707,25 @@
+@@ -652,6 +707,39 @@
  	return 0;
  }
  
 +#define HDN_RAND_THREADSTACK_MAX_PAGES 256
 +
++static bool hdn_rand_threadstack_stack_like(unsigned long flags,
++					    vm_flags_t vm_flags)
++{
++	if (flags & MAP_STACK)
++		return true;
++	if (vm_flags & (VM_GROWSDOWN | VM_GROWSUP))
++		return true;
++
++	return false;
++}
++
 +unsigned long hdn_rand_threadstack_offset(const struct file *filp,
 +					  unsigned long addr,
-+					  unsigned long flags)
++					  unsigned long flags,
++					  vm_flags_t vm_flags)
 +{
 +	if (!IS_ENABLED(CONFIG_SECURITY_HARDENING_RAND_THREADSTACK))
 +		return 0;
-+	if (filp || addr || (flags & MAP_FIXED) || !(flags & MAP_STACK))
++	if (filp || addr || (flags & MAP_FIXED))
 +		return 0;
 +	if ((flags & MAP_TYPE) != MAP_PRIVATE)
++		return 0;
++	if (!hdn_rand_threadstack_stack_like(flags, vm_flags))
 +		return 0;
 +	if (!randomize_va_space || (current->personality & ADDR_NO_RANDOMIZE))
 +		return 0;
@@ -9166,16 +9181,16 @@ diff -ruN --exclude .git /home/doll/distro/linux-7.0.12/mm/mmap.c /home/doll/dis
  /*
   * Search for an unmapped address range.
   *
-@@ -694,6 +768,8 @@
+@@ -694,6 +782,8 @@
  	struct vm_area_struct *vma, *prev;
  	struct vm_unmapped_area_info info = {};
  	const unsigned long mmap_end = arch_get_mmap_end(addr, len, flags);
 +	unsigned long threadstack_offset =
-+		hdn_rand_threadstack_offset(filp, addr, flags);
++		hdn_rand_threadstack_offset(filp, addr, flags, vm_flags);
  
  	if (len > mmap_end - mmap_min_addr)
  		return -ENOMEM;
-@@ -714,6 +790,7 @@
+@@ -714,6 +804,7 @@
  	info.low_limit = mm->mmap_base;
  	info.high_limit = mmap_end;
  	info.start_gap = stack_guard_placement(vm_flags);
@@ -9183,16 +9198,16 @@ diff -ruN --exclude .git /home/doll/distro/linux-7.0.12/mm/mmap.c /home/doll/dis
  	if (filp && is_file_hugepages(filp))
  		info.align_mask = huge_page_mask_align(filp);
  	return vm_unmapped_area(&info);
-@@ -743,6 +820,8 @@
+@@ -743,6 +834,8 @@
  	struct mm_struct *mm = current->mm;
  	struct vm_unmapped_area_info info = {};
  	const unsigned long mmap_end = arch_get_mmap_end(addr, len, flags);
 +	unsigned long threadstack_offset =
-+		hdn_rand_threadstack_offset(filp, addr, flags);
++		hdn_rand_threadstack_offset(filp, addr, flags, vm_flags);
  
  	/* requested length too big for entire address space */
  	if (len > mmap_end - mmap_min_addr)
-@@ -766,6 +845,7 @@
+@@ -766,6 +859,7 @@
  	info.low_limit = PAGE_SIZE;
  	info.high_limit = arch_get_mmap_base(addr, mm->mmap_base);
  	info.start_gap = stack_guard_placement(vm_flags);
@@ -9200,7 +9215,7 @@ diff -ruN --exclude .git /home/doll/distro/linux-7.0.12/mm/mmap.c /home/doll/dis
  	if (filp && is_file_hugepages(filp))
  		info.align_mask = huge_page_mask_align(filp);
  	addr = vm_unmapped_area(&info);
-@@ -781,6 +861,7 @@
+@@ -781,6 +875,7 @@
  		info.flags = 0;
  		info.low_limit = TASK_UNMAPPED_BASE;
  		info.high_limit = mmap_end;
@@ -9208,7 +9223,7 @@ diff -ruN --exclude .git /home/doll/distro/linux-7.0.12/mm/mmap.c /home/doll/dis
  		addr = vm_unmapped_area(&info);
  	}
  
-@@ -1334,24 +1415,36 @@
+@@ -1334,24 +1429,36 @@
   */
  bool may_expand_vm(struct mm_struct *mm, vm_flags_t flags, unsigned long npages)
  {
@@ -10306,8 +10321,8 @@ diff -ruN --exclude .git /home/doll/distro/linux-7.0.12/security/commoncap.c /ho
  }
 diff -ruN --exclude .git /home/doll/distro/linux-7.0.12/security/hardening/Kconfig /home/doll/distro/linux-7.0.12-hdn/security/hardening/Kconfig
 --- /home/doll/distro/linux-7.0.12/security/hardening/Kconfig	1969-12-31 18:00:00.000000000 -0600
-+++ /home/doll/distro/linux-7.0.12-hdn/security/hardening/Kconfig	2026-06-27 00:29:03.026435797 -0500
-@@ -0,0 +1,660 @@
++++ /home/doll/distro/linux-7.0.12-hdn/security/hardening/Kconfig	2026-06-27 01:05:33.474244233 -0500
+@@ -0,0 +1,661 @@
 +# SPDX-License-Identifier: GPL-2.0-only
 +menuconfig SECURITY_HARDENING
 +	bool "Hardening contract layer"
@@ -10908,10 +10923,11 @@ diff -ruN --exclude .git /home/doll/distro/linux-7.0.12/security/hardening/Kconf
 +	default y
 +	help
 +	  Insert a small random unmapped gap before anonymous non-fixed
-+	  MAP_STACK allocations when process address-space randomization is
-+	  enabled. This gives pthread-style stacks kernel-chosen placement
-+	  entropy without requiring applications, package scripts, or users to
-+	  understand another runtime control.
++	  MAP_STACK and stack-like MAP_GROWSDOWN allocations when process
++	  address-space randomization is enabled. This gives pthread-style
++	  and legacy grow-down stacks kernel-chosen placement entropy without
++	  requiring applications, package scripts, or users to understand
++	  another runtime control.
 +
 +config SECURITY_HARDENING_USERFAULTFD_RESTRICT
 +	bool "Lock unprivileged userfaultfd kernel-fault handling off"
@@ -19126,8 +19142,8 @@ diff -ruN --exclude .git /home/doll/distro/linux-7.0.12/tools/hardening/Makefile
 +.PHONY: all clean install
 diff -ruN --exclude .git /home/doll/distro/linux-7.0.12/tools/hardening/README.rst /home/doll/distro/linux-7.0.12-hdn/tools/hardening/README.rst
 --- /home/doll/distro/linux-7.0.12/tools/hardening/README.rst	1969-12-31 18:00:00.000000000 -0600
-+++ /home/doll/distro/linux-7.0.12-hdn/tools/hardening/README.rst	2026-06-27 00:33:00.902420530 -0500
-@@ -0,0 +1,1456 @@
++++ /home/doll/distro/linux-7.0.12-hdn/tools/hardening/README.rst	2026-06-27 01:05:41.738243696 -0500
+@@ -0,0 +1,1457 @@
 +.. SPDX-License-Identifier: GPL-2.0-only
 +
 +Linux Hardening Policy Tools
@@ -19929,10 +19945,11 @@ diff -ruN --exclude .git /home/doll/distro/linux-7.0.12/tools/hardening/README.r
 +present; the QEMU smoke suite asserts all three.
 +
 +``CONFIG_SECURITY_HARDENING_RAND_THREADSTACK`` adds randomized unmapped gaps
-+to private anonymous no-hint ``MAP_STACK`` placement when process ASLR is
-+enabled. The generic VM and x86 unmapped-area paths are wired, and the QEMU
-+smoke suite asserts both ``mitigation_rand_threadstack: 1`` and varied
-+page-aligned inter-stack gaps for anonymous ``MAP_STACK`` mappings.
++to private anonymous no-hint ``MAP_STACK`` and stack-like ``MAP_GROWSDOWN``
++placement when process ASLR is enabled. The generic VM and x86 unmapped-area
++paths are wired, and the QEMU smoke suite asserts both
++``mitigation_rand_threadstack: 1`` and varied page-aligned inter-stack gaps for
++anonymous ``MAP_STACK`` and ``MAP_GROWSDOWN`` mappings.
 +
 +HDN's own mitigation and policy tables are vmalloc-backed and sealed read-only
 +after validation/publication. On x86, supervisor write-protection faults
@@ -36687,8 +36704,8 @@ diff -ruN --exclude .git /home/doll/distro/linux-7.0.12/tools/testing/selftests/
 Binary files /home/doll/distro/linux-7.0.12/tools/testing/selftests/hardening/hdn_smoke and /home/doll/distro/linux-7.0.12-hdn/tools/testing/selftests/hardening/hdn_smoke differ
 diff -ruN --exclude .git /home/doll/distro/linux-7.0.12/tools/testing/selftests/hardening/hdn_smoke.c /home/doll/distro/linux-7.0.12-hdn/tools/testing/selftests/hardening/hdn_smoke.c
 --- /home/doll/distro/linux-7.0.12/tools/testing/selftests/hardening/hdn_smoke.c	1969-12-31 18:00:00.000000000 -0600
-+++ /home/doll/distro/linux-7.0.12-hdn/tools/testing/selftests/hardening/hdn_smoke.c	2026-06-27 00:43:18.218362702 -0500
-@@ -0,0 +1,26756 @@
++++ /home/doll/distro/linux-7.0.12-hdn/tools/testing/selftests/hardening/hdn_smoke.c	2026-06-27 01:05:48.514243197 -0500
+@@ -0,0 +1,26768 @@
 +// SPDX-License-Identifier: GPL-2.0-only
 +
 +#define _GNU_SOURCE
@@ -62832,9 +62849,9 @@ diff -ruN --exclude .git /home/doll/distro/linux-7.0.12/tools/testing/selftests/
 +	return 0;
 +}
 +
-+static void test_rand_threadstack_gap(void)
++static void test_rand_threadstack_gap_flags(unsigned long stack_flags,
++					    const char *label)
 +{
-+#ifdef MAP_STACK
 +	void *maps[HDN_THREADSTACK_MAP_COUNT] = {};
 +	unsigned long starts[HDN_THREADSTACK_MAP_COUNT];
 +	unsigned long first_gap = 0;
@@ -62855,10 +62872,10 @@ diff -ruN --exclude .git /home/doll/distro/linux-7.0.12/tools/testing/selftests/
 +	for (i = 0; i < HDN_THREADSTACK_MAP_COUNT; i++) {
 +		maps[i] = mmap(NULL, HDN_THREADSTACK_MAP_SIZE,
 +			       PROT_READ | PROT_WRITE,
-+			       MAP_PRIVATE | MAP_ANONYMOUS | MAP_STACK, -1, 0);
++			       MAP_PRIVATE | MAP_ANONYMOUS | stack_flags, -1, 0);
 +		if (maps[i] == MAP_FAILED) {
-+			ksft_test_result_fail("MAP_STACK mmap failed: %s\n",
-+					      strerror(errno));
++			ksft_test_result_fail("%s mmap failed: %s\n",
++					      label, strerror(errno));
 +			goto out;
 +		}
 +		starts[i] = (unsigned long)maps[i];
@@ -62888,18 +62905,30 @@ diff -ruN --exclude .git /home/doll/distro/linux-7.0.12/tools/testing/selftests/
 +	}
 +
 +	if (!have_gap || !varied || !page_aligned)
-+		ksft_print_msg("threadstack gaps have=%d varied=%d aligned=%d first=%lu\n",
-+			       have_gap, varied, page_aligned, first_gap);
++		ksft_print_msg("%s gaps have=%d varied=%d aligned=%d first=%lu\n",
++			       label, have_gap, varied, page_aligned, first_gap);
 +	ksft_test_result(have_gap && varied && page_aligned,
-+			 "anonymous MAP_STACK mappings receive random inter-stack gaps\n");
++			 "%s mappings receive random inter-stack gaps\n",
++			 label);
 +
 +out:
 +	for (i = 0; i < HDN_THREADSTACK_MAP_COUNT; i++) {
 +		if (maps[i] && maps[i] != MAP_FAILED)
 +			munmap(maps[i], HDN_THREADSTACK_MAP_SIZE);
 +	}
++}
++
++static void test_rand_threadstack_gap(void)
++{
++#ifdef MAP_STACK
++	test_rand_threadstack_gap_flags(MAP_STACK, "anonymous MAP_STACK");
 +#else
 +	ksft_test_result_skip("MAP_STACK unavailable\n");
++#endif
++#ifdef MAP_GROWSDOWN
++	test_rand_threadstack_gap_flags(MAP_GROWSDOWN, "anonymous MAP_GROWSDOWN");
++#else
++	ksft_test_result_skip("MAP_GROWSDOWN unavailable\n");
 +#endif
 +}
 +
@@ -63054,7 +63083,7 @@ diff -ruN --exclude .git /home/doll/distro/linux-7.0.12/tools/testing/selftests/
 +	if (access(HDN_STATUS, R_OK))
 +		ksft_exit_skip("hardening securityfs status not present\n");
 +
-+	ksft_set_plan(949);
++	ksft_set_plan(950);
 +	test_securityfs_status();
 +	test_symbol_test_module_load();
 +	test_securityfs_status_contains("abi_version: 89",
@@ -63838,7 +63867,7 @@ diff -ruN --exclude .git /home/doll/distro/linux-7.0.12/tools/testing/selftests/
 +use-role 2 desktop-admin
 diff -ruN --exclude .git /home/doll/distro/linux-7.0.12/tools/testing/selftests/hardening/run-qemu-smoke.sh /home/doll/distro/linux-7.0.12-hdn/tools/testing/selftests/hardening/run-qemu-smoke.sh
 --- /home/doll/distro/linux-7.0.12/tools/testing/selftests/hardening/run-qemu-smoke.sh	1969-12-31 18:00:00.000000000 -0600
-+++ /home/doll/distro/linux-7.0.12-hdn/tools/testing/selftests/hardening/run-qemu-smoke.sh	2026-06-27 00:31:19.958429705 -0500
++++ /home/doll/distro/linux-7.0.12-hdn/tools/testing/selftests/hardening/run-qemu-smoke.sh	2026-06-27 01:05:53.650242729 -0500
 @@ -0,0 +1,1221 @@
 +#!/bin/sh
 +# SPDX-License-Identifier: GPL-2.0
@@ -63873,7 +63902,7 @@ diff -ruN --exclude .git /home/doll/distro/linux-7.0.12/tools/testing/selftests/
 +QEMU_MEMORY=${QEMU_MEMORY:-1024M}
 +QEMU_SMP=${QEMU_SMP:-2}
 +QEMU_MACHINE=${QEMU_MACHINE:-q35,accel=tcg}
-+HDN_SMOKE_EXPECTED_PASS=${HDN_SMOKE_EXPECTED_PASS:-949}
++HDN_SMOKE_EXPECTED_PASS=${HDN_SMOKE_EXPECTED_PASS:-950}
 +WORK=${HDN_QEMU_WORK:-"${TMPDIR:-/tmp}/hdn-qemu-smoke.$$"}
 +LOG=${HDN_QEMU_LOG:-"$WORK/qemu.log"}
 +QMP=${HDN_QEMU_QMP:-"$WORK/qmp.sock"}
