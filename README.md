@@ -106,6 +106,10 @@ daemon stdio protocol also accepts `dry-run commit WORKFLOW` below it. The
 QEMU smoke path now proves `action updates.install` through both one-shot and
 stdio control-center routes, and proves unknown stdio UI actions fail closed
 without changing the protected mount state.
+Package and image update preflight now uses the same `--dry-run` contract
+through `hdn-image-seal`, `hdn-system-transaction`, and `hdn-package-hook`;
+QEMU proves those approved routes validate without changing the protected
+mount state before the real update/seal path runs.
 Other-user proc task visibility now has grouped proc mount compatibility plus
 an HDN-native global task-view group for proc, pidfd, and proc task-directory
 mode visibility.
@@ -155,9 +159,9 @@ Patch artifact at this checkpoint:
 
 ```text
 patch: patches/hdn-linux-7.0.12.patch
-lines: 67,474
-bytes: 2,008,979
-sha256: 774d823c6acfba6ac3a1f2cece8984cd832116e59c478eb21656b53501fc9aa5
+lines: 67,610
+bytes: 2,013,292
+sha256: 1b31153f7105f15ed4332d80434cd2f2785273ef51ef3c55bbcb689f1f7a3251
 ```
 
 ## Development Rule

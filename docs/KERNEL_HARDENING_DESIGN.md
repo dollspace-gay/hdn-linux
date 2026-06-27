@@ -846,7 +846,8 @@ steps such as signed policy commit and read-only mount-list application, so
 image tooling calls `hdn-image-seal default` instead of constructing raw broker
 commands. The config is root-owned and fails closed if it is missing or
 writable. QEMU proves unknown seal names and unsafe configs are denied without
-sealing the test mount, and proves an approved seal applies a broker-approved
+sealing the test mount, proves approved seal dry-run leaves mount state
+unchanged, and proves the real approved seal applies a broker-approved
 read-only mount list and leaves the mount read-only.
 The shipped default read-only list uses `required /usr` for the base image and
 `optional` entries for boot, EFI, `/opt`, `/usr/local`, Flatpak, and snapd
@@ -858,8 +859,9 @@ so package tools call `hdn-system-transaction package-update` instead of
 constructing broker command lines with raw paths. The config is root-owned and
 fails closed if it is missing or writable. QEMU proves unknown operation names
 and unsafe configs are denied without changing the sealed mount, and proves an
-approved named transaction updates the product mount through the broker and
-reseals it read-only.
+approved named transaction dry-run preflights the broker route without changing
+the sealed mount before the real transaction updates the product mount through
+the broker and reseals it read-only.
 `hdn-package-hook` is the package-manager hook facade above named system
 transactions and image seals. Product config maps stable package-manager hook
 names to either `hdn-system-transaction` or `hdn-image-seal`, so package
@@ -867,11 +869,11 @@ manager scripts and image builders call `hdn-package-hook package-update`
 instead of knowing backend helper paths or broker arguments. The config is
 root-owned and fails closed if it is missing or writable. QEMU proves unknown
 hook names and unsafe configs are denied without changing the sealed mount,
-and proves an approved package-update hook reaches the named system
-transaction backend while preserving the read-only reseal invariant. The source
-tree also ships product integration snippets for APT/dpkg, pacman/libalpm,
-DNF 4, DNF5/libdnf5, and a systemd image-seal unit, all pointing at stable
-hook names.
+proves an approved package-update hook dry-run reaches the named system
+transaction backend without changing the sealed mount, and proves the real hook
+preserves the read-only reseal invariant. The source tree also ships product
+integration snippets for APT/dpkg, pacman/libalpm, DNF 4, DNF5/libdnf5, and a
+systemd image-seal unit, all pointing at stable hook names.
 `hdn-recovery-action` is the recovery UI facade above the same typed backends.
 Product recovery config maps stable action names to either brokered policy
 rollback or a named system transaction, so recovery flows offer repair actions
@@ -1812,14 +1814,16 @@ Core oracle groups:
   dry-runs through stdio, and runs an approved policy workflow plus
   signed-commit preflight through hdn-policy-daemon
 - the image seal helper rejects unknown seal names, rejects unsafe image seal
-  configs, and applies an approved brokered read-only mount list while leaving
-  the sealed mount read-only
+  configs, dry-runs an approved brokered read-only mount list without changing
+  mount state, and applies that list while leaving the sealed mount read-only
 - the system transaction helper rejects unknown package/update operation names,
-  rejects unsafe transaction configs, and runs approved named transactions
-  through the broker while preserving the read-only reseal invariant
+  rejects unsafe transaction configs, dry-runs approved named transactions
+  without changing the sealed mount, and runs them through the broker while
+  preserving the read-only reseal invariant
 - the package hook helper rejects unknown package-manager hook names, rejects
-  unsafe hook configs, and runs approved named hooks through the selected
-  transaction or image-seal backend
+  unsafe hook configs, dry-runs approved named hooks without changing the
+  sealed mount, and runs approved named hooks through the selected transaction
+  or image-seal backend
 - package-manager hook snippets for APT/dpkg, pacman/libalpm, DNF 4,
   DNF5/libdnf5, and the image-seal systemd unit invoke the stable
   hdn-package-hook actions

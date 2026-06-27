@@ -19238,8 +19238,8 @@ diff -ruN --exclude .git linux-7.0.12/tools/hardening/Makefile linux-7.0.12-hdn/
 +.PHONY: all clean install
 diff -ruN --exclude .git linux-7.0.12/tools/hardening/README.rst linux-7.0.12-hdn/tools/hardening/README.rst
 --- linux-7.0.12/tools/hardening/README.rst	1969-12-31 18:00:00.000000000 -0600
-+++ linux-7.0.12-hdn/tools/hardening/README.rst	2026-06-27 03:02:24.277605743 -0500
-@@ -0,0 +1,1505 @@
++++ linux-7.0.12-hdn/tools/hardening/README.rst	2026-06-27 03:14:38.017529828 -0500
+@@ -0,0 +1,1517 @@
 +.. SPDX-License-Identifier: GPL-2.0-only
 +
 +Linux Hardening Policy Tools
@@ -19271,7 +19271,8 @@ diff -ruN --exclude .git linux-7.0.12/tools/hardening/README.rst linux-7.0.12-hd
 +``seal NAME policy-commit SIGNED_POLICY`` or
 +``seal NAME rofs-apply READONLY_LIST`` and runs matching steps through
 +``hdn-admin-broker`` in file order. The config must be a regular root-owned
-+file that is not group/world writable.
++file that is not group/world writable. ``--dry-run`` preflights the same
++approved broker steps without committing policy or changing mount state.
 +
 +``hdn-system-transaction`` is the named package/image updater facade. Package
 +tools call a product operation name such as ``package-update`` instead of
@@ -19279,7 +19280,9 @@ diff -ruN --exclude .git linux-7.0.12/tools/hardening/README.rst linux-7.0.12-hd
 +``/etc/hdn/system-transactions.conf`` entries of the form
 +``transaction NAME MOUNTPOINT WORKER [ARG...]`` and execs
 +``hdn-admin-broker rofs-transaction`` for the matching approved operation.
-+The config must be a regular root-owned file that is not group/world writable.
++``--dry-run`` follows the same approved broker route without running the
++worker or changing the protected mount. The config must be a regular
++root-owned file that is not group/world writable.
 +
 +``hdn-package-hook`` is the package-manager hook facade above named system
 +transactions and image seals. Package managers and image builders call stable
@@ -19291,6 +19294,9 @@ diff -ruN --exclude .git linux-7.0.12/tools/hardening/README.rst linux-7.0.12-hd
 +be a regular root-owned file that is not group/world writable. Example product
 +hook snippets for APT/dpkg, pacman/libalpm, DNF 4, DNF5/libdnf5, and systemd
 +image sealing live under ``tools/hardening/package-manager-hooks/``.
++``--dry-run`` is passed to the approved backend so package-manager and
++image-updater integration can preflight the route without applying a
++transaction or image seal.
 +
 +``hdn-recovery-action`` is the named recovery facade for repair and rollback
 +UI. Recovery flows call a product-approved action name such as
@@ -19523,10 +19529,13 @@ diff -ruN --exclude .git linux-7.0.12/tools/hardening/README.rst linux-7.0.12-hd
 +  sudo make -C tools/hardening install
 +  sudo tools/hardening/hdn-rofs-apply -f /etc/hdn/readonly-mounts.conf
 +  sudo tools/hardening/hdn-admin-broker rofs-apply -f /etc/hdn/readonly-mounts.conf
++  sudo tools/hardening/hdn-image-seal --dry-run default
 +  sudo tools/hardening/hdn-image-seal default
 +  sudo tools/hardening/hdn-rofs-transaction /usr -- /usr/libexec/hdn-package-worker
 +  sudo tools/hardening/hdn-admin-broker rofs-transaction /usr -- /usr/libexec/hdn-package-worker
++  sudo tools/hardening/hdn-system-transaction --dry-run package-update
 +  sudo tools/hardening/hdn-system-transaction package-update
++  sudo tools/hardening/hdn-package-hook --dry-run package-update
 +  sudo tools/hardening/hdn-package-hook package-update
 +  sudo tools/hardening/hdn-recovery-describe policy-rollback
 +  sudo tools/hardening/hdn-recovery-action policy-rollback
@@ -20471,8 +20480,9 @@ diff -ruN --exclude .git linux-7.0.12/tools/hardening/README.rst linux-7.0.12-hd
 +transaction, the token is consumed before dispatch so replay fails without
 +changing the sealed mount. The named image sealing facade is tested too:
 +unknown image seal names and unsafe image seal configs are denied without
-+sealing the test mount, while an approved image seal applies a broker-approved
-+read-only mount list and leaves writes failing with ``EROFS``. The named
++sealing the test mount, while an approved image seal dry-run leaves the test
++mount writable before the real image seal applies a broker-approved read-only
++mount list and leaves writes failing with ``EROFS``. The named
 +prompt metadata facade is tested too: unknown prompt actions and unsafe prompt
 +metadata configs are denied, while an approved ``package-update`` action emits
 +stable title/message/consequence/risk metadata for a desktop prompt. The named
@@ -20501,11 +20511,13 @@ diff -ruN --exclude .git linux-7.0.12/tools/hardening/README.rst linux-7.0.12-hd
 +updates the product mount, and reseals it read-only. The named package/update
 +facade is tested too: unknown transaction
 +names and unsafe transaction configs are denied, while an approved
-+``package-update`` entry updates the product mount through the broker and
-+reseals it read-only. The package-manager hook facade is tested too: unknown
-+hook names and unsafe hook configs are denied, while an approved
-+``package-update`` hook reaches the named transaction backend and preserves the
-+same read-only reseal invariant. The shipped package-manager hook snippets are
++``package-update`` dry-run preflights the broker route without changing the
++sealed mount before the real entry updates the product mount through the broker
++and reseals it read-only. The package-manager hook facade is tested too:
++unknown hook names and unsafe hook configs are denied, while an approved
++``package-update`` hook dry-run reaches the named transaction backend without
++changing the sealed mount before the real hook preserves the same read-only
++reseal invariant. The shipped package-manager hook snippets are
 +tested too: the APT/dpkg hook, pacman/libalpm hook, DNF 4 action, DNF5/libdnf5
 +action, and image-seal systemd unit all point at stable ``hdn-package-hook``
 +actions. Contained chroot file-handle
@@ -24852,8 +24864,8 @@ diff -ruN --exclude .git linux-7.0.12/tools/hardening/hdn-event-decode.c linux-7
 +}
 diff -ruN --exclude .git linux-7.0.12/tools/hardening/hdn-image-seal.c linux-7.0.12-hdn/tools/hardening/hdn-image-seal.c
 --- linux-7.0.12/tools/hardening/hdn-image-seal.c	1969-12-31 18:00:00.000000000 -0600
-+++ linux-7.0.12-hdn/tools/hardening/hdn-image-seal.c	2026-06-25 15:18:48.557280910 -0500
-@@ -0,0 +1,417 @@
++++ linux-7.0.12-hdn/tools/hardening/hdn-image-seal.c	2026-06-27 03:12:42.497552439 -0500
+@@ -0,0 +1,441 @@
 +// SPDX-License-Identifier: GPL-2.0-only
 +
 +#define _GNU_SOURCE
@@ -24897,7 +24909,7 @@ diff -ruN --exclude .git linux-7.0.12/tools/hardening/hdn-image-seal.c linux-7.0
 +static void usage(const char *prog)
 +{
 +	fprintf(stderr,
-+		"Usage: %s [--config FILE] [--broker PATH] SEAL_NAME\n"
++		"Usage: %s [--config FILE] [--broker PATH] [--dry-run] SEAL_NAME\n"
 +		"\n"
 +		"Runs a product-approved image sealing sequence through hdn-admin-broker.\n"
 +		"Config lines:\n"
@@ -25148,11 +25160,18 @@ diff -ruN --exclude .git linux-7.0.12/tools/hardening/hdn-image-seal.c linux-7.0
 +	}
 +}
 +
-+static int run_broker_step(const char *broker,
++static int run_broker_step(const char *broker, bool dry_run,
 +			   const struct hdn_image_seal_step *step)
 +{
 +	char *const policy_argv[] = {
 +		(char *)broker,
++		"policy-commit",
++		step->argument,
++		NULL,
++	};
++	char *const dry_policy_argv[] = {
++		(char *)broker,
++		"--dry-run",
 +		"policy-commit",
 +		step->argument,
 +		NULL,
@@ -25164,10 +25183,22 @@ diff -ruN --exclude .git linux-7.0.12/tools/hardening/hdn-image-seal.c linux-7.0
 +		step->argument,
 +		NULL,
 +	};
-+	char *const *argv = step->op == HDN_IMAGE_SEAL_POLICY_COMMIT ?
-+			    policy_argv : rofs_argv;
++	char *const dry_rofs_argv[] = {
++		(char *)broker,
++		"--dry-run",
++		"rofs-apply",
++		"-f",
++		step->argument,
++		NULL,
++	};
++	char *const *argv;
 +	int status;
 +	pid_t child;
++
++	if (step->op == HDN_IMAGE_SEAL_POLICY_COMMIT)
++		argv = dry_run ? dry_policy_argv : policy_argv;
++	else
++		argv = dry_run ? dry_rofs_argv : rofs_argv;
 +
 +	child = fork();
 +	if (child < 0) {
@@ -25195,7 +25226,7 @@ diff -ruN --exclude .git linux-7.0.12/tools/hardening/hdn-image-seal.c linux-7.0
 +
 +static int run_seal(const char *broker,
 +		    const struct hdn_image_seal_config *config,
-+		    const char *name)
++		    const char *name, bool dry_run)
 +{
 +	bool found = false;
 +	unsigned int i;
@@ -25205,7 +25236,7 @@ diff -ruN --exclude .git linux-7.0.12/tools/hardening/hdn-image-seal.c linux-7.0
 +		if (strcmp(config->steps[i].name, name))
 +			continue;
 +		found = true;
-+		ret = run_broker_step(broker, &config->steps[i]);
++		ret = run_broker_step(broker, dry_run, &config->steps[i]);
 +		if (ret)
 +			return ret;
 +	}
@@ -25226,6 +25257,7 @@ diff -ruN --exclude .git linux-7.0.12/tools/hardening/hdn-image-seal.c linux-7.0
 +	const char *broker_path = HDN_ADMIN_BROKER_PATH;
 +	struct hdn_image_seal_config config;
 +	const char *seal = NULL;
++	bool dry_run = false;
 +	int ret;
 +	int i;
 +
@@ -25246,6 +25278,10 @@ diff -ruN --exclude .git linux-7.0.12/tools/hardening/hdn-image-seal.c linux-7.0
 +			broker_path = argv[i];
 +			continue;
 +		}
++		if (!strcmp(argv[i], "--dry-run")) {
++			dry_run = true;
++			continue;
++		}
 +		if (argv[i][0] == '-')
 +			goto bad_args;
 +		if (seal)
@@ -25263,7 +25299,7 @@ diff -ruN --exclude .git linux-7.0.12/tools/hardening/hdn-image-seal.c linux-7.0
 +	if (ret)
 +		return 1;
 +
-+	ret = run_seal(broker_path, &config, seal);
++	ret = run_seal(broker_path, &config, seal, dry_run);
 +	free_config(&config);
 +	return ret;
 +
@@ -25273,8 +25309,8 @@ diff -ruN --exclude .git linux-7.0.12/tools/hardening/hdn-image-seal.c linux-7.0
 +}
 diff -ruN --exclude .git linux-7.0.12/tools/hardening/hdn-package-hook.c linux-7.0.12-hdn/tools/hardening/hdn-package-hook.c
 --- linux-7.0.12/tools/hardening/hdn-package-hook.c	1969-12-31 18:00:00.000000000 -0600
-+++ linux-7.0.12-hdn/tools/hardening/hdn-package-hook.c	2026-06-25 15:50:47.741586264 -0500
-@@ -0,0 +1,420 @@
++++ linux-7.0.12-hdn/tools/hardening/hdn-package-hook.c	2026-06-27 03:12:42.497552439 -0500
+@@ -0,0 +1,427 @@
 +// SPDX-License-Identifier: GPL-2.0-only
 +
 +#define _GNU_SOURCE
@@ -25322,7 +25358,7 @@ diff -ruN --exclude .git linux-7.0.12/tools/hardening/hdn-package-hook.c linux-7
 +static void usage(const char *prog)
 +{
 +	fprintf(stderr,
-+		"Usage: %s [--config FILE] [--system-transaction PATH] [--image-seal PATH] HOOK\n"
++		"Usage: %s [--config FILE] [--system-transaction PATH] [--image-seal PATH] [--dry-run] HOOK\n"
 +		"\n"
 +		"Runs a product-approved package-manager hook.\n"
 +		"Config lines:\n"
@@ -25592,7 +25628,8 @@ diff -ruN --exclude .git linux-7.0.12/tools/hardening/hdn-package-hook.c linux-7
 +}
 +
 +static int run_hook(const struct hdn_package_hook_rule *rule,
-+		    const char *system_transaction, const char *image_seal)
++		    const char *system_transaction, const char *image_seal,
++		    bool dry_run)
 +{
 +	const char *path;
 +	const char *argv0;
@@ -25615,7 +25652,10 @@ diff -ruN --exclude .git linux-7.0.12/tools/hardening/hdn-package-hook.c linux-7
 +	}
 +
 +	if (!child) {
-+		execl(path, argv0, rule->argument, NULL);
++		if (dry_run)
++			execl(path, argv0, "--dry-run", rule->argument, NULL);
++		else
++			execl(path, argv0, rule->argument, NULL);
 +		fprintf(stderr, "hdn-package-hook: exec %s failed: %s\n",
 +			path, strerror(errno));
 +		_exit(errno == ENOENT ? 127 : 126);
@@ -25636,6 +25676,7 @@ diff -ruN --exclude .git linux-7.0.12/tools/hardening/hdn-package-hook.c linux-7
 +	const char *system_transaction = HDN_SYSTEM_TRANSACTION_PATH;
 +	const char *image_seal = HDN_IMAGE_SEAL_PATH;
 +	const char *hook = NULL;
++	bool dry_run = false;
 +	int ret;
 +	int i;
 +
@@ -25661,6 +25702,8 @@ diff -ruN --exclude .git linux-7.0.12/tools/hardening/hdn-package-hook.c linux-7
 +				return 2;
 +			}
 +			image_seal = argv[i];
++		} else if (!strcmp(argv[i], "--dry-run")) {
++			dry_run = true;
 +		} else if (!strcmp(argv[i], "-h") ||
 +			   !strcmp(argv[i], "--help")) {
 +			usage(argv[0]);
@@ -25691,7 +25734,7 @@ diff -ruN --exclude .git linux-7.0.12/tools/hardening/hdn-package-hook.c linux-7
 +		return 1;
 +	}
 +
-+	ret = run_hook(rule, system_transaction, image_seal);
++	ret = run_hook(rule, system_transaction, image_seal, dry_run);
 +	free_config(&config);
 +	return ret ? 1 : 0;
 +}
@@ -36817,8 +36860,8 @@ diff -ruN --exclude .git linux-7.0.12/tools/hardening/hdn-status.c linux-7.0.12-
 +}
 diff -ruN --exclude .git linux-7.0.12/tools/hardening/hdn-system-transaction.c linux-7.0.12-hdn/tools/hardening/hdn-system-transaction.c
 --- linux-7.0.12/tools/hardening/hdn-system-transaction.c	1969-12-31 18:00:00.000000000 -0600
-+++ linux-7.0.12-hdn/tools/hardening/hdn-system-transaction.c	2026-06-25 14:38:11.163196929 -0500
-@@ -0,0 +1,413 @@
++++ linux-7.0.12-hdn/tools/hardening/hdn-system-transaction.c	2026-06-27 03:12:42.493552440 -0500
+@@ -0,0 +1,421 @@
 +// SPDX-License-Identifier: GPL-2.0-only
 +
 +#define _GNU_SOURCE
@@ -36859,7 +36902,7 @@ diff -ruN --exclude .git linux-7.0.12/tools/hardening/hdn-system-transaction.c l
 +static void usage(const char *prog)
 +{
 +	fprintf(stderr,
-+		"Usage: %s [--config FILE] [--broker PATH] [--approval-token TOKEN] OPERATION\n"
++		"Usage: %s [--config FILE] [--broker PATH] [--approval-token TOKEN] [--dry-run] OPERATION\n"
 +		"\n"
 +		"Runs a named product transaction through hdn-admin-broker.\n"
 +		"Config lines: transaction NAME MOUNTPOINT WORKER [ARG...]\n",
@@ -37131,6 +37174,7 @@ diff -ruN --exclude .git linux-7.0.12/tools/hardening/hdn-system-transaction.c l
 +}
 +
 +static int run_rule(const char *broker, const char *approval_token,
++		    bool dry_run,
 +		    const struct hdn_transaction_rule *rule)
 +{
 +	char **argv;
@@ -37144,6 +37188,8 @@ diff -ruN --exclude .git linux-7.0.12/tools/hardening/hdn-system-transaction.c l
 +	}
 +
 +	argv[argc++] = (char *)broker;
++	if (dry_run)
++		argv[argc++] = "--dry-run";
 +	if (approval_token) {
 +		argv[argc++] = "--approval-token";
 +		argv[argc++] = (char *)approval_token;
@@ -37170,6 +37216,7 @@ diff -ruN --exclude .git linux-7.0.12/tools/hardening/hdn-system-transaction.c l
 +	const char *operation = NULL;
 +	const struct hdn_transaction_rule *rule;
 +	struct hdn_transaction_config config;
++	bool dry_run = false;
 +	int ret = 0;
 +	int i;
 +
@@ -37194,6 +37241,10 @@ diff -ruN --exclude .git linux-7.0.12/tools/hardening/hdn-system-transaction.c l
 +			if (++i >= argc)
 +				goto bad_args;
 +			approval_token = argv[i];
++			continue;
++		}
++		if (!strcmp(argv[i], "--dry-run")) {
++			dry_run = true;
 +			continue;
 +		}
 +		if (argv[i][0] == '-')
@@ -37224,7 +37275,7 @@ diff -ruN --exclude .git linux-7.0.12/tools/hardening/hdn-system-transaction.c l
 +		return 1;
 +	}
 +
-+	ret = run_rule(broker_path, approval_token, rule);
++	ret = run_rule(broker_path, approval_token, dry_run, rule);
 +	free_config(&config);
 +	return ret;
 +
@@ -38013,8 +38064,8 @@ diff -ruN --exclude .git linux-7.0.12/tools/testing/selftests/hardening/hdn_elfn
 +}
 diff -ruN --exclude .git linux-7.0.12/tools/testing/selftests/hardening/hdn_smoke.c linux-7.0.12-hdn/tools/testing/selftests/hardening/hdn_smoke.c
 --- linux-7.0.12/tools/testing/selftests/hardening/hdn_smoke.c	1969-12-31 18:00:00.000000000 -0600
-+++ linux-7.0.12-hdn/tools/testing/selftests/hardening/hdn_smoke.c	2026-06-27 03:02:06.009607500 -0500
-@@ -0,0 +1,27637 @@
++++ linux-7.0.12-hdn/tools/testing/selftests/hardening/hdn_smoke.c	2026-06-27 03:13:48.493534698 -0500
+@@ -0,0 +1,27722 @@
 +// SPDX-License-Identifier: GPL-2.0-only
 +
 +#define _GNU_SOURCE
@@ -51795,16 +51846,11 @@ diff -ruN --exclude .git linux-7.0.12/tools/testing/selftests/hardening/hdn_smok
 +					  failure, updates);
 +}
 +
-+static int product_rofs_system_transaction_denied(const char *operation,
-+						  const char *config_path,
-+						  const char *failure,
-+						  unsigned int updates)
++static int product_rofs_system_transaction_run(const char *operation,
++					       const char *config_path,
++					       bool dry_run)
 +{
-+	int saved_errno;
-+	unsigned int count;
 +	pid_t child;
-+	int ret;
-+	int fd;
 +
 +	if (access(HDN_SYSTEM_TRANSACTION_EXEC, X_OK)) {
 +		fprintf(stderr,
@@ -51818,9 +51864,17 @@ diff -ruN --exclude .git linux-7.0.12/tools/testing/selftests/hardening/hdn_smok
 +		return 2;
 +
 +	if (!child) {
-+		if (config_path)
++		if (config_path && dry_run)
++			execl(HDN_SYSTEM_TRANSACTION_EXEC,
++			      "hdn-system-transaction", "--dry-run",
++			      "--config", config_path, operation, NULL);
++		else if (config_path)
 +			execl(HDN_SYSTEM_TRANSACTION_EXEC,
 +			      "hdn-system-transaction", "--config", config_path,
++			      operation, NULL);
++		else if (dry_run)
++			execl(HDN_SYSTEM_TRANSACTION_EXEC,
++			      "hdn-system-transaction", "--dry-run",
 +			      operation, NULL);
 +		else
 +			execl(HDN_SYSTEM_TRANSACTION_EXEC,
@@ -51830,7 +51884,22 @@ diff -ruN --exclude .git linux-7.0.12/tools/testing/selftests/hardening/hdn_smok
 +		_exit(2);
 +	}
 +
-+	ret = child_exit_result(child);
++	return child_exit_result(child);
++}
++
++static int product_rofs_system_transaction_denied(const char *operation,
++						  const char *config_path,
++						  const char *failure,
++						  unsigned int updates)
++{
++	int saved_errno;
++	unsigned int count;
++	int ret;
++	int fd;
++
++	ret = product_rofs_system_transaction_run(operation, config_path, false);
++	if (ret == KSFT_SKIP)
++		return ret;
 +	if (!ret) {
 +		fprintf(stderr, "system transaction allowed %s\n", failure);
 +		return 1;
@@ -51882,30 +51951,41 @@ diff -ruN --exclude .git linux-7.0.12/tools/testing/selftests/hardening/hdn_smok
 +{
 +	int saved_errno;
 +	unsigned int count;
-+	pid_t child;
 +	int ret;
 +	int fd;
 +
-+	if (access(HDN_SYSTEM_TRANSACTION_EXEC, X_OK)) {
++	count = product_rofs_sentinel_update_count();
++	ret = product_rofs_system_transaction_run("package-update", NULL, true);
++	if (ret == KSFT_SKIP)
++		return ret;
++	if (ret) {
++		fprintf(stderr, "system transaction dry-run exited with %d\n",
++			ret);
++		return ret;
++	}
++	if (product_rofs_sentinel_update_count() != count) {
++		fprintf(stderr, "system transaction dry-run changed sentinel\n");
++		return 1;
++	}
++
++	errno = 0;
++	fd = open(HDN_PRODUCT_ROFS_SENTINEL,
++		  O_WRONLY | O_APPEND | O_CLOEXEC);
++	saved_errno = errno;
++	if (fd >= 0) {
 +		fprintf(stderr,
-+			"system transaction helper is not executable: %s\n",
-+			strerror(errno));
-+		return KSFT_SKIP;
++			"system transaction dry-run left product mount writable\n");
++		close(fd);
++		return 1;
 +	}
-+
-+	child = fork();
-+	if (child < 0)
++	if (saved_errno != EROFS) {
++		fprintf(stderr,
++			"post-system-transaction-dry-run write-open failed with %s\n",
++			strerror(saved_errno));
 +		return 2;
-+
-+	if (!child) {
-+		execl(HDN_SYSTEM_TRANSACTION_EXEC, "hdn-system-transaction",
-+		      "package-update", NULL);
-+		fprintf(stderr, "system transaction exec failed: %s\n",
-+			strerror(errno));
-+		_exit(2);
 +	}
 +
-+	ret = child_exit_result(child);
++	ret = product_rofs_system_transaction_run("package-update", NULL, false);
 +	if (ret) {
 +		fprintf(stderr, "system transaction exited with %d\n", ret);
 +		return ret;
@@ -51938,7 +52018,8 @@ diff -ruN --exclude .git linux-7.0.12/tools/testing/selftests/hardening/hdn_smok
 +}
 +
 +static int product_rofs_package_hook_run(const char *hook,
-+					 const char *config_path)
++					 const char *config_path,
++					 bool dry_run)
 +{
 +	pid_t child;
 +
@@ -51954,9 +52035,16 @@ diff -ruN --exclude .git linux-7.0.12/tools/testing/selftests/hardening/hdn_smok
 +		return 2;
 +
 +	if (!child) {
-+		if (config_path)
++		if (config_path && dry_run)
++			execl(HDN_PACKAGE_HOOK_EXEC, "hdn-package-hook",
++			      "--dry-run", "--config", config_path, hook,
++			      NULL);
++		else if (config_path)
 +			execl(HDN_PACKAGE_HOOK_EXEC, "hdn-package-hook",
 +			      "--config", config_path, hook, NULL);
++		else if (dry_run)
++			execl(HDN_PACKAGE_HOOK_EXEC, "hdn-package-hook",
++			      "--dry-run", hook, NULL);
 +		else
 +			execl(HDN_PACKAGE_HOOK_EXEC, "hdn-package-hook",
 +			      hook, NULL);
@@ -51978,7 +52066,7 @@ diff -ruN --exclude .git linux-7.0.12/tools/testing/selftests/hardening/hdn_smok
 +	int ret;
 +	int fd;
 +
-+	ret = product_rofs_package_hook_run(hook, config_path);
++	ret = product_rofs_package_hook_run(hook, config_path, false);
 +	if (ret == KSFT_SKIP)
 +		return ret;
 +	if (!ret) {
@@ -52034,9 +52122,37 @@ diff -ruN --exclude .git linux-7.0.12/tools/testing/selftests/hardening/hdn_smok
 +	int ret;
 +	int fd;
 +
-+	ret = product_rofs_package_hook_run("package-update", NULL);
++	count = product_rofs_sentinel_update_count();
++	ret = product_rofs_package_hook_run("package-update", NULL, true);
 +	if (ret == KSFT_SKIP)
 +		return ret;
++	if (ret) {
++		fprintf(stderr, "package hook dry-run exited with %d\n", ret);
++		return ret;
++	}
++	if (product_rofs_sentinel_update_count() != count) {
++		fprintf(stderr, "package hook dry-run changed sentinel\n");
++		return 1;
++	}
++
++	errno = 0;
++	fd = open(HDN_PRODUCT_ROFS_SENTINEL,
++		  O_WRONLY | O_APPEND | O_CLOEXEC);
++	saved_errno = errno;
++	if (fd >= 0) {
++		fprintf(stderr,
++			"package hook dry-run left product mount writable\n");
++		close(fd);
++		return 1;
++	}
++	if (saved_errno != EROFS) {
++		fprintf(stderr,
++			"post-package-hook-dry-run write-open failed with %s\n",
++			strerror(saved_errno));
++		return 2;
++	}
++
++	ret = product_rofs_package_hook_run("package-update", NULL, false);
 +	if (ret) {
 +		fprintf(stderr, "package hook exited with %d\n", ret);
 +		return ret;
@@ -54153,7 +54269,8 @@ diff -ruN --exclude .git linux-7.0.12/tools/testing/selftests/hardening/hdn_smok
 +	cleanup_product_rofs_mount(HDN_IMAGE_SEAL_DIR);
 +}
 +
-+static int image_seal_run(const char *seal, const char *config_path)
++static int image_seal_run(const char *seal, const char *config_path,
++			  bool dry_run)
 +{
 +	pid_t child;
 +
@@ -54168,9 +54285,16 @@ diff -ruN --exclude .git linux-7.0.12/tools/testing/selftests/hardening/hdn_smok
 +		return 2;
 +
 +	if (!child) {
-+		if (config_path)
++		if (config_path && dry_run)
++			execl(HDN_IMAGE_SEAL_EXEC, "hdn-image-seal",
++			      "--dry-run", "--config", config_path, seal,
++			      NULL);
++		else if (config_path)
 +			execl(HDN_IMAGE_SEAL_EXEC, "hdn-image-seal",
 +			      "--config", config_path, seal, NULL);
++		else if (dry_run)
++			execl(HDN_IMAGE_SEAL_EXEC, "hdn-image-seal",
++			      "--dry-run", seal, NULL);
 +		else
 +			execl(HDN_IMAGE_SEAL_EXEC, "hdn-image-seal", seal,
 +			      NULL);
@@ -54204,7 +54328,7 @@ diff -ruN --exclude .git linux-7.0.12/tools/testing/selftests/hardening/hdn_smok
 +{
 +	int ret;
 +
-+	ret = image_seal_run(seal, config_path);
++	ret = image_seal_run(seal, config_path, false);
 +	if (ret == KSFT_SKIP)
 +		return ret;
 +	if (!ret) {
@@ -54234,7 +54358,19 @@ diff -ruN --exclude .git linux-7.0.12/tools/testing/selftests/hardening/hdn_smok
 +	int ret;
 +	int fd;
 +
-+	ret = image_seal_run("default", NULL);
++	ret = image_seal_run("default", NULL, true);
++	if (ret) {
++		cleanup_image_seal_test();
++		return ret;
++	}
++	ret = image_seal_mount_is_writable();
++	if (ret) {
++		fprintf(stderr, "image seal dry-run changed mount state\n");
++		cleanup_image_seal_test();
++		return ret;
++	}
++
++	ret = image_seal_run("default", NULL, false);
 +	if (ret) {
 +		cleanup_image_seal_test();
 +		return ret;

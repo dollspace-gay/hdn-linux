@@ -151,7 +151,7 @@ not have to understand: unsigned policy updates, raw module images, unknown
 module files, module autoload aliases, exact-name request-module dispatch, modprobe helper context, modprobe helper-path writes with safe path validation, one-way module and kexec load lockouts, firmware names, kernel log reads and writes, locked unprivileged BPF, always-on hardened BPF JIT, profile-gated BPF creation, metadata, query, acquisition, and mutation commands, BPF symbol-helper, pseudo-BTF, BPF kfunc/tracing/kptr address resolution, BTF sysfs disclosure separation, proc net packet-handler symbol redaction, and proc timer callback symbol redaction, locked unprivileged perf, profile-gated perf, unavailable or user-mode-only unprivileged userfaultfd, user namespaces, kexec,
 debugfs, owner-only sysfs reads and directory-entry hiding, sysfs mutation, monotonic io_uring disablement, raw I/O including raw CPU MSR/CPUID device nodes and x86-32 VM86 mode, System V IPC and POSIX mqueue
 over-permission, TTY injection,
-FUSE mount creation, read-only mount relaxation, new writable mount creation under read-only profiles, product read-only mount application, required/optional read-only mount lists, named image sealing, package-manager hook dispatch, APT/pacman/DNF/DNF5/image-seal hook templates, root-owned prompt metadata, authenticated prompt sessions, recovery metadata, confirmed recovery sessions, recovery portals, product update transaction resealing, token-backed prompt-dispatched product update transactions, brokered product update transactions, other-user proc task hiding with grouped proc mount, global task-view group, and task-directory mode compatibility,
+FUSE mount creation, read-only mount relaxation, new writable mount creation under read-only profiles, product read-only mount application, required/optional read-only mount lists, named image sealing, package/update dry-run preflight, package-manager hook dispatch, APT/pacman/DNF/DNF5/image-seal hook templates, root-owned prompt metadata, authenticated prompt sessions, recovery metadata, confirmed recovery sessions, recovery portals, product update transaction resealing, token-backed prompt-dispatched product update transactions, brokered product update transactions, other-user proc task hiding with grouped proc mount, global task-view group, and task-directory mode compatibility,
 USB attach restriction, USB monitor capture restriction, raw block-device open/admin separation,
 non-local socket create/connect/server operations with endpoint audit attribution,
 remote closed-port network blackholing, TCP simultaneous-connect removal,
@@ -176,6 +176,7 @@ suggestions, a named policy workflow facade plus policy daemon above learning,
 merge, compile, brokered signed commit, and commit dry-run/preflight through
 the workflow, policy daemon, policy-daemon stdio, control-center one-shot, and
 control-center stdio route, control-center stdio unknown-action denial,
+package/update dry-run preflight through named updater facades,
 sealed-HDN-data write-fault reporting, and
 kernel/module W^X baseline.
 
