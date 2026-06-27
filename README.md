@@ -96,7 +96,10 @@ support tools and developer-mode UI a root-owned named workflow for policy
 learning, candidate policy generation, unsigned binary policy compilation, and
 brokered signed policy commit above `hdn-policy-learn`, `hdn-policy-merge`,
 the policy compiler, and `hdn-admin-broker`, while `hdn-policy-daemon` gives
-product UI an allowlisted root-side facade above those workflows.
+product UI an allowlisted root-side facade above those workflows. Commit
+preflight now routes through the same `hdn-control-center --dry-run policy
+commit WORKFLOW` and `hdn-policy-daemon --dry-run commit WORKFLOW` path so UI
+code can validate the approved broker route without installing a policy.
 Other-user proc task visibility now has grouped proc mount compatibility plus
 an HDN-native global task-view group for proc, pidfd, and proc task-directory
 mode visibility.
@@ -146,9 +149,9 @@ Patch artifact at this checkpoint:
 
 ```text
 patch: patches/hdn-linux-7.0.12.patch
-lines: 66,821
-bytes: 1,987,202
-sha256: 639bf4263935687ad0ff86c7b6b4f3a07f90ee703ee57f7675404aa742c503ce
+lines: 66,906
+bytes: 1,990,165
+sha256: aa40fdd10f22584c3830f4b9fcb9be9f586fc6329915fe2e694bc8ce320067cb
 ```
 
 ## Development Rule
