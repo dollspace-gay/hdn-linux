@@ -215,10 +215,11 @@ compatible. Cross-process `/proc/<pid>/cmdline`, `/proc/<pid>/environ`,
 `/proc/<pid>/auxv`, `/proc/<pid>/syscall`, `/proc/<pid>/io`, and
 `/proc/<pid>/personality` reads also require `AUTH_PROC_DISCLOSE`, as do
 cross-process `/proc/<pid>/coredump_filter` reads and writes plus
-`/proc/<pid>/limits` reads, because they expose argument shape, environment
-secrets, loader metadata, live syscall register state, I/O accounting,
-personality flags, future core-dump selection, and resource ceilings for
-another address space. `/proc/ioports` and `/proc/iomem` retain resource names for
+`/proc/<pid>/limits`, `/proc/<pid>/sched`, and `/proc/<pid>/schedstat` reads,
+because they expose argument shape, environment secrets, loader metadata, live
+syscall register state, I/O accounting, personality flags, future core-dump
+selection, resource ceilings, and scheduler timing for another address space.
+`/proc/ioports` and `/proc/iomem` retain resource names for
 hardware inventory, but their address ranges collapse to zero unless a capable
 caller also has `AUTH_PROC_DISCLOSE`. Global
 page-monitoring metadata in `/proc/kpagecount`, `/proc/kpageflags`, and
@@ -1831,8 +1832,9 @@ Core oracle groups:
 - cross-process `/proc/<pid>/cmdline`, `/proc/<pid>/environ`,
   `/proc/<pid>/auxv`, `/proc/<pid>/syscall`, `/proc/<pid>/io`, and
   `/proc/<pid>/personality` denied without `PROC_DISCLOSE`, and cross-process
-  `/proc/<pid>/coredump_filter` reads and writes plus `/proc/<pid>/limits`
-  reads denied without `PROC_DISCLOSE`, while self reads remain usable
+  `/proc/<pid>/coredump_filter` reads and writes plus `/proc/<pid>/limits`,
+  `/proc/<pid>/sched`, and `/proc/<pid>/schedstat` reads denied without
+  `PROC_DISCLOSE`, while self reads remain usable
 - `/proc/ioports` and `/proc/iomem` address ranges redacted without
   `PROC_DISCLOSE`, while resource names remain visible for compatibility
 - owner-only sysfs attributes and sensitive world-readable sysfs metadata such

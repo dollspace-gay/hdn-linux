@@ -40,7 +40,8 @@ IPC/socket/device hardening, non-controlling terminal descriptor access
 hardening,
 privileged-exec restrictions, RWX/textrel/exec-stack controls, thread-stack
 placement randomization, proc-visible kernel symbol redaction, cross-process
-proc argv/env/auxv/syscall/io/personality/coredump-filter/limits gating,
+proc argv/env/auxv/syscall/io/personality/coredump-filter/limits/sched/schedstat
+gating,
 expanded BPF metadata/query gating, and
 broad audit/event decoding.
 Authorized `kernel.modprobe` writes now also validate the helper path as an
@@ -169,10 +170,10 @@ Cross-process `/proc/<pid>/cmdline`, `/proc/<pid>/environ`,
 `/proc/<pid>/auxv`, `/proc/<pid>/syscall`, `/proc/<pid>/io`, and
 `/proc/<pid>/personality` reads now also require disclosure authority, as do
 cross-process `/proc/<pid>/coredump_filter` reads and writes plus
-`/proc/<pid>/limits` reads. Self inspection stays compatible while argv,
-environment, auxv, live syscall metadata, I/O accounting, personality flags,
-future core-dump selection, and resource ceilings stay out of restricted
-profiles.
+`/proc/<pid>/limits`, `/proc/<pid>/sched`, and `/proc/<pid>/schedstat` reads.
+Self inspection stays compatible while argv, environment, auxv, live syscall
+metadata, I/O accounting, personality flags, future core-dump selection,
+resource ceilings, and scheduler timing stay out of restricted profiles.
 Sensitive sysfs kernel metadata such as `/sys/kernel/vmcoreinfo`,
 `/sys/kernel/notes`, and `/sys/kernel/boot_params/data` now requires the
 sysfs-read authority and is hidden from restricted directory enumeration, while
@@ -210,16 +211,16 @@ The hardening smoke suite in the development tree is run under QEMU. Latest
 local result before this publication checkpoint:
 
 ```text
-QEMU hardening smoke: 1035/1035 pass
+QEMU hardening smoke: 1039/1039 pass
 ```
 
 Patch artifact at this checkpoint:
 
 ```text
 patch: patches/hdn-linux-7.0.12.patch
-lines: 74,923
-bytes: 2,246,275
-sha256: b060f7d9365267be85f6cb4058f7cfd2b384790f0b1ab28ab995670b47aa8894
+lines: 74,998
+bytes: 2,248,889
+sha256: aa6fca501247cf71a94f452a58532564290e2d08a2533e0e63510524a7ef185f
 ```
 
 ## Development Rule
