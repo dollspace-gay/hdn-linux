@@ -174,8 +174,8 @@ decoded audit presentation for UI/log consumers, reviewable policy-learning
 suggestions from denied events, candidate policy merging from reviewed
 suggestions, a named policy workflow facade plus policy daemon above learning,
 merge, compile, brokered signed commit, and commit dry-run/preflight through
-the workflow, policy daemon, and control-center route, sealed-HDN-data
-write-fault reporting, and kernel/module W^X baseline.
+the workflow, policy daemon, policy-daemon stdio, and control-center route,
+sealed-HDN-data write-fault reporting, and kernel/module W^X baseline.
 
 The biggest remaining equivalence gaps are not in the already-tested policy
 loader. They are in richer object policy semantics beyond the current read/write/delete/create/creat/mkdir/mknod/symlink/unlink/rmdir/exec/link/link-target/attr/chmod/chown/utime/setid/xattr/setxattr/removexattr/access/stat/list/find/ioctl/lock/watch/receive/fcntl/chdir/mount/mount-source/umount/truncate/rename/rename-target/unix-connect/unix-bind/unix-listen/unix-accept/unix-send/unix-recv denial plus append-only, recursive operation, recursive target-operation, recursive split-operation, and tree slice, broader top-level proc compatibility shims if

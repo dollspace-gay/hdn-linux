@@ -544,9 +544,9 @@ to `hdn-admin-broker policy-commit`.
 `tools/hardening/hdn-policy-daemon` is the product-facing root-side facade
 above policy-workflow. It allowlists workflow names from a root-owned config,
 supports one-shot or stdio operation, accepts one-shot `--dry-run commit NAME`
-for broker preflight without policy installation, and lets
-`hdn-control-center policy` route settings-panel policy review and signed
-commit actions without exposing helper paths.
+and stdio `dry-run commit NAME` for broker preflight without policy
+installation, and lets `hdn-control-center policy` route settings-panel policy
+review and signed commit actions without exposing helper paths.
 
 ## Memory Execution Policy
 
@@ -835,7 +835,8 @@ preflight; the helper validates absolute backend paths and safe action or
 workflow names and never invokes a shell. QEMU proves status routing, unknown
 UI action denial, an approved `updates.install` action reaching the desktop
 daemon while preserving the read-only reseal invariant, and an approved
-compiled policy workflow plus commit preflight reaching the policy daemon.
+compiled policy workflow plus one-shot and stdio commit preflight reaching the
+policy daemon.
 `hdn-image-seal` is the installer/first-boot/image-updater facade for sealing
 the base image. Product config maps stable seal names to ordered brokered
 steps such as signed policy commit and read-only mount-list application, so
@@ -1804,7 +1805,7 @@ Core oracle groups:
 - the control-center helper reports product status through hdn-status, rejects
   unknown UI actions, runs an approved UI action through hdn-desktop-daemon,
   and runs an approved policy workflow plus signed-commit preflight through
-  hdn-policy-daemon
+  hdn-policy-daemon, whose stdio mode rejects non-commit dry-runs
 - the image seal helper rejects unknown seal names, rejects unsafe image seal
   configs, and applies an approved brokered read-only mount list while leaving
   the sealed mount read-only

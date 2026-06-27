@@ -19238,8 +19238,8 @@ diff -ruN --exclude .git linux-7.0.12/tools/hardening/Makefile linux-7.0.12-hdn/
 +.PHONY: all clean install
 diff -ruN --exclude .git linux-7.0.12/tools/hardening/README.rst linux-7.0.12-hdn/tools/hardening/README.rst
 --- linux-7.0.12/tools/hardening/README.rst	1969-12-31 18:00:00.000000000 -0600
-+++ linux-7.0.12-hdn/tools/hardening/README.rst	2026-06-27 02:36:36.361747949 -0500
-@@ -0,0 +1,1497 @@
++++ linux-7.0.12-hdn/tools/hardening/README.rst	2026-06-27 02:42:17.685718075 -0500
+@@ -0,0 +1,1498 @@
 +.. SPDX-License-Identifier: GPL-2.0-only
 +
 +Linux Hardening Policy Tools
@@ -19480,7 +19480,8 @@ diff -ruN --exclude .git linux-7.0.12/tools/hardening/README.rst linux-7.0.12-hd
 +and then delegates to the workflow helper. One-shot ``--dry-run commit
 +WORKFLOW`` reaches the workflow helper's broker preflight path without
 +installing the signed policy. The daemon also supports a simple ``--stdio``
-+mode for frontends that keep a privileged backend process open.
++mode for frontends that keep a privileged backend process open; stdio requests
++are ``COMMAND WORKFLOW`` or ``dry-run commit WORKFLOW``.
 +
 +``hdn-admin-broker`` is the privileged backend facade for product UI prompts.
 +It accepts typed intents instead of raw shell commands: ``rofs-apply``,
@@ -25509,8 +25510,8 @@ diff -ruN --exclude .git linux-7.0.12/tools/hardening/hdn-package-hook.c linux-7
 +}
 diff -ruN --exclude .git linux-7.0.12/tools/hardening/hdn-policy-daemon.c linux-7.0.12-hdn/tools/hardening/hdn-policy-daemon.c
 --- linux-7.0.12/tools/hardening/hdn-policy-daemon.c	1969-12-31 18:00:00.000000000 -0600
-+++ linux-7.0.12-hdn/tools/hardening/hdn-policy-daemon.c	2026-06-27 02:35:18.961755521 -0500
-@@ -0,0 +1,506 @@
++++ linux-7.0.12-hdn/tools/hardening/hdn-policy-daemon.c	2026-06-27 02:41:49.005720010 -0500
+@@ -0,0 +1,518 @@
 +// SPDX-License-Identifier: GPL-2.0-only
 +
 +#define _GNU_SOURCE
@@ -25549,6 +25550,7 @@ diff -ruN --exclude .git linux-7.0.12/tools/hardening/hdn-policy-daemon.c linux-
 +		"\n"
 +		"Runs product-approved policy workflows through hdn-policy-workflow.\n"
 +		"Commands: learn, candidate, compile, commit\n"
++		"Stdio requests: COMMAND WORKFLOW, or dry-run commit WORKFLOW\n"
 +		"Config lines:\n"
 +		"  workflow-helper PATH\n"
 +		"  allow-workflow WORKFLOW\n",
@@ -25919,11 +25921,14 @@ diff -ruN --exclude .git linux-7.0.12/tools/hardening/hdn-policy-daemon.c linux-
 +	fflush(stdout);
 +
 +	while ((len = getline(&line, &size, stdin)) >= 0) {
-+		char *tokens[3];
++		char *tokens[4];
 +		unsigned int count = 0;
 +		char *save = NULL;
 +		char *word;
 +		char *request = trim(line);
++		const char *command = NULL;
++		const char *workflow = NULL;
++		bool dry_run = false;
 +		int ret;
 +
 +		(void)len;
@@ -25932,23 +25937,31 @@ diff -ruN --exclude .git linux-7.0.12/tools/hardening/hdn-policy-daemon.c linux-
 +
 +		for (word = strtok_r(request, " \t", &save); word;
 +		     word = strtok_r(NULL, " \t", &save)) {
-+			if (count >= sizeof(tokens) / sizeof(tokens[0]))
-+				break;
-+			tokens[count++] = word;
++			if (count < sizeof(tokens) / sizeof(tokens[0]))
++				tokens[count] = word;
++			count++;
 +		}
 +
-+		if (count != 2 || !safe_command(tokens[0]) ||
-+		    !safe_name(tokens[1])) {
++		if (count == 2) {
++			command = tokens[0];
++			workflow = tokens[1];
++		} else if (count == 3 && !strcmp(tokens[0], "dry-run")) {
++			dry_run = true;
++			command = tokens[1];
++			workflow = tokens[2];
++		}
++
++		if (!command || !workflow || !safe_command(command) ||
++		    !safe_name(workflow)) {
 +			printf("HDN_POLICY_DAEMON_RESULT command=(invalid) workflow=(invalid) status=invalid exit=1\n");
 +			fflush(stdout);
 +			failed = true;
 +			continue;
 +		}
 +
-+		ret = dispatch_workflow(config, tokens[0], tokens[1], false);
++		ret = dispatch_workflow(config, command, workflow, dry_run);
 +		printf("HDN_POLICY_DAEMON_RESULT command=%s workflow=%s status=%s exit=%d\n",
-+		       tokens[0], tokens[1], ret ? "failed" : "ok",
-+		       ret ? 1 : 0);
++		       command, workflow, ret ? "failed" : "ok", ret ? 1 : 0);
 +		fflush(stdout);
 +		if (ret)
 +			failed = true;
@@ -37813,8 +37826,8 @@ diff -ruN --exclude .git linux-7.0.12/tools/testing/selftests/hardening/hdn_elfn
 +}
 diff -ruN --exclude .git linux-7.0.12/tools/testing/selftests/hardening/hdn_smoke.c linux-7.0.12-hdn/tools/testing/selftests/hardening/hdn_smoke.c
 --- linux-7.0.12/tools/testing/selftests/hardening/hdn_smoke.c	1969-12-31 18:00:00.000000000 -0600
-+++ linux-7.0.12-hdn/tools/testing/selftests/hardening/hdn_smoke.c	2026-06-27 02:35:58.765751070 -0500
-@@ -0,0 +1,27269 @@
++++ linux-7.0.12-hdn/tools/testing/selftests/hardening/hdn_smoke.c	2026-06-27 02:42:10.917718643 -0500
+@@ -0,0 +1,27324 @@
 +// SPDX-License-Identifier: GPL-2.0-only
 +
 +#define _GNU_SOURCE
@@ -52302,6 +52315,46 @@ diff -ruN --exclude .git linux-7.0.12/tools/testing/selftests/hardening/hdn_smok
 +	return policy_daemon_run_opts(command, workflow, config_path, true);
 +}
 +
++static int policy_daemon_stdio_run(const char *request)
++{
++	int pipefd[2];
++	int child_ret;
++	pid_t child;
++	int ret;
++
++	if (access(HDN_POLICY_DAEMON_EXEC, X_OK))
++		return KSFT_SKIP;
++	if (pipe(pipefd))
++		return 2;
++
++	child = fork();
++	if (child < 0) {
++		close(pipefd[0]);
++		close(pipefd[1]);
++		return 2;
++	}
++
++	if (!child) {
++		close(pipefd[1]);
++		if (dup2(pipefd[0], STDIN_FILENO) < 0)
++			_exit(2);
++		close(pipefd[0]);
++		execl(HDN_POLICY_DAEMON_EXEC, "hdn-policy-daemon",
++		      "--stdio", NULL);
++		_exit(2);
++	}
++
++	close(pipefd[0]);
++	ret = dprintf(pipefd[1], "%s\n", request);
++	close(pipefd[1]);
++	if (ret < 0) {
++		child_ret = child_exit_result(child);
++		return child_ret ? child_ret : 2;
++	}
++
++	return child_exit_result(child);
++}
++
 +static int policy_daemon_rejects_unknown(void)
 +{
 +	int ret = policy_daemon_run("learn", "unknown", NULL);
@@ -52315,6 +52368,15 @@ diff -ruN --exclude .git linux-7.0.12/tools/testing/selftests/hardening/hdn_smok
 +{
 +	int ret = policy_daemon_run("learn", "default",
 +				    HDN_POLICY_DAEMON_UNSAFE_CONFIG);
++
++	if (ret == KSFT_SKIP)
++		return ret;
++	return ret ? 0 : 1;
++}
++
++static int policy_daemon_stdio_rejects_noncommit_dry_run(void)
++{
++	int ret = policy_daemon_stdio_run("dry-run compile default");
 +
 +	if (ret == KSFT_SKIP)
 +		return ret;
@@ -52357,7 +52419,11 @@ diff -ruN --exclude .git linux-7.0.12/tools/testing/selftests/hardening/hdn_smok
 +	    access(HDN_BROKER_SIGNED_POLICY, R_OK))
 +		return 2;
 +
-+	return policy_daemon_run_dry("commit", "default", NULL);
++	ret = policy_daemon_run_dry("commit", "default", NULL);
++	if (ret)
++		return ret;
++
++	return policy_daemon_stdio_run("dry-run commit default");
 +}
 +
 +static int control_center_policy_run_opts(const char *command,
@@ -64669,7 +64735,7 @@ diff -ruN --exclude .git linux-7.0.12/tools/testing/selftests/hardening/hdn_smok
 +	if (access(HDN_STATUS, R_OK))
 +		ksft_exit_skip("hardening securityfs status not present\n");
 +
-+	ksft_set_plan(965);
++	ksft_set_plan(966);
 +	test_securityfs_status();
 +	test_symbol_test_module_load();
 +	test_securityfs_status_contains("abi_version: 89",
@@ -64966,8 +65032,10 @@ diff -ruN --exclude .git linux-7.0.12/tools/testing/selftests/hardening/hdn_smok
 +			    "policy daemon rejects unknown workflow");
 +	report_child_result(policy_daemon_rejects_unsafe_config(),
 +			    "policy daemon rejects unsafe config");
++	report_child_result(policy_daemon_stdio_rejects_noncommit_dry_run(),
++			    "policy daemon stdio rejects non-commit dry-run");
 +	report_child_result(policy_daemon_generates_candidate(),
-+			    "policy daemon learns, merges, compiles, and dry-runs commit");
++			    "policy daemon learns, merges, compiles, and preflights commit");
 +	report_child_result(control_center_policy_generates_candidate(),
 +			    "control center runs compiled policy workflow and commit preflight");
 +	test_chdir_event_logged();
@@ -65477,7 +65545,7 @@ diff -ruN --exclude .git linux-7.0.12/tools/testing/selftests/hardening/role.pol
 +use-role 2 desktop-admin
 diff -ruN --exclude .git linux-7.0.12/tools/testing/selftests/hardening/run-qemu-smoke.sh linux-7.0.12-hdn/tools/testing/selftests/hardening/run-qemu-smoke.sh
 --- linux-7.0.12/tools/testing/selftests/hardening/run-qemu-smoke.sh	1969-12-31 18:00:00.000000000 -0600
-+++ linux-7.0.12-hdn/tools/testing/selftests/hardening/run-qemu-smoke.sh	2026-06-27 02:27:42.565759886 -0500
++++ linux-7.0.12-hdn/tools/testing/selftests/hardening/run-qemu-smoke.sh	2026-06-27 02:43:50.181708773 -0500
 @@ -0,0 +1,1248 @@
 +#!/bin/sh
 +# SPDX-License-Identifier: GPL-2.0
@@ -65512,7 +65580,7 @@ diff -ruN --exclude .git linux-7.0.12/tools/testing/selftests/hardening/run-qemu
 +QEMU_MEMORY=${QEMU_MEMORY:-1024M}
 +QEMU_SMP=${QEMU_SMP:-2}
 +QEMU_MACHINE=${QEMU_MACHINE:-q35,accel=tcg}
-+HDN_SMOKE_EXPECTED_PASS=${HDN_SMOKE_EXPECTED_PASS:-965}
++HDN_SMOKE_EXPECTED_PASS=${HDN_SMOKE_EXPECTED_PASS:-966}
 +WORK=${HDN_QEMU_WORK:-"${TMPDIR:-/tmp}/hdn-qemu-smoke.$$"}
 +LOG=${HDN_QEMU_LOG:-"$WORK/qemu.log"}
 +QMP=${HDN_QEMU_QMP:-"$WORK/qmp.sock"}
