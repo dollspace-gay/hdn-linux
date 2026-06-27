@@ -48,6 +48,13 @@ ptrace policy. QEMU proves protected executable ptrace denial, raw
 non-debuggable-object security effect of grsecurity-style object ptrace policy
 without cloning its RBAC file format.
 
+Object abstract-socket parity note: HDN now has
+`object PROFILE deny-unix-* abstract NAME` rules for exact AF_UNIX abstract
+socket names across connect, bind, listen, accept, datagram send including
+preconnected sends, and datagram receive. QEMU proves each denied protected
+name and each unmatched allowed case, so abstract namespace IPC no longer
+bypasses the filesystem-socket object policy.
+
 ## Module, Firmware, And Kernel-Interface Admission
 
 | grsecurity/PaX area | HDN status | Notes |
@@ -176,7 +183,7 @@ remote closed-port network blackholing, TCP simultaneous-connect removal,
 accepted IPv4 TCP peer attribution through `/proc/<pid>/ipaddr` with local TCP and AF_UNIX stream carry,
 system time mutation, resource-limit hard raises, profile-scoped resource ceilings, severe signal telemetry, cross-profile signal control, explicit remote process-memory, page-migration, and process-fd controls, failed fork telemetry, profile-scoped process-account exit telemetry, ptrace attach telemetry, coredump resource-limit pressure, loaded-module base-address hiding, proc memmap/stat ASLR redaction, cross-process pagemap and global kpage metadata denial, proc ioport/iomem range redaction, privileged-exec argv/env and stack entropy caps, ptrace/proc memory, execute-only ptrace reads, executable memory transitions, enforced non-executable memfd defaults, denied RWX-map audit telemetry, anonymous `MAP_STACK` and `MAP_GROWSDOWN` thread-stack placement randomization, kernel-stack isolation baseline reporting, setuid/filecap widening, forced user-controllable speculation mitigations for privileged helpers, consistent multithreaded setxid drops,
 profile-scoped non-root TPE, compiler-expanded inherited role templates,
-signed UID/GID subject profile selection, profile umask floors, profile resource ceilings, signed exec-profile inheritance, signed object read/write/delete/create/creat/mkdir/mknod/symlink/unlink/rmdir/exec/link/link-target/attr/chmod/chown/utime/setid/xattr/setxattr/removexattr/access/stat/list/find/ioctl/lock/watch/receive/fcntl/chdir/mount/mount-source/umount/truncate/rename/rename-target/unix-connect/unix-bind/unix-listen/unix-accept/unix-send/unix-recv denial plus append-only, preopened splice/copy-file-range/sendfile/clone/clone-range and shared writable mapping denial, nofollow terminal object identity, recursive descriptor, operation-tree, target-tree, deny-find ordinary-open hiding, and preopened-descriptor unmatched allowance, fd-receive, mount topology including unmatched-target and source allowance, split metadata/xattr, and filesystem-socket IPC operation tree enforcement, recursive split-operation tree enforcement, recursive append-only tree enforcement, and recursive tree enforcement by
+signed UID/GID subject profile selection, profile umask floors, profile resource ceilings, signed exec-profile inheritance, signed object read/write/delete/create/creat/mkdir/mknod/symlink/unlink/rmdir/exec/link/link-target/attr/chmod/chown/utime/setid/xattr/setxattr/removexattr/access/stat/list/find/ioctl/lock/watch/receive/fcntl/chdir/mount/mount-source/umount/truncate/rename/rename-target/unix-connect/unix-bind/unix-listen/unix-accept/unix-send/unix-recv denial plus append-only, preopened splice/copy-file-range/sendfile/clone/clone-range and shared writable mapping denial, nofollow terminal object identity, recursive descriptor, operation-tree, target-tree, deny-find ordinary-open hiding, and preopened-descriptor unmatched allowance, fd-receive, mount topology including unmatched-target and source allowance, split metadata/xattr, filesystem-socket IPC operation tree enforcement, abstract AF_UNIX name enforcement, recursive split-operation tree enforcement, recursive append-only tree enforcement, and recursive tree enforcement by
 resolved file, symlink, or directory identity,
 unprivileged privileged-helper exec denial,
 privileged-exec crash throttling, same-binary daemon fork throttling,
@@ -210,7 +217,7 @@ sealed-HDN-data write-fault reporting, and
 kernel/module W^X baseline.
 
 The biggest remaining equivalence gaps are not in the already-tested policy
-loader. They are in richer object policy semantics beyond the current read/write/delete/create/creat/mkdir/mknod/symlink/unlink/rmdir/exec/link/link-target/attr/chmod/chown/utime/setid/xattr/setxattr/removexattr/access/stat/list/find/ioctl/lock/watch/receive/fcntl/chdir/mount/mount-source/umount/truncate/rename/rename-target/unix-connect/unix-bind/unix-listen/unix-accept/unix-send/unix-recv denial plus append-only, recursive operation, recursive target-operation, recursive split-operation, and tree slice, broader top-level proc compatibility shims if
+loader. They are in richer object policy semantics beyond the current read/write/delete/create/creat/mkdir/mknod/symlink/unlink/rmdir/exec/link/link-target/attr/chmod/chown/utime/setid/xattr/setxattr/removexattr/access/stat/list/find/ioctl/lock/watch/receive/fcntl/chdir/mount/mount-source/umount/truncate/rename/rename-target/unix-connect/unix-bind/unix-listen/unix-accept/unix-send/unix-recv denial plus append-only, recursive operation, recursive target-operation, recursive split-operation, abstract-name, and tree slice, broader top-level proc compatibility shims if
 exact grsecurity-compatible proc names are required, broader distro packaging and graphical UI
 integration around the QEMU-proved read-only mount helpers and the
 image-seal, package-hook, support-bundle, prompt-describe, prompt-dispatch, prompt-session, prompt-portal, desktop-action, desktop-daemon, control-center, settings-panel, settings-ui, system-transaction, recovery-describe, recovery-action, recovery-session, recovery-portal, recovery-panel, recovery-ui, and broker

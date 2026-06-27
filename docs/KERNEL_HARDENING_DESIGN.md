@@ -1089,7 +1089,13 @@ can declare `object PROFILE deny-write path PATH`,
 	`object PROFILE deny-unix-listen path PATH`,
 	`object PROFILE deny-unix-accept path PATH`,
 	`object PROFILE deny-unix-send path PATH`,
-	`object PROFILE deny-unix-recv path PATH`, or recursive
+	`object PROFILE deny-unix-recv path PATH`,
+	`object PROFILE deny-unix-connect abstract NAME`,
+	`object PROFILE deny-unix-bind abstract NAME`,
+	`object PROFILE deny-unix-listen abstract NAME`,
+	`object PROFILE deny-unix-accept abstract NAME`,
+	`object PROFILE deny-unix-send abstract NAME`,
+	`object PROFILE deny-unix-recv abstract NAME`, or recursive
 	`object PROFILE OP tree DIRECTORY` rules, or equivalent
 	`object PROFILE OP inode MAJOR MINOR INO` rules for the same object
 	operations. Path and tree declarations are resolved to file
@@ -1099,7 +1105,7 @@ Tree declarations must resolve to directories and match that directory plus
 descendants by dentry ancestry. This
 slice covers recursive denial rules, recursive split create/delete operation
 rules, recursive append-only rules, recursive descriptor-control,
-operation-tree, target-tree, and preopened-descriptor unmatched checks, fd-receive, mount topology with unmatched-target and source checks, split metadata/xattr, and filesystem-socket IPC operation rules, regular-file write opens, `write(2)`, `writev(2)`,
+operation-tree, target-tree, and preopened-descriptor unmatched checks, fd-receive, mount topology with unmatched-target and source checks, split metadata/xattr, and filesystem plus abstract-socket IPC operation rules, regular-file write opens, `write(2)`, `writev(2)`,
 pipe-to-file `splice(2)`, `copy_file_range(2)` destination writes,
 truncate/ftruncate, and fallocate; append-only files allow
 `O_APPEND`/`RWF_APPEND` writes while denying non-append writes through
@@ -1158,14 +1164,16 @@ mutating/control fcntl commands plus
 	both source objects in `RENAME_EXCHANGE`. `deny-rename-target` covers
 	incoming rename attempts by destination directory identity without
 	blocking ordinary creates in that directory. `deny-unix-connect` covers
-	filesystem-backed AF_UNIX pathname socket connect attempts, and
-	`deny-unix-bind` covers filesystem-backed AF_UNIX pathname socket bind
-	attempts by parent directory identity before the socket node is created.
+	filesystem-backed AF_UNIX pathname socket connect attempts and exact
+	abstract AF_UNIX names. `deny-unix-bind` covers filesystem-backed
+	AF_UNIX pathname socket bind attempts by parent directory identity before
+	the socket node is created, plus exact abstract names before publication.
 	`deny-unix-listen` and `deny-unix-accept` cover filesystem-backed
-	AF_UNIX listener operations by bound socket identity. `deny-unix-send`
-	covers pathname and connected AF_UNIX datagram sends by destination
-	socket identity, and `deny-unix-recv` covers datagram receives by bound
-	socket identity.
+	AF_UNIX listener operations by bound socket identity and abstract listeners
+	by exact name. `deny-unix-send` covers pathname and connected AF_UNIX
+	datagram sends by destination socket identity, plus exact abstract
+	destination names, and `deny-unix-recv` covers datagram receives by bound
+	socket identity or exact abstract bound name.
 	It is still a compact
 	object-policy base, not a full RBAC object language.
 
@@ -1515,7 +1523,7 @@ fs/namespace.c, fs/fsopen.c, fs/super.c:
 fs/namei.c, fs/open.c, fs/read_write.c, fs/attr.c, fs/xattr.c, fs/stat.c, fs/readdir.c, fs/fhandle.c, fs/namespace.c, kernel/ptrace.c, net/unix/af_unix.c, security/security.c:
   enforce signed object read/write/delete/create/creat/mkdir/mknod/symlink/unlink/rmdir/exec/link/link-target/attr/chmod/chown/utime/setid/ptrace/xattr/setxattr/removexattr/access/stat/list/find/ioctl/lock/watch/receive/fcntl/chdir/mount/mount-source/umount/truncate/rename/rename-target/unix-connect/unix-bind/unix-listen/unix-accept/unix-send/unix-recv
   denial, append-only, recursive split-operation tree, recursive descriptor,
-  operation-tree, target-tree, and preopened-descriptor unmatched checks, fd-receive, mount topology with unmatched-target and source checks, split metadata/xattr, and filesystem-socket IPC operation tree, and recursive
+  operation-tree, target-tree, and preopened-descriptor unmatched checks, fd-receive, mount topology with unmatched-target and source checks, split metadata/xattr, filesystem-socket IPC operation tree, abstract-socket name rules, and recursive
   append-only tree rules by compiled identity
 
 tools/hardening/hdn-rofs-apply:
@@ -2096,7 +2104,7 @@ Core oracle groups:
 - profile umask floors keep subject-selected file and directory creation private
 - signed exec inheritance preserves caller profiles and parent-scoped inheritance
   ignores unmatched callers
-- signed object read/write/delete/create/creat/mkdir/mknod/symlink/unlink/rmdir/exec/link/link-target/attr/chmod/chown/utime/setid/ptrace/xattr/setxattr/removexattr/access/stat/list/find/ioctl/lock/watch/receive/fcntl/chdir/mount/mount-source/umount/truncate/rename/rename-target/unix-connect/unix-bind/unix-listen/unix-accept/unix-send/unix-recv, append-only, recursive split-operation tree, recursive descriptor, operation-tree, target-tree, and preopened-descriptor unmatched checks, fd-receive, mount topology with unmatched-target and source checks, split metadata/xattr, and filesystem-socket IPC operation tree, and recursive append-only tree rules constrain protected file, executable, metadata, setid-bit, target-executable ptrace, extended-attribute, directory-entry, lookup/open, fd-passing, descriptor-control, working-directory, mount topology, size/extent mutation, move access, and filesystem socket IPC by resolved identity
+- signed object read/write/delete/create/creat/mkdir/mknod/symlink/unlink/rmdir/exec/link/link-target/attr/chmod/chown/utime/setid/ptrace/xattr/setxattr/removexattr/access/stat/list/find/ioctl/lock/watch/receive/fcntl/chdir/mount/mount-source/umount/truncate/rename/rename-target/unix-connect/unix-bind/unix-listen/unix-accept/unix-send/unix-recv, append-only, recursive split-operation tree, recursive descriptor, operation-tree, target-tree, and preopened-descriptor unmatched checks, fd-receive, mount topology with unmatched-target and source checks, split metadata/xattr, filesystem-socket IPC operation tree, abstract-socket name rules, and recursive append-only tree rules constrain protected file, executable, metadata, setid-bit, target-executable ptrace, extended-attribute, directory-entry, lookup/open, fd-passing, descriptor-control, working-directory, mount topology, size/extent mutation, move access, filesystem socket IPC, and abstract AF_UNIX names by resolved identity or exact name
 - script inherits correct interpreter-chain profile
 - non-root TPE denies execution from unsafe executable directories
 - setuid transition gets privileged profile only when valid
