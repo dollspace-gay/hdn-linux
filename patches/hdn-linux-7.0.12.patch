@@ -19069,8 +19069,8 @@ diff -ruN --exclude .git linux-7.0.12/security/yama/yama_lsm.c linux-7.0.12-hdn/
  };
 diff -ruN --exclude .git linux-7.0.12/tools/hardening/Makefile linux-7.0.12-hdn/tools/hardening/Makefile
 --- linux-7.0.12/tools/hardening/Makefile	1969-12-31 18:00:00.000000000 -0600
-+++ linux-7.0.12-hdn/tools/hardening/Makefile	2026-06-27 03:50:42.949338774 -0500
-@@ -0,0 +1,170 @@
++++ linux-7.0.12-hdn/tools/hardening/Makefile	2026-06-27 04:03:35.625273452 -0500
+@@ -0,0 +1,175 @@
 +CC ?= cc
 +CFLAGS ?= -O2 -Wall -Wextra
 +CPPFLAGS += -D__EXPORTED_HEADERS__ -I../../include/uapi
@@ -19096,6 +19096,7 @@ diff -ruN --exclude .git linux-7.0.12/tools/hardening/Makefile linux-7.0.12-hdn/
 +	hdn-recovery-describe \
 +	hdn-recovery-session \
 +	hdn-recovery-portal \
++	hdn-recovery-panel \
 +	hdn-recovery-prompt \
 +	hdn-prompt-dispatch \
 +	hdn-prompt-describe \
@@ -19125,6 +19126,7 @@ diff -ruN --exclude .git linux-7.0.12/tools/hardening/Makefile linux-7.0.12-hdn/
 +	recovery-metadata.conf \
 +	recovery-session.conf \
 +	recovery-portal.conf \
++	recovery-panel.conf \
 +	prompt-actions.conf \
 +	prompt-metadata.conf \
 +	prompt-session.conf \
@@ -19165,6 +19167,9 @@ diff -ruN --exclude .git linux-7.0.12/tools/hardening/Makefile linux-7.0.12-hdn/
 +	$(CC) $(CPPFLAGS) $(CFLAGS) -o $@ $<
 +
 +hdn-recovery-portal: hdn-recovery-portal.c
++	$(CC) $(CPPFLAGS) $(CFLAGS) -o $@ $<
++
++hdn-recovery-panel: hdn-recovery-panel.c
 +	$(CC) $(CPPFLAGS) $(CFLAGS) -o $@ $<
 +
 +hdn-recovery-prompt: hdn-recovery-prompt.c
@@ -19243,8 +19248,8 @@ diff -ruN --exclude .git linux-7.0.12/tools/hardening/Makefile linux-7.0.12-hdn/
 +.PHONY: all clean install
 diff -ruN --exclude .git linux-7.0.12/tools/hardening/README.rst linux-7.0.12-hdn/tools/hardening/README.rst
 --- linux-7.0.12/tools/hardening/README.rst	1969-12-31 18:00:00.000000000 -0600
-+++ linux-7.0.12-hdn/tools/hardening/README.rst	2026-06-27 03:55:09.985315283 -0500
-@@ -0,0 +1,1563 @@
++++ linux-7.0.12-hdn/tools/hardening/README.rst	2026-06-27 04:14:34.361215085 -0500
+@@ -0,0 +1,1587 @@
 +.. SPDX-License-Identifier: GPL-2.0-only
 +
 +Linux Hardening Policy Tools
@@ -19342,6 +19347,19 @@ diff -ruN --exclude .git linux-7.0.12/tools/hardening/README.rst linux-7.0.12-hd
 +shell-style command construction fail closed. ``--dry-run`` follows the same
 +branded action mapping without showing confirmation UI or changing protected
 +state.
++
++``hdn-recovery-panel`` is the graphical-recovery-facing command above
++``hdn-recovery-describe`` and ``hdn-recovery-portal``. Product UI calls
++``describe RECOVERY_ACTION`` for recovery text, ``action RECOVERY_ACTION`` for
++a root-owned recovery action, or the shortcuts ``repair`` and ``rollback`` for
++normal repair and rollback operations. Its root-owned
++``/etc/hdn/recovery-panel.conf`` maps ``action RECOVERY_ACTION
++DESCRIBE_ACTION PORTAL_ACTION`` entries and may set ``describe-helper PATH``
++and ``portal-helper PATH``. Unknown panel actions, unsafe configs, unsafe
++action names, and shell-style command construction fail closed. ``--dry-run``
++validates the same recovery portal route without confirmation UI or
++protected-state mutation; real actions first run that dry-run preflight and
++only then execute the mapped portal action.
 +
 +``hdn-recovery-prompt`` is the dependency-light recovery confirmation frontend
 +for that session contract. It reads ``HDN_RECOVERY_METADATA_V1`` from stdin,
@@ -19578,6 +19596,9 @@ diff -ruN --exclude .git linux-7.0.12/tools/hardening/README.rst linux-7.0.12-hd
 +  sudo tools/hardening/hdn-recovery-portal --dry-run repair-system
 +  sudo tools/hardening/hdn-recovery-portal repair-system
 +  sudo tools/hardening/hdn-recovery-portal rollback-policy
++  sudo tools/hardening/hdn-recovery-panel describe repair-system
++  sudo tools/hardening/hdn-recovery-panel --dry-run rollback
++  sudo tools/hardening/hdn-recovery-panel rollback
 +  sudo install -d -o root -g root -m 0700 /run/hdn/approvals
 +  sudo tools/hardening/hdn-prompt-describe package-update
 +  sudo tools/hardening/hdn-prompt-session package-update
@@ -19629,9 +19650,13 @@ diff -ruN --exclude .git linux-7.0.12/tools/hardening/README.rst linux-7.0.12-hd
 +Lower-level frontends can still call ``hdn-desktop-daemon`` or
 +``hdn-desktop-action`` directly, and lower-level daemons can still authenticate
 +the user and call ``hdn-prompt-dispatch`` with a named product action when they
-+own the session flow themselves. ``hdn-approval-token`` remains the narrow
-+root-side issuer for daemon integrations that need to create and pass broker
-+tokens themselves. The token format is simple for daemon integration::
++own the session flow themselves. Recovery frontends should call
++``hdn-recovery-panel`` for product actions and recovery text; that panel maps
++normal ``repair`` and ``rollback`` UI commands to root-owned recovery metadata
++and portal routes before the lower session/action/broker layers run.
++``hdn-approval-token`` remains the narrow root-side issuer for daemon
++integrations that need to create and pass broker tokens themselves. The token
++format is simple for daemon integration::
 +
 +  HDN_APPROVAL_V1
 +  intent=rofs-transaction
@@ -20590,7 +20615,11 @@ diff -ruN --exclude .git linux-7.0.12/tools/hardening/README.rst linux-7.0.12-hd
 +unsafe portal configs are denied before session dispatch, while approved
 +``repair-system`` and ``rollback-policy`` actions map to recovery-session,
 +preserve rollback behavior, and dry-run without confirmation or protected-state
-+mutation before real repair reseals the product mount read-only. The shipped
++mutation before real repair reseals the product mount read-only. The recovery
++panel facade is tested too: unknown panel actions and unsafe panel configs are
++denied before metadata or portal dispatch, while approved ``repair-system`` and
++``rollback-policy`` actions expose stable metadata, preflight portal routes,
++and preserve rollback behavior before real actions run. The shipped
 +``readonly-mounts.conf`` is a product baseline: ``/usr`` is required, while
 +``/boot``, ``/boot/efi``, ``/opt``, ``/usr/local``,
 +``/var/lib/flatpak``, and ``/var/lib/snapd`` are optional mounted
@@ -33940,6 +33969,505 @@ diff -ruN --exclude .git linux-7.0.12/tools/hardening/hdn-recovery-describe.c li
 +	free_config(&config);
 +	return ret;
 +}
+diff -ruN --exclude .git linux-7.0.12/tools/hardening/hdn-recovery-panel.c linux-7.0.12-hdn/tools/hardening/hdn-recovery-panel.c
+--- linux-7.0.12/tools/hardening/hdn-recovery-panel.c	1969-12-31 18:00:00.000000000 -0600
++++ linux-7.0.12-hdn/tools/hardening/hdn-recovery-panel.c	2026-06-27 04:03:35.625273452 -0500
+@@ -0,0 +1,495 @@
++// SPDX-License-Identifier: GPL-2.0-only
++
++#define _GNU_SOURCE
++
++#include <errno.h>
++#include <fcntl.h>
++#include <stdbool.h>
++#include <stdio.h>
++#include <stdlib.h>
++#include <string.h>
++#include <sys/stat.h>
++#include <sys/wait.h>
++#include <unistd.h>
++
++#ifndef HDN_RECOVERY_PANEL_CONFIG
++#define HDN_RECOVERY_PANEL_CONFIG "/etc/hdn/recovery-panel.conf"
++#endif
++
++#ifndef HDN_RECOVERY_DESCRIBE_PATH
++#define HDN_RECOVERY_DESCRIBE_PATH "/usr/libexec/hdn-recovery-describe"
++#endif
++
++#ifndef HDN_RECOVERY_PORTAL_PATH
++#define HDN_RECOVERY_PORTAL_PATH "/usr/libexec/hdn-recovery-portal"
++#endif
++
++#define HDN_RECOVERY_PANEL_MAX_RULES 64
++
++struct hdn_recovery_panel_rule {
++	char *name;
++	char *describe_action;
++	char *portal_action;
++};
++
++struct hdn_recovery_panel_config {
++	char *describe_helper;
++	char *portal_helper;
++	struct hdn_recovery_panel_rule rules[HDN_RECOVERY_PANEL_MAX_RULES];
++	unsigned int count;
++};
++
++static void usage(const char *prog)
++{
++	fprintf(stderr,
++		"Usage: %s [--config FILE] describe RECOVERY_ACTION\n"
++		"       %s [--config FILE] [--dry-run] action RECOVERY_ACTION\n"
++		"       %s [--config FILE] [--dry-run] repair\n"
++		"       %s [--config FILE] [--dry-run] rollback\n"
++		"\n"
++		"Stable product-facing entry point for recovery panels.\n"
++		"Config lines:\n"
++		"  describe-helper PATH\n"
++		"  portal-helper PATH\n"
++		"  action RECOVERY_ACTION DESCRIBE_ACTION PORTAL_ACTION\n",
++		prog, prog, prog, prog);
++}
++
++static char *trim(char *line)
++{
++	char *end;
++
++	while (*line == ' ' || *line == '\t' || *line == '\r' ||
++	       *line == '\n')
++		line++;
++
++	end = line + strlen(line);
++	while (end > line &&
++	       (end[-1] == ' ' || end[-1] == '\t' || end[-1] == '\r' ||
++		end[-1] == '\n'))
++		*--end = '\0';
++
++	return line;
++}
++
++static bool safe_name(const char *name)
++{
++	const char *p;
++
++	if (!name || !name[0] || !strcmp(name, ".") || !strcmp(name, ".."))
++		return false;
++
++	for (p = name; *p; p++) {
++		if ((*p >= 'A' && *p <= 'Z') ||
++		    (*p >= 'a' && *p <= 'z') ||
++		    (*p >= '0' && *p <= '9') ||
++		    *p == '.' || *p == '_' || *p == '-')
++			continue;
++		return false;
++	}
++
++	return true;
++}
++
++static bool path_has_dot_component(const char *path)
++{
++	const char *part = path;
++
++	while (*part) {
++		const char *slash;
++		size_t len;
++
++		while (*part == '/')
++			part++;
++		if (!*part)
++			break;
++
++		slash = strchr(part, '/');
++		len = slash ? (size_t)(slash - part) : strlen(part);
++		if ((len == 1 && part[0] == '.') ||
++		    (len == 2 && part[0] == '.' && part[1] == '.'))
++			return true;
++		part += len;
++	}
++
++	return false;
++}
++
++static int require_safe_absolute(const char *what, const char *path)
++{
++	if (!path || path[0] != '/') {
++		fprintf(stderr,
++			"hdn-recovery-panel: %s must be absolute: %s\n",
++			what, path ? path : "(null)");
++		return -EINVAL;
++	}
++	if (!strcmp(path, "/")) {
++		fprintf(stderr,
++			"hdn-recovery-panel: %s / is too broad\n", what);
++		return -EINVAL;
++	}
++	if (path_has_dot_component(path)) {
++		fprintf(stderr,
++			"hdn-recovery-panel: %s must not contain . or .. path components: %s\n",
++			what, path);
++		return -EINVAL;
++	}
++
++	return 0;
++}
++
++static int replace_string(char **slot, const char *value)
++{
++	char *copy = strdup(value);
++
++	if (!copy)
++		return -ENOMEM;
++	free(*slot);
++	*slot = copy;
++	return 0;
++}
++
++static int set_helper(char **slot, const char *kind, char **tokens,
++		      unsigned int count, unsigned int lineno)
++{
++	if (count != 2) {
++		fprintf(stderr,
++			"hdn-recovery-panel: %s line %u needs exactly one path\n",
++			kind, lineno);
++		return -EINVAL;
++	}
++	if (require_safe_absolute(kind, tokens[1]))
++		return -EINVAL;
++	return replace_string(slot, tokens[1]);
++}
++
++static int add_action(struct hdn_recovery_panel_config *config, char **tokens,
++		      unsigned int count, unsigned int lineno)
++{
++	struct hdn_recovery_panel_rule *rule;
++
++	if (count != 4) {
++		fprintf(stderr,
++			"hdn-recovery-panel: action line %u needs RECOVERY_ACTION DESCRIBE_ACTION PORTAL_ACTION\n",
++			lineno);
++		return -EINVAL;
++	}
++	if (config->count >= HDN_RECOVERY_PANEL_MAX_RULES) {
++		fprintf(stderr, "hdn-recovery-panel: too many action rules\n");
++		return -E2BIG;
++	}
++	if (!safe_name(tokens[1]) || !safe_name(tokens[2]) ||
++	    !safe_name(tokens[3])) {
++		fprintf(stderr,
++			"hdn-recovery-panel: unsafe action name at line %u\n",
++			lineno);
++		return -EINVAL;
++	}
++
++	rule = &config->rules[config->count];
++	rule->name = strdup(tokens[1]);
++	rule->describe_action = strdup(tokens[2]);
++	rule->portal_action = strdup(tokens[3]);
++	if (!rule->name || !rule->describe_action || !rule->portal_action)
++		return -ENOMEM;
++	config->count++;
++	return 0;
++}
++
++static int parse_config_line(struct hdn_recovery_panel_config *config,
++			     char *line, unsigned int lineno)
++{
++	char *tokens[4];
++	unsigned int count = 0;
++	char *save = NULL;
++	char *word;
++
++	line = trim(line);
++	if (!line[0] || line[0] == '#')
++		return 0;
++
++	for (word = strtok_r(line, " \t", &save); word;
++	     word = strtok_r(NULL, " \t", &save)) {
++		if (count >= sizeof(tokens) / sizeof(tokens[0])) {
++			fprintf(stderr,
++				"hdn-recovery-panel: too many fields at line %u\n",
++				lineno);
++			return -E2BIG;
++		}
++		tokens[count++] = word;
++	}
++
++	if (!count)
++		return 0;
++	if (!strcmp(tokens[0], "describe-helper"))
++		return set_helper(&config->describe_helper, "describe-helper",
++				  tokens, count, lineno);
++	if (!strcmp(tokens[0], "portal-helper"))
++		return set_helper(&config->portal_helper, "portal-helper",
++				  tokens, count, lineno);
++	if (!strcmp(tokens[0], "action"))
++		return add_action(config, tokens, count, lineno);
++
++	fprintf(stderr,
++		"hdn-recovery-panel: unknown config key at line %u: %s\n",
++		lineno, tokens[0]);
++	return -EINVAL;
++}
++
++static int open_config(const char *path)
++{
++	struct stat st;
++	int flags = O_RDONLY | O_CLOEXEC;
++	int fd;
++
++#ifdef O_NOFOLLOW
++	flags |= O_NOFOLLOW;
++#endif
++
++	fd = open(path, flags);
++	if (fd < 0) {
++		fprintf(stderr, "hdn-recovery-panel: cannot open %s: %s\n",
++			path, strerror(errno));
++		return -errno;
++	}
++
++	if (fstat(fd, &st)) {
++		int ret = -errno;
++
++		fprintf(stderr, "hdn-recovery-panel: cannot stat %s: %s\n",
++			path, strerror(errno));
++		close(fd);
++		return ret;
++	}
++
++	if (!S_ISREG(st.st_mode) || st.st_uid != 0 || (st.st_mode & 022)) {
++		fprintf(stderr,
++			"hdn-recovery-panel: refusing unsafe config %s\n",
++			path);
++		close(fd);
++		return -EACCES;
++	}
++
++	return fd;
++}
++
++static int load_config(const char *path,
++		       struct hdn_recovery_panel_config *config)
++{
++	char *line = NULL;
++	size_t size = 0;
++	unsigned int lineno = 0;
++	ssize_t len;
++	FILE *file;
++	int ret;
++	int fd;
++
++	memset(config, 0, sizeof(*config));
++
++	ret = replace_string(&config->describe_helper,
++			     HDN_RECOVERY_DESCRIBE_PATH);
++	if (ret)
++		return ret;
++	ret = replace_string(&config->portal_helper, HDN_RECOVERY_PORTAL_PATH);
++	if (ret)
++		return ret;
++
++	fd = open_config(path);
++	if (fd < 0)
++		return fd;
++
++	file = fdopen(fd, "r");
++	if (!file) {
++		ret = -errno;
++		close(fd);
++		return ret;
++	}
++
++	while ((len = getline(&line, &size, file)) >= 0) {
++		(void)len;
++		lineno++;
++		ret = parse_config_line(config, line, lineno);
++		if (ret)
++			break;
++	}
++	if (ferror(file) && !ret)
++		ret = -EIO;
++
++	free(line);
++	fclose(file);
++	return ret;
++}
++
++static void free_config(struct hdn_recovery_panel_config *config)
++{
++	unsigned int i;
++
++	free(config->describe_helper);
++	free(config->portal_helper);
++	for (i = 0; i < config->count; i++) {
++		free(config->rules[i].name);
++		free(config->rules[i].describe_action);
++		free(config->rules[i].portal_action);
++	}
++}
++
++static const struct hdn_recovery_panel_rule *
++find_action(const struct hdn_recovery_panel_config *config, const char *action)
++{
++	unsigned int i;
++
++	for (i = 0; i < config->count; i++) {
++		if (!strcmp(config->rules[i].name, action))
++			return &config->rules[i];
++	}
++
++	return NULL;
++}
++
++static int child_status_result(pid_t child)
++{
++	int status;
++
++	if (waitpid(child, &status, 0) < 0)
++		return 1;
++	if (!WIFEXITED(status))
++		return 1;
++	return WEXITSTATUS(status);
++}
++
++static int run_describe(const char *helper, const char *action)
++{
++	int err;
++
++	execl(helper, "hdn-recovery-describe", action, NULL);
++	err = errno;
++	fprintf(stderr, "hdn-recovery-panel: exec %s failed: %s\n",
++		helper, strerror(err));
++	return err == ENOENT ? 127 : 126;
++}
++
++static int run_portal_child(const char *helper, const char *action,
++			    bool dry_run)
++{
++	pid_t child;
++
++	child = fork();
++	if (child < 0) {
++		fprintf(stderr, "hdn-recovery-panel: fork failed: %s\n",
++			strerror(errno));
++		return 1;
++	}
++
++	if (!child) {
++		if (dry_run)
++			execl(helper, "hdn-recovery-portal", "--dry-run",
++			      action, NULL);
++		else
++			execl(helper, "hdn-recovery-portal", action, NULL);
++		fprintf(stderr, "hdn-recovery-panel: exec %s failed: %s\n",
++			helper, strerror(errno));
++		_exit(errno == ENOENT ? 127 : 126);
++	}
++
++	return child_status_result(child);
++}
++
++static int run_panel_action(const char *portal_helper, const char *action,
++			    bool dry_run)
++{
++	int ret;
++
++	ret = run_portal_child(portal_helper, action, true);
++	if (ret || dry_run)
++		return ret;
++
++	return run_portal_child(portal_helper, action, false);
++}
++
++int main(int argc, char **argv)
++{
++	struct hdn_recovery_panel_config config;
++	const struct hdn_recovery_panel_rule *rule;
++	const char *config_path = HDN_RECOVERY_PANEL_CONFIG;
++	const char *command = NULL;
++	const char *action = NULL;
++	bool dry_run = false;
++	int ret;
++	int i;
++
++	for (i = 1; i < argc; i++) {
++		if (!strcmp(argv[i], "--config")) {
++			if (++i >= argc) {
++				usage(argv[0]);
++				return 2;
++			}
++			config_path = argv[i];
++		} else if (!strcmp(argv[i], "--dry-run")) {
++			dry_run = true;
++		} else if (!strcmp(argv[i], "-h") ||
++			   !strcmp(argv[i], "--help")) {
++			usage(argv[0]);
++			return 0;
++		} else {
++			command = argv[i++];
++			break;
++		}
++	}
++
++	if (!command) {
++		usage(argv[0]);
++		return 2;
++	}
++
++	if (!strcmp(command, "repair")) {
++		action = "repair-system";
++		if (i != argc) {
++			usage(argv[0]);
++			return 2;
++		}
++	} else if (!strcmp(command, "rollback")) {
++		action = "rollback-policy";
++		if (i != argc) {
++			usage(argv[0]);
++			return 2;
++		}
++	} else if (!strcmp(command, "describe") ||
++		   !strcmp(command, "action")) {
++		if (i + 1 != argc || !safe_name(argv[i])) {
++			usage(argv[0]);
++			return 2;
++		}
++		action = argv[i];
++	} else {
++		usage(argv[0]);
++		return 2;
++	}
++
++	if (dry_run && !strcmp(command, "describe")) {
++		usage(argv[0]);
++		return 2;
++	}
++
++	ret = load_config(config_path, &config);
++	if (ret)
++		return 1;
++
++	rule = find_action(&config, action);
++	if (!rule) {
++		fprintf(stderr,
++			"hdn-recovery-panel: action is not product-approved: %s\n",
++			action);
++		free_config(&config);
++		return 1;
++	}
++
++	if (!strcmp(command, "describe"))
++		ret = run_describe(config.describe_helper,
++				   rule->describe_action);
++	else
++		ret = run_panel_action(config.portal_helper,
++				       rule->portal_action, dry_run);
++
++	free_config(&config);
++	return ret ? 1 : 0;
++}
 diff -ruN --exclude .git linux-7.0.12/tools/hardening/hdn-recovery-portal.c linux-7.0.12-hdn/tools/hardening/hdn-recovery-portal.c
 --- linux-7.0.12/tools/hardening/hdn-recovery-portal.c	1969-12-31 18:00:00.000000000 -0600
 +++ linux-7.0.12-hdn/tools/hardening/hdn-recovery-portal.c	2026-06-27 03:33:03.885434833 -0500
@@ -38262,6 +38790,28 @@ diff -ruN --exclude .git linux-7.0.12/tools/hardening/recovery-metadata.conf lin
 +recovery package-repair message Run the product package repair transaction.
 +recovery package-repair consequence The protected system mount is temporarily writable and then resealed.
 +recovery package-repair risk repair
+diff -ruN --exclude .git linux-7.0.12/tools/hardening/recovery-panel.conf linux-7.0.12-hdn/tools/hardening/recovery-panel.conf
+--- linux-7.0.12/tools/hardening/recovery-panel.conf	1969-12-31 18:00:00.000000000 -0600
++++ linux-7.0.12-hdn/tools/hardening/recovery-panel.conf	2026-06-27 04:03:35.625273452 -0500
+@@ -0,0 +1,18 @@
++# SPDX-License-Identifier: GPL-2.0-only
++#
++# Product recovery panel actions consumed by hdn-recovery-panel.
++# Keep this file root-owned and not writable by group/other.
++#
++# Format:
++#   describe-helper PATH
++#   portal-helper PATH
++#   action RECOVERY_ACTION DESCRIBE_ACTION PORTAL_ACTION
++#
++# Recovery shells and graphical recovery panels should call hdn-recovery-panel
++# with stable product verbs from this file instead of knowing metadata, portal,
++# session, recovery action, broker, or securityfs helper names.
++
++describe-helper /usr/libexec/hdn-recovery-describe
++portal-helper /usr/libexec/hdn-recovery-portal
++action rollback-policy policy-rollback rollback-policy
++action repair-system package-repair repair-system
 diff -ruN --exclude .git linux-7.0.12/tools/hardening/recovery-portal.conf linux-7.0.12-hdn/tools/hardening/recovery-portal.conf
 --- linux-7.0.12/tools/hardening/recovery-portal.conf	1969-12-31 18:00:00.000000000 -0600
 +++ linux-7.0.12-hdn/tools/hardening/recovery-portal.conf	2026-06-25 19:57:17.133317665 -0500
@@ -38767,8 +39317,8 @@ diff -ruN --exclude .git linux-7.0.12/tools/testing/selftests/hardening/hdn_elfn
 +}
 diff -ruN --exclude .git linux-7.0.12/tools/testing/selftests/hardening/hdn_smoke.c linux-7.0.12-hdn/tools/testing/selftests/hardening/hdn_smoke.c
 --- linux-7.0.12/tools/testing/selftests/hardening/hdn_smoke.c	1969-12-31 18:00:00.000000000 -0600
-+++ linux-7.0.12-hdn/tools/testing/selftests/hardening/hdn_smoke.c	2026-06-27 03:54:03.293322546 -0500
-@@ -0,0 +1,28430 @@
++++ linux-7.0.12-hdn/tools/testing/selftests/hardening/hdn_smoke.c	2026-06-27 04:06:15.953255855 -0500
+@@ -0,0 +1,28672 @@
 +// SPDX-License-Identifier: GPL-2.0-only
 +
 +#define _GNU_SOURCE
@@ -39458,6 +40008,7 @@ diff -ruN --exclude .git linux-7.0.12/tools/testing/selftests/hardening/hdn_smok
 +#define HDN_RECOVERY_DESCRIBE_EXEC "/hdn-recovery-describe"
 +#define HDN_RECOVERY_SESSION_EXEC "/hdn-recovery-session"
 +#define HDN_RECOVERY_PORTAL_EXEC "/hdn-recovery-portal"
++#define HDN_RECOVERY_PANEL_EXEC "/hdn-recovery-panel"
 +#define HDN_RECOVERY_PROMPT_EXEC "/hdn-recovery-prompt"
 +#define HDN_PROMPT_DISPATCH_EXEC "/hdn-prompt-dispatch"
 +#define HDN_PROMPT_DESCRIBE_EXEC "/hdn-prompt-describe"
@@ -39544,6 +40095,8 @@ diff -ruN --exclude .git linux-7.0.12/tools/testing/selftests/hardening/hdn_smok
 +	"/hdn-recovery-session-unsafe.conf"
 +#define HDN_RECOVERY_PORTAL_UNSAFE_CONFIG \
 +	"/hdn-recovery-portal-unsafe.conf"
++#define HDN_RECOVERY_PANEL_UNSAFE_CONFIG \
++	"/hdn-recovery-panel-unsafe.conf"
 +#define HDN_PROMPT_DISPATCH_UNSAFE_CONFIG \
 +	"/hdn-prompt-actions-unsafe.conf"
 +#define HDN_PROMPT_DESCRIBE_UNSAFE_CONFIG \
@@ -47618,6 +48171,213 @@ diff -ruN --exclude .git linux-7.0.12/tools/testing/selftests/hardening/hdn_smok
 +	}
 +
 +	ret = recovery_portal_run("rollback-policy", NULL, false);
++	if (ret) {
++		(void)write_text_file(HDN_ROLLBACK, "1\n");
++		return ret;
++	}
++
++	if (securityfs_status_has_line("generation: 0"))
++		return 0;
++
++	(void)write_text_file(HDN_ROLLBACK, "1\n");
++	return 1;
++}
++
++static int recovery_panel_run(const char *command, const char *action,
++			      const char *config_path, bool dry_run,
++			      bool capture_output)
++{
++	pid_t child;
++
++	if (access(HDN_RECOVERY_PANEL_EXEC, X_OK)) {
++		fprintf(stderr,
++			"recovery panel helper is not executable: %s\n",
++			strerror(errno));
++		return KSFT_SKIP;
++	}
++
++	child = fork();
++	if (child < 0)
++		return 2;
++
++	if (!child) {
++		if (capture_output) {
++			int fd;
++
++			fd = open(HDN_RECOVERY_DESCRIBE_OUTPUT,
++				  O_CREAT | O_TRUNC | O_WRONLY | O_CLOEXEC,
++				  0600);
++			if (fd < 0)
++				_exit(2);
++			if (dup2(fd, STDOUT_FILENO) < 0)
++				_exit(2);
++			close(fd);
++		}
++
++		if (config_path && dry_run)
++			execl(HDN_RECOVERY_PANEL_EXEC, "hdn-recovery-panel",
++			      "--config", config_path, "--dry-run", command,
++			      action, NULL);
++		else if (config_path)
++			execl(HDN_RECOVERY_PANEL_EXEC, "hdn-recovery-panel",
++			      "--config", config_path, command, action, NULL);
++		else if (dry_run)
++			execl(HDN_RECOVERY_PANEL_EXEC, "hdn-recovery-panel",
++			      "--dry-run", command, action, NULL);
++		else
++			execl(HDN_RECOVERY_PANEL_EXEC, "hdn-recovery-panel",
++			      command, action, NULL);
++		fprintf(stderr, "recovery panel exec failed: %s\n",
++			strerror(errno));
++		_exit(2);
++	}
++
++	return child_exit_result(child);
++}
++
++static int recovery_panel_shortcut_run(const char *command,
++				       const char *config_path, bool dry_run)
++{
++	pid_t child;
++
++	if (access(HDN_RECOVERY_PANEL_EXEC, X_OK)) {
++		fprintf(stderr,
++			"recovery panel helper is not executable: %s\n",
++			strerror(errno));
++		return KSFT_SKIP;
++	}
++
++	child = fork();
++	if (child < 0)
++		return 2;
++
++	if (!child) {
++		if (config_path && dry_run)
++			execl(HDN_RECOVERY_PANEL_EXEC, "hdn-recovery-panel",
++			      "--config", config_path, "--dry-run", command,
++			      NULL);
++		else if (config_path)
++			execl(HDN_RECOVERY_PANEL_EXEC, "hdn-recovery-panel",
++			      "--config", config_path, command, NULL);
++		else if (dry_run)
++			execl(HDN_RECOVERY_PANEL_EXEC, "hdn-recovery-panel",
++			      "--dry-run", command, NULL);
++		else
++			execl(HDN_RECOVERY_PANEL_EXEC, "hdn-recovery-panel",
++			      command, NULL);
++		fprintf(stderr, "recovery panel exec failed: %s\n",
++			strerror(errno));
++		_exit(2);
++	}
++
++	return child_exit_result(child);
++}
++
++static int recovery_panel_denied(const char *action, const char *config_path,
++				 const char *failure)
++{
++	int ret = recovery_panel_run("action", action, config_path, false,
++				     false);
++
++	if (ret == KSFT_SKIP)
++		return ret;
++	if (!ret) {
++		fprintf(stderr, "recovery panel allowed %s\n", failure);
++		return 1;
++	}
++	if (ret != 1)
++		return ret;
++
++	return securityfs_status_has_line("generation: 0") &&
++	       securityfs_status_has_line("policy_staged: 0") ? 0 : 1;
++}
++
++static int recovery_panel_unknown_denied(void)
++{
++	return recovery_panel_denied("unknown-recovery", NULL,
++				     "unknown action");
++}
++
++static int recovery_panel_unsafe_config_denied(void)
++{
++	return recovery_panel_denied("rollback-policy",
++				     HDN_RECOVERY_PANEL_UNSAFE_CONFIG,
++				     "unsafe config");
++}
++
++static int recovery_panel_repair_describe_reports_metadata(void)
++{
++	unsigned char *blob = NULL;
++	char *text = NULL;
++	size_t size = 0;
++	bool valid;
++	int ret;
++
++	unlink(HDN_RECOVERY_DESCRIBE_OUTPUT);
++	ret = recovery_panel_run("describe", "repair-system", NULL, false,
++				 true);
++	if (ret == KSFT_SKIP)
++		return ret;
++	if (ret) {
++		fprintf(stderr, "recovery panel describe exited with %d\n",
++			ret);
++		return ret;
++	}
++
++	ret = read_whole_file(HDN_RECOVERY_DESCRIBE_OUTPUT, &blob, &size);
++	if (ret) {
++		fprintf(stderr, "recovery panel describe output missing: %s\n",
++			strerror(-ret));
++		return 1;
++	}
++
++	text = malloc(size + 1);
++	if (!text) {
++		free(blob);
++		return 2;
++	}
++	memcpy(text, blob, size);
++	text[size] = '\0';
++
++	valid = recovery_description_has_line(text,
++					      "HDN_RECOVERY_METADATA_V1") &&
++		recovery_description_has_line(text, "action=package-repair") &&
++		recovery_description_has_line(text,
++					      "title=Repair protected system files") &&
++		recovery_description_has_line(text, "risk=repair") &&
++		strstr(text, "message=") &&
++		strstr(text, "consequence=");
++
++	free(text);
++	free(blob);
++	if (!valid) {
++		fprintf(stderr,
++			"recovery panel describe output did not contain expected metadata\n");
++		return 1;
++	}
++
++	return 0;
++}
++
++static int recovery_panel_policy_rollback_to_generation0(void)
++{
++	int ret;
++
++	ret = broker_policy_commit_default();
++	if (ret)
++		return ret;
++
++	ret = recovery_panel_shortcut_run("rollback", NULL, true);
++	if (ret) {
++		(void)write_text_file(HDN_ROLLBACK, "1\n");
++		return ret;
++	}
++	if (!securityfs_status_has_line("generation: 1")) {
++		(void)write_text_file(HDN_ROLLBACK, "1\n");
++		return 1;
++	}
++
++	ret = recovery_panel_shortcut_run("rollback", NULL, false);
 +	if (ret) {
 +		(void)write_text_file(HDN_ROLLBACK, "1\n");
 +		return ret;
@@ -59644,6 +60404,10 @@ diff -ruN --exclude .git linux-7.0.12/tools/testing/selftests/hardening/hdn_smok
 +	int recovery_portal_unknown_result = 2;
 +	int recovery_portal_unsafe_config_result = 2;
 +	int recovery_portal_rollback_result = 2;
++	int recovery_panel_unknown_result = 2;
++	int recovery_panel_unsafe_config_result = 2;
++	int recovery_panel_describe_result = 2;
++	int recovery_panel_rollback_result = 2;
 +	bool restricted_staged = false;
 +	bool restricted_committed = false;
 +	bool restricted_rolled_back = false;
@@ -59874,6 +60638,10 @@ diff -ruN --exclude .git linux-7.0.12/tools/testing/selftests/hardening/hdn_smok
 +		ksft_test_result_skip("recovery portal denies unknown recovery UI action\n");
 +		ksft_test_result_skip("recovery portal denies unsafe config\n");
 +		ksft_test_result_skip("recovery portal policy rollback succeeds\n");
++		ksft_test_result_skip("recovery panel denies unknown recovery action\n");
++		ksft_test_result_skip("recovery panel denies unsafe config\n");
++		ksft_test_result_skip("recovery panel describes mapped repair action\n");
++		ksft_test_result_skip("recovery panel policy rollback succeeds\n");
 +		ksft_test_result_skip("APT package hook invokes hdn package hook\n");
 +		ksft_test_result_skip("pacman package hook invokes hdn package hook\n");
 +		ksft_test_result_skip("DNF package hook invokes hdn package hook\n");
@@ -60668,6 +61436,30 @@ diff -ruN --exclude .git linux-7.0.12/tools/testing/selftests/hardening/hdn_smok
 +		recovery_portal_policy_rollback_to_generation0();
 +	report_child_result(recovery_portal_rollback_result,
 +			    "recovery portal policy rollback succeeds");
++	recovery_panel_unknown_result =
++		recovery_portal_rollback_result ?
++		recovery_portal_rollback_result :
++		recovery_panel_unknown_denied();
++	report_child_result(recovery_panel_unknown_result,
++			    "recovery panel denies unknown recovery action");
++	recovery_panel_unsafe_config_result =
++		recovery_panel_unknown_result ?
++		recovery_panel_unknown_result :
++		recovery_panel_unsafe_config_denied();
++	report_child_result(recovery_panel_unsafe_config_result,
++			    "recovery panel denies unsafe config");
++	recovery_panel_describe_result =
++		recovery_panel_unsafe_config_result ?
++		recovery_panel_unsafe_config_result :
++		recovery_panel_repair_describe_reports_metadata();
++	report_child_result(recovery_panel_describe_result,
++			    "recovery panel describes mapped repair action");
++	recovery_panel_rollback_result =
++		recovery_panel_describe_result ?
++		recovery_panel_describe_result :
++		recovery_panel_policy_rollback_to_generation0();
++	report_child_result(recovery_panel_rollback_result,
++			    "recovery panel policy rollback succeeds");
 +	report_child_result(apt_package_hook_invokes_hdn_hook(),
 +			    "APT package hook invokes hdn package hook");
 +	report_child_result(pacman_package_hook_invokes_hdn_hook(),
@@ -66778,7 +67570,7 @@ diff -ruN --exclude .git linux-7.0.12/tools/testing/selftests/hardening/hdn_smok
 +	if (access(HDN_STATUS, R_OK))
 +		ksft_exit_skip("hardening securityfs status not present\n");
 +
-+	ksft_set_plan(973);
++	ksft_set_plan(977);
 +	test_securityfs_status();
 +	test_symbol_test_module_load();
 +	test_securityfs_status_contains("abi_version: 89",
@@ -67592,8 +68384,8 @@ diff -ruN --exclude .git linux-7.0.12/tools/testing/selftests/hardening/role.pol
 +use-role 2 desktop-admin
 diff -ruN --exclude .git linux-7.0.12/tools/testing/selftests/hardening/run-qemu-smoke.sh linux-7.0.12-hdn/tools/testing/selftests/hardening/run-qemu-smoke.sh
 --- linux-7.0.12/tools/testing/selftests/hardening/run-qemu-smoke.sh	1969-12-31 18:00:00.000000000 -0600
-+++ linux-7.0.12-hdn/tools/testing/selftests/hardening/run-qemu-smoke.sh	2026-06-27 03:51:24.005339779 -0500
-@@ -0,0 +1,1267 @@
++++ linux-7.0.12-hdn/tools/testing/selftests/hardening/run-qemu-smoke.sh	2026-06-27 04:10:16.321231759 -0500
+@@ -0,0 +1,1291 @@
 +#!/bin/sh
 +# SPDX-License-Identifier: GPL-2.0
 +
@@ -67627,7 +68419,7 @@ diff -ruN --exclude .git linux-7.0.12/tools/testing/selftests/hardening/run-qemu
 +QEMU_MEMORY=${QEMU_MEMORY:-1024M}
 +QEMU_SMP=${QEMU_SMP:-2}
 +QEMU_MACHINE=${QEMU_MACHINE:-q35,accel=tcg}
-+HDN_SMOKE_EXPECTED_PASS=${HDN_SMOKE_EXPECTED_PASS:-973}
++HDN_SMOKE_EXPECTED_PASS=${HDN_SMOKE_EXPECTED_PASS:-977}
 +WORK=${HDN_QEMU_WORK:-"${TMPDIR:-/tmp}/hdn-qemu-smoke.$$"}
 +LOG=${HDN_QEMU_LOG:-"$WORK/qemu.log"}
 +QMP=${HDN_QEMU_QMP:-"$WORK/qmp.sock"}
@@ -67896,6 +68688,13 @@ diff -ruN --exclude .git linux-7.0.12/tools/testing/selftests/hardening/run-qemu
 +	"$ROOT/tools/hardening/hdn-recovery-portal.c"
 +
 +"$CC" -static -O2 -Wall -Wextra \
++	-DHDN_RECOVERY_PANEL_CONFIG='"/hdn-recovery-panel.conf"' \
++	-DHDN_RECOVERY_DESCRIBE_PATH='"/hdn-recovery-describe"' \
++	-DHDN_RECOVERY_PORTAL_PATH='"/hdn-recovery-portal"' \
++	-o "$WORK/hdn-recovery-panel" \
++	"$ROOT/tools/hardening/hdn-recovery-panel.c"
++
++"$CC" -static -O2 -Wall -Wextra \
 +	-o "$WORK/hdn-recovery-prompt" \
 +	"$ROOT/tools/hardening/hdn-recovery-prompt.c"
 +
@@ -68035,6 +68834,7 @@ diff -ruN --exclude .git linux-7.0.12/tools/testing/selftests/hardening/run-qemu
 +cp "$WORK/hdn-recovery-describe" "$WORK/initramfs/hdn-recovery-describe"
 +cp "$WORK/hdn-recovery-session" "$WORK/initramfs/hdn-recovery-session"
 +cp "$WORK/hdn-recovery-portal" "$WORK/initramfs/hdn-recovery-portal"
++cp "$WORK/hdn-recovery-panel" "$WORK/initramfs/hdn-recovery-panel"
 +cp "$WORK/hdn-recovery-prompt" "$WORK/initramfs/hdn-recovery-prompt"
 +cp "$WORK/hdn-prompt-dispatch" "$WORK/initramfs/hdn-prompt-dispatch"
 +cp "$WORK/hdn-prompt-describe" "$WORK/initramfs/hdn-prompt-describe"
@@ -68142,10 +68942,10 @@ diff -ruN --exclude .git linux-7.0.12/tools/testing/selftests/hardening/run-qemu
 +recovery policy-rollback message Restore the previous signed hardening policy.
 +recovery policy-rollback consequence The current policy generation is replaced by the rollback slot.
 +recovery policy-rollback risk recovery
-+recovery package-repair title Repair system packages
-+recovery package-repair message Reapply the product package transaction to protected system files.
-+recovery package-repair consequence The system image is temporarily writable and then resealed.
-+recovery package-repair risk recovery
++recovery package-repair title Repair protected system files
++recovery package-repair message Run the product package repair transaction.
++recovery package-repair consequence The protected system mount is temporarily writable and then resealed.
++recovery package-repair risk repair
 +EOF
 +chmod 0644 "$WORK/initramfs/hdn-recovery-metadata.conf"
 +cat > "$WORK/initramfs/hdn-recovery-metadata-unsafe.conf" <<'EOF'
@@ -68198,6 +68998,22 @@ diff -ruN --exclude .git linux-7.0.12/tools/testing/selftests/hardening/run-qemu
 +action repair-system package-repair
 +EOF
 +chmod 0666 "$WORK/initramfs/hdn-recovery-portal-unsafe.conf"
++cat > "$WORK/initramfs/hdn-recovery-panel.conf" <<'EOF'
++# Product-approved recovery panel action map for the QEMU hardening smoke test.
++describe-helper /hdn-recovery-describe
++portal-helper /hdn-recovery-portal
++action rollback-policy policy-rollback rollback-policy
++action repair-system package-repair repair-system
++EOF
++chmod 0644 "$WORK/initramfs/hdn-recovery-panel.conf"
++cat > "$WORK/initramfs/hdn-recovery-panel-unsafe.conf" <<'EOF'
++# Deliberately unsafe recovery panel config used to prove fail-closed behavior.
++describe-helper /hdn-recovery-describe
++portal-helper /hdn-recovery-portal
++action rollback-policy policy-rollback rollback-policy
++action repair-system package-repair repair-system
++EOF
++chmod 0666 "$WORK/initramfs/hdn-recovery-panel-unsafe.conf"
 +cat > "$WORK/initramfs/hdn-prompt-actions.conf" <<'EOF'
 +# Product-approved post-auth prompt actions for the QEMU hardening smoke test.
 +action package-update rofs-transaction /hdn-product-rofs -- /hdn_smoke --product-rofs-write-sentinel

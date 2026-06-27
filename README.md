@@ -21,9 +21,9 @@ The current patch is carried as a generated diff against upstream Linux
 
 This is not a finished distro kernel yet. Current rough parity estimates:
 
-- Strict grsecurity/PaX-style patch feature parity: about 22-24%.
+- Strict grsecurity/PaX-style patch feature parity: about 23-25%.
 - HDN intended hardening surface: about 53%.
-- Practical daily-driver hardening equivalence: about 71%.
+- Practical daily-driver hardening equivalence: about 71-72%.
 
 Recent coverage includes signed/sealed HDN policy, authority-gated BPF/perf/proc
 disclosure, module admission hardening, read-only mount controls, object policy
@@ -127,6 +127,13 @@ changes before the real repair path runs and reseals.
 Recovery rollback preflight is now covered by the same oracle: QEMU proves
 dry-run rollback leaves the active policy generation unchanged before the real
 rollback path executes through action, session, and portal.
+`hdn-recovery-panel` now gives graphical recovery apps a root-owned product
+manifest above `hdn-recovery-describe` and `hdn-recovery-portal`, including
+stable `describe`, `action`, `repair`, and `rollback` commands. QEMU proves
+unknown panel actions and unsafe panel manifests fail closed, proves approved
+repair metadata is reported through the panel, and proves rollback preflight
+plus real rollback reaches the recovery portal without exposing lower helper
+or broker details.
 Other-user proc task visibility now has grouped proc mount compatibility plus
 an HDN-native global task-view group for proc, pidfd, and proc task-directory
 mode visibility.
@@ -142,7 +149,7 @@ checking on supported architectures, with sealed status and QEMU coverage.
 
 The largest remaining gaps are richer RBAC/userspace integration beyond the
 current policy workflow/daemon facade, full branded desktop and recovery UI
-around the settings/control-center/admin-broker contracts, final image-specific
+around the settings/control-center/admin-broker/recovery-panel contracts, final image-specific
 update wiring, deeper internal symbol hiding, and PaX-style
 compiler/architecture mechanisms beyond the
 upstream-equivalent families already grouped in status.
@@ -170,16 +177,16 @@ The hardening smoke suite in the development tree is run under QEMU. Latest
 local result before this publication checkpoint:
 
 ```text
-QEMU hardening smoke: 973/973 pass
+QEMU hardening smoke: 977/977 pass
 ```
 
 Patch artifact at this checkpoint:
 
 ```text
 patch: patches/hdn-linux-7.0.12.patch
-lines: 69,040
-bytes: 2,058,700
-sha256: ef739c4ca26e7d2ecf1246e1c8cc5b770b614f4c1211f911c87f31b0509ed3b5
+lines: 69,856
+bytes: 2,080,905
+sha256: fa64e6f795992a1b0035fead5eac05ed3d9325fffb429d387d68cf65b796fd7e
 ```
 
 ## Development Rule
