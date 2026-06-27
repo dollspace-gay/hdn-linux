@@ -40,7 +40,8 @@ IPC/socket/device hardening, non-controlling terminal descriptor access
 hardening,
 privileged-exec restrictions, RWX/textrel/exec-stack controls, thread-stack
 placement randomization, proc-visible kernel symbol redaction, cross-process
-proc argv/env/auxv/syscall/io/personality/coredump-filter gating, expanded BPF metadata/query gating, and
+proc argv/env/auxv/syscall/io/personality/coredump-filter/limits gating,
+expanded BPF metadata/query gating, and
 broad audit/event decoding.
 Authorized `kernel.modprobe` writes now also validate the helper path as an
 absolute, symlink-free, root-owned executable through non-writable ancestry.
@@ -167,10 +168,11 @@ authority while preserving `/proc/self/pagemap` compatibility.
 Cross-process `/proc/<pid>/cmdline`, `/proc/<pid>/environ`,
 `/proc/<pid>/auxv`, `/proc/<pid>/syscall`, `/proc/<pid>/io`, and
 `/proc/<pid>/personality` reads now also require disclosure authority, as do
-cross-process `/proc/<pid>/coredump_filter` reads and writes. Self inspection
-stays compatible while argv, environment, auxv, live syscall metadata, I/O
-accounting, personality flags, and future core-dump selection stay out of
-restricted profiles.
+cross-process `/proc/<pid>/coredump_filter` reads and writes plus
+`/proc/<pid>/limits` reads. Self inspection stays compatible while argv,
+environment, auxv, live syscall metadata, I/O accounting, personality flags,
+future core-dump selection, and resource ceilings stay out of restricted
+profiles.
 Sensitive sysfs kernel metadata such as `/sys/kernel/vmcoreinfo`,
 `/sys/kernel/notes`, and `/sys/kernel/boot_params/data` now requires the
 sysfs-read authority and is hidden from restricted directory enumeration, while
@@ -208,16 +210,16 @@ The hardening smoke suite in the development tree is run under QEMU. Latest
 local result before this publication checkpoint:
 
 ```text
-QEMU hardening smoke: 1033/1033 pass
+QEMU hardening smoke: 1035/1035 pass
 ```
 
 Patch artifact at this checkpoint:
 
 ```text
 patch: patches/hdn-linux-7.0.12.patch
-lines: 74,883
-bytes: 2,244,825
-sha256: f796e5381b77cb1f47c0771ca9bd0ed1e6232385fc45ca1fd2c9cad76374bc89
+lines: 74,923
+bytes: 2,246,275
+sha256: b060f7d9365267be85f6cb4058f7cfd2b384790f0b1ab28ab995670b47aa8894
 ```
 
 ## Development Rule
