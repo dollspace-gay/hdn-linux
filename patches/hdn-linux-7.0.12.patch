@@ -1078,7 +1078,7 @@ diff -ruN --exclude .git linux-7.0.12/fs/fsopen.c linux-7.0.12-hdn/fs/fsopen.c
  		return -EPERM;
 diff -ruN --exclude .git linux-7.0.12/fs/kernfs/dir.c linux-7.0.12-hdn/fs/kernfs/dir.c
 --- linux-7.0.12/fs/kernfs/dir.c	2026-06-09 05:32:51.000000000 -0500
-+++ linux-7.0.12-hdn/fs/kernfs/dir.c	2026-06-26 16:21:36.397264237 -0500
++++ linux-7.0.12-hdn/fs/kernfs/dir.c	2026-06-26 20:36:11.375896777 -0500
 @@ -13,6 +13,7 @@
  #include <linux/idr.h>
  #include <linux/slab.h>
@@ -1087,7 +1087,7 @@ diff -ruN --exclude .git linux-7.0.12/fs/kernfs/dir.c linux-7.0.12-hdn/fs/kernfs
  #include <linux/hash.h>
  #include <linux/ns_common.h>
  
-@@ -1911,6 +1912,34 @@
+@@ -1911,6 +1912,41 @@
  	return pos;
  }
  
@@ -1108,6 +1108,13 @@ diff -ruN --exclude .git linux-7.0.12/fs/kernfs/dir.c linux-7.0.12-hdn/fs/kernfs
 +
 +		sensitive = !strcmp(name, "vmcoreinfo") ||
 +			    !strcmp(name, "notes");
++	} else if (parent && !strcmp(kernfs_rcu_name(parent), "boot_params")) {
++		struct kernfs_node *grandparent = kernfs_parent(parent);
++		const char *name = kernfs_rcu_name(kn);
++
++		sensitive = grandparent &&
++			    !strcmp(kernfs_rcu_name(grandparent), "kernel") &&
++			    !strcmp(name, "data");
 +	}
 +
 +	if (!(kn->mode & 0400) || ((kn->mode & 0044) && !sensitive))
@@ -1122,7 +1129,7 @@ diff -ruN --exclude .git linux-7.0.12/fs/kernfs/dir.c linux-7.0.12-hdn/fs/kernfs
  static int kernfs_fop_readdir(struct file *file, struct dir_context *ctx)
  {
  	struct dentry *dentry = file->f_path.dentry;
-@@ -1940,6 +1969,9 @@
+@@ -1940,6 +1976,9 @@
  		file->private_data = pos;
  		kernfs_get(pos);
  
@@ -3304,7 +3311,7 @@ diff -ruN --exclude .git linux-7.0.12/fs/super.c linux-7.0.12-hdn/fs/super.c
  			super_unlock_excl(sb);
 diff -ruN --exclude .git linux-7.0.12/fs/sysfs/file.c linux-7.0.12-hdn/fs/sysfs/file.c
 --- linux-7.0.12/fs/sysfs/file.c	2026-06-09 05:32:51.000000000 -0500
-+++ linux-7.0.12-hdn/fs/sysfs/file.c	2026-06-26 16:21:36.397264237 -0500
++++ linux-7.0.12-hdn/fs/sysfs/file.c	2026-06-26 20:36:04.479897372 -0500
 @@ -16,6 +16,7 @@
  #include <linux/mutex.h>
  #include <linux/seq_file.h>
@@ -3313,7 +3320,7 @@ diff -ruN --exclude .git linux-7.0.12/fs/sysfs/file.c linux-7.0.12-hdn/fs/sysfs/
  
  #include "sysfs.h"
  
-@@ -38,6 +39,39 @@
+@@ -38,6 +39,45 @@
  	return kobj->ktype ? kobj->ktype->sysfs_ops : NULL;
  }
  
@@ -3328,15 +3335,21 @@ diff -ruN --exclude .git linux-7.0.12/fs/sysfs/file.c linux-7.0.12-hdn/fs/sysfs/
 +{
 +	const struct attribute *attr = of->kn->priv;
 +	struct kobject *kobj = sysfs_file_kobj(of->kn);
++	const char *parent_name = kobj->parent ? kobject_name(kobj->parent) : NULL;
 +	const char *kobj_name = kobject_name(kobj);
 +
-+	if (!kobj_name || strcmp(kobj_name, "kernel"))
-+		return false;
 +	if (!attr || !attr->name)
 +		return false;
++	if (!kobj_name)
++		return false;
 +
-+	return !strcmp(attr->name, "vmcoreinfo") ||
-+	       !strcmp(attr->name, "notes");
++	if (!strcmp(kobj_name, "kernel"))
++		return !strcmp(attr->name, "vmcoreinfo") ||
++		       !strcmp(attr->name, "notes");
++
++	return parent_name && !strcmp(parent_name, "kernel") &&
++	       !strcmp(kobj_name, "boot_params") &&
++	       !strcmp(attr->name, "data");
 +}
 +
 +static int hdn_authorize_sysfs_read(struct kernfs_open_file *of)
@@ -3353,7 +3366,7 @@ diff -ruN --exclude .git linux-7.0.12/fs/sysfs/file.c linux-7.0.12-hdn/fs/sysfs/
  /*
   * Reads on sysfs are handled through seq_file, which takes care of hairy
   * details like buffering and seeking.  The following function pipes
-@@ -54,6 +88,10 @@
+@@ -54,6 +94,10 @@
  	if (WARN_ON_ONCE(!ops->show))
  		return -EINVAL;
  
@@ -3364,7 +3377,7 @@ diff -ruN --exclude .git linux-7.0.12/fs/sysfs/file.c linux-7.0.12-hdn/fs/sysfs/
  	/* acquire buffer and ensure that it's >= PAGE_SIZE and clear */
  	count = seq_get_buf(sf, &buf);
  	if (count < PAGE_SIZE) {
-@@ -86,10 +124,15 @@
+@@ -86,10 +130,15 @@
  	const struct bin_attribute *battr = of->kn->priv;
  	struct kobject *kobj = sysfs_file_kobj(of->kn);
  	loff_t size = file_inode(of->file)->i_size;
@@ -3380,7 +3393,7 @@ diff -ruN --exclude .git linux-7.0.12/fs/sysfs/file.c linux-7.0.12-hdn/fs/sysfs/
  	if (size) {
  		if (pos >= size)
  			return 0;
-@@ -117,6 +160,10 @@
+@@ -117,6 +166,10 @@
  	 */
  	if (WARN_ON_ONCE(buf != of->prealloc_buf))
  		return 0;
@@ -3391,7 +3404,7 @@ diff -ruN --exclude .git linux-7.0.12/fs/sysfs/file.c linux-7.0.12-hdn/fs/sysfs/
  	len = ops->show(kobj, of->kn->priv, buf);
  	if (len < 0)
  		return len;
-@@ -138,6 +185,11 @@
+@@ -138,6 +191,11 @@
  
  	if (!count)
  		return 0;
@@ -3403,7 +3416,7 @@ diff -ruN --exclude .git linux-7.0.12/fs/sysfs/file.c linux-7.0.12-hdn/fs/sysfs/
  
  	return ops->store(kobj, of->kn->priv, buf, count);
  }
-@@ -160,6 +212,11 @@
+@@ -160,6 +218,11 @@
  
  	if (!battr->write)
  		return -EIO;
@@ -3415,7 +3428,7 @@ diff -ruN --exclude .git linux-7.0.12/fs/sysfs/file.c linux-7.0.12-hdn/fs/sysfs/
  
  	return battr->write(of->file, kobj, battr, buf, pos, count);
  }
-@@ -169,6 +226,11 @@
+@@ -169,6 +232,11 @@
  {
  	const struct bin_attribute *battr = of->kn->priv;
  	struct kobject *kobj = sysfs_file_kobj(of->kn);
@@ -35797,8 +35810,8 @@ diff -ruN --exclude .git linux-7.0.12/tools/testing/selftests/hardening/hdn_elfn
 +}
 diff -ruN --exclude .git linux-7.0.12/tools/testing/selftests/hardening/hdn_smoke.c linux-7.0.12-hdn/tools/testing/selftests/hardening/hdn_smoke.c
 --- linux-7.0.12/tools/testing/selftests/hardening/hdn_smoke.c	1969-12-31 18:00:00.000000000 -0600
-+++ linux-7.0.12-hdn/tools/testing/selftests/hardening/hdn_smoke.c	2026-06-26 20:28:29.511938888 -0500
-@@ -0,0 +1,24845 @@
++++ linux-7.0.12-hdn/tools/testing/selftests/hardening/hdn_smoke.c	2026-06-26 20:37:45.803888902 -0500
+@@ -0,0 +1,24871 @@
 +// SPDX-License-Identifier: GPL-2.0-only
 +
 +#define _GNU_SOURCE
@@ -36050,6 +36063,7 @@ diff -ruN --exclude .git linux-7.0.12/tools/testing/selftests/hardening/hdn_smok
 +#define HDN_TEST_FIRMWARE_TRIGGER HDN_TEST_FIRMWARE_DIR "/trigger_request"
 +#define HDN_SYSFS_RCU_EXPEDITED "/sys/kernel/rcu_expedited"
 +#define HDN_SYSFS_VMCOREINFO "/sys/kernel/vmcoreinfo"
++#define HDN_SYSFS_BOOT_PARAMS_DATA "/sys/kernel/boot_params/data"
 +#define HDN_SYSFS_SLAB_DIR "/sys/kernel/slab"
 +#define HDN_DEV_PORT "/dev/port"
 +#define HDN_DEV_USBMON0 "/dev/usbmon0"
@@ -44387,7 +44401,7 @@ diff -ruN --exclude .git linux-7.0.12/tools/testing/selftests/hardening/hdn_smok
 +	return sysfs_readdir_path_hidden(path);
 +}
 +
-+static int sysfs_sensitive_read_denied(void)
++static int sysfs_path_read_denied(const char *path)
 +{
 +	char buf[1];
 +	int saved_errno = 0;
@@ -44395,9 +44409,9 @@ diff -ruN --exclude .git linux-7.0.12/tools/testing/selftests/hardening/hdn_smok
 +	int ret;
 +
 +	errno = 0;
-+	fd = open(HDN_SYSFS_VMCOREINFO, O_RDONLY | O_CLOEXEC);
++	fd = open(path, O_RDONLY | O_CLOEXEC);
 +	if (fd < 0)
-+		return errno == ENOENT ? KSFT_SKIP :
++		return errno == ENOENT || errno == ENOTDIR ? KSFT_SKIP :
 +		       errno_is_denial(errno) ? 0 : 2;
 +
 +	errno = 0;
@@ -44411,9 +44425,24 @@ diff -ruN --exclude .git linux-7.0.12/tools/testing/selftests/hardening/hdn_smok
 +	return errno_is_denial(saved_errno) ? 0 : 2;
 +}
 +
++static int sysfs_sensitive_read_denied(void)
++{
++	return sysfs_path_read_denied(HDN_SYSFS_VMCOREINFO);
++}
++
 +static int sysfs_sensitive_readdir_hidden(void)
 +{
 +	return sysfs_readdir_path_hidden(HDN_SYSFS_VMCOREINFO);
++}
++
++static int sysfs_boot_params_read_denied(void)
++{
++	return sysfs_path_read_denied(HDN_SYSFS_BOOT_PARAMS_DATA);
++}
++
++static int sysfs_boot_params_readdir_hidden(void)
++{
++	return sysfs_readdir_path_hidden(HDN_SYSFS_BOOT_PARAMS_DATA);
 +}
 +
 +static bool module_address_hidden_token(const char *token)
@@ -54364,6 +54393,10 @@ diff -ruN --exclude .git linux-7.0.12/tools/testing/selftests/hardening/hdn_smok
 +		ksft_test_result_skip("restricted profile denies sysfs mutation\n");
 +		ksft_test_result_skip("restricted profile denies owner-only sysfs read\n");
 +		ksft_test_result_skip("restricted profile hides owner-only sysfs entries\n");
++		ksft_test_result_skip("restricted profile denies sensitive sysfs read\n");
++		ksft_test_result_skip("restricted profile hides sensitive sysfs entries\n");
++		ksft_test_result_skip("restricted profile denies boot params sysfs read\n");
++		ksft_test_result_skip("restricted profile hides boot params sysfs entry\n");
 +			ksft_test_result_skip("restricted profile denies proc disclosure\n");
 +			ksft_test_result_skip("restricted profile redacts proc memmap addresses\n");
 +			ksft_test_result_skip("restricted profile redacts proc resource-map addresses\n");
@@ -55244,6 +55277,12 @@ diff -ruN --exclude .git linux-7.0.12/tools/testing/selftests/hardening/hdn_smok
 +	report_child_result(restricted_committed ?
 +			    sysfs_sensitive_readdir_hidden() : 2,
 +			    "restricted profile hides sensitive sysfs entries");
++	report_child_result(restricted_committed ?
++			    sysfs_boot_params_read_denied() : 2,
++			    "restricted profile denies boot params sysfs read");
++	report_child_result(restricted_committed ?
++			    sysfs_boot_params_readdir_hidden() : 2,
++			    "restricted profile hides boot params sysfs entry");
 +	report_child_result(restricted_committed ? proc_kcore_denied() : 2,
 +			    "restricted profile denies proc disclosure");
 +	report_child_result(restricted_committed ?
@@ -60259,7 +60298,7 @@ diff -ruN --exclude .git linux-7.0.12/tools/testing/selftests/hardening/hdn_smok
 +	if (access(HDN_STATUS, R_OK))
 +		ksft_exit_skip("hardening securityfs status not present\n");
 +
-+	ksft_set_plan(847);
++	ksft_set_plan(849);
 +	test_securityfs_status();
 +	test_symbol_test_module_load();
 +	test_securityfs_status_contains("abi_version: 81",
@@ -60994,7 +61033,7 @@ diff -ruN --exclude .git linux-7.0.12/tools/testing/selftests/hardening/role.pol
 +use-role 2 desktop-admin
 diff -ruN --exclude .git linux-7.0.12/tools/testing/selftests/hardening/run-qemu-smoke.sh linux-7.0.12-hdn/tools/testing/selftests/hardening/run-qemu-smoke.sh
 --- linux-7.0.12/tools/testing/selftests/hardening/run-qemu-smoke.sh	1969-12-31 18:00:00.000000000 -0600
-+++ linux-7.0.12-hdn/tools/testing/selftests/hardening/run-qemu-smoke.sh	2026-06-26 20:27:33.507943965 -0500
++++ linux-7.0.12-hdn/tools/testing/selftests/hardening/run-qemu-smoke.sh	2026-06-26 20:41:04.115870252 -0500
 @@ -0,0 +1,1060 @@
 +#!/bin/sh
 +# SPDX-License-Identifier: GPL-2.0
@@ -61029,7 +61068,7 @@ diff -ruN --exclude .git linux-7.0.12/tools/testing/selftests/hardening/run-qemu
 +QEMU_MEMORY=${QEMU_MEMORY:-1024M}
 +QEMU_SMP=${QEMU_SMP:-2}
 +QEMU_MACHINE=${QEMU_MACHINE:-q35,accel=tcg}
-+HDN_SMOKE_EXPECTED_PASS=${HDN_SMOKE_EXPECTED_PASS:-847}
++HDN_SMOKE_EXPECTED_PASS=${HDN_SMOKE_EXPECTED_PASS:-849}
 +WORK=${HDN_QEMU_WORK:-"${TMPDIR:-/tmp}/hdn-qemu-smoke.$$"}
 +LOG=${HDN_QEMU_LOG:-"$WORK/qemu.log"}
 +QMP=${HDN_QEMU_QMP:-"$WORK/qmp.sock"}

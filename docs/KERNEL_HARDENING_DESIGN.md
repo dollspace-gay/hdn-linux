@@ -1617,8 +1617,9 @@ Core oracle groups:
 - `/proc/ioports` and `/proc/iomem` address ranges redacted without
   `PROC_DISCLOSE`, while resource names remain visible for compatibility
 - owner-only sysfs attributes and sensitive world-readable sysfs metadata such
-  as `/sys/kernel/vmcoreinfo` are denied and hidden without `SYSFS_READ`, while
-  ordinary device-discovery sysfs entries remain visible
+  as `/sys/kernel/vmcoreinfo`, `/sys/kernel/notes`, and
+  `/sys/kernel/boot_params/data` are denied and hidden without `SYSFS_READ`,
+  while ordinary device-discovery sysfs entries remain visible
 - setuid privileged exec rejects oversized argv/env stacks and caps inherited
   stack rlimits before mmap layout selection
 - kernel logs redacted

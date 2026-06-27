@@ -80,9 +80,10 @@ product-facing status/action entry point above `hdn-status` and
 tools, and developer-mode UI a root-owned named workflow for policy learning
 and candidate policy generation above `hdn-policy-learn` and
 `hdn-policy-merge`.
-Sensitive sysfs kernel metadata such as `/sys/kernel/vmcoreinfo` now requires
-the sysfs-read authority and is hidden from restricted directory enumeration,
-while ordinary device-discovery sysfs remains visible.
+Sensitive sysfs kernel metadata such as `/sys/kernel/vmcoreinfo`,
+`/sys/kernel/notes`, and `/sys/kernel/boot_params/data` now requires the
+sysfs-read authority and is hidden from restricted directory enumeration, while
+ordinary device-discovery sysfs remains visible.
 The exploit-mitigation baseline also enables and enforces upstream page-table
 checking on supported architectures, with sealed status and QEMU coverage.
 
@@ -114,16 +115,16 @@ The hardening smoke suite in the development tree is run under QEMU. Latest
 local result before this publication checkpoint:
 
 ```text
-QEMU hardening smoke: 847/847 pass
+QEMU hardening smoke: 849/849 pass
 ```
 
 Patch artifact at this checkpoint:
 
 ```text
 patch: patches/hdn-linux-7.0.12.patch
-lines: 62,234
-bytes: 1,832,939
-sha256: fee22b7b49e318bc3f1acab5e30131d91b4f2e805bff734605bfe341e6c97a47
+lines: 62,273
+bytes: 1,834,517
+sha256: 70cd60647e182f9aabbb8620acdd63d36812153affcf552251546c11f5c3c467
 ```
 
 ## Development Rule
