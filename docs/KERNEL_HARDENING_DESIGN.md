@@ -1011,8 +1011,9 @@ opened before policy commit. Pure lookup-style discovery is covered by
 	attempts by parent directory identity before the socket node is created.
 	`deny-unix-listen` and `deny-unix-accept` cover filesystem-backed
 	AF_UNIX listener operations by bound socket identity. `deny-unix-send`
-	covers pathname AF_UNIX datagram sends by destination socket identity,
-	and `deny-unix-recv` covers datagram receives by bound socket identity.
+	covers pathname and connected AF_UNIX datagram sends by destination
+	socket identity, and `deny-unix-recv` covers datagram receives by bound
+	socket identity.
 	It is still a compact
 	object-policy base, not a full RBAC object language.
 

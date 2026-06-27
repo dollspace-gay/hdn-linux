@@ -9626,7 +9626,7 @@ diff -ruN --exclude .git linux-7.0.12/net/socket.c linux-7.0.12-hdn/net/socket.c
  	if (err)
 diff -ruN --exclude .git linux-7.0.12/net/unix/af_unix.c linux-7.0.12-hdn/net/unix/af_unix.c
 --- linux-7.0.12/net/unix/af_unix.c	2026-06-09 05:32:51.000000000 -0500
-+++ linux-7.0.12-hdn/net/unix/af_unix.c	2026-06-26 19:03:10.904403317 -0500
++++ linux-7.0.12-hdn/net/unix/af_unix.c	2026-06-26 19:12:48.064351401 -0500
 @@ -86,6 +86,7 @@
  #include <linux/filter.h>
  #include <linux/fs.h>
@@ -9690,7 +9690,7 @@ diff -ruN --exclude .git linux-7.0.12/net/unix/af_unix.c linux-7.0.12-hdn/net/un
  	unix_remove_socket(sock_net(sk), sk);
  	unix_remove_bsd_socket(sk);
  
-@@ -806,6 +834,20 @@
+@@ -806,6 +834,46 @@
  	return sk->sk_scm_credentials || sk->sk_scm_pidfd;
  }
  
@@ -9708,10 +9708,36 @@ diff -ruN --exclude .git linux-7.0.12/net/unix/af_unix.c linux-7.0.12-hdn/net/un
 +	return hdn_authorize_object_unix_recv(&u->path);
 +}
 +
++static int hdn_authorize_unix_dgram_send_peer(const struct sock *sk,
++					      struct sock *other)
++{
++	struct path path;
++	bool have_path = false;
++	int err;
++
++	if (sk->sk_type != SOCK_DGRAM)
++		return 0;
++
++	unix_state_lock(other);
++	if (unix_sk(other)->path.dentry && unix_sk(other)->path.mnt) {
++		path = unix_sk(other)->path;
++		path_get(&path);
++		have_path = true;
++	}
++	unix_state_unlock(other);
++
++	if (!have_path)
++		return 0;
++
++	err = hdn_authorize_object_unix_send(&path);
++	path_put(&path);
++	return err;
++}
++
  static int unix_listen(struct socket *sock, int backlog)
  {
  	int err;
-@@ -819,6 +861,9 @@
+@@ -819,6 +887,9 @@
  	err = -EINVAL;
  	if (!READ_ONCE(u->addr))
  		goto out;	/* No listens on an unbound socket */
@@ -9721,7 +9747,7 @@ diff -ruN --exclude .git linux-7.0.12/net/unix/af_unix.c linux-7.0.12-hdn/net/un
  	err = prepare_peercred(&peercred);
  	if (err)
  		goto out;
-@@ -1116,6 +1161,8 @@
+@@ -1116,6 +1187,8 @@
  	u->vertex = NULL;
  	u->path.dentry = NULL;
  	u->path.mnt = NULL;
@@ -9730,7 +9756,7 @@ diff -ruN --exclude .git linux-7.0.12/net/unix/af_unix.c linux-7.0.12-hdn/net/un
  	spin_lock_init(&u->lock);
  	lock_set_cmp_fn(&u->lock, unix_state_lock_cmp_fn, NULL);
  	mutex_init(&u->iolock); /* single task reading lock */
-@@ -1188,7 +1235,8 @@
+@@ -1188,7 +1261,8 @@
  }
  
  static struct sock *unix_find_bsd(struct sockaddr_un *sunaddr, int addr_len,
@@ -9740,7 +9766,7 @@ diff -ruN --exclude .git linux-7.0.12/net/unix/af_unix.c linux-7.0.12-hdn/net/un
  {
  	struct inode *inode;
  	struct path path;
-@@ -1226,6 +1274,13 @@
+@@ -1226,6 +1300,13 @@
  	if (!S_ISSOCK(inode->i_mode))
  		goto path_put;
  
@@ -9754,7 +9780,7 @@ diff -ruN --exclude .git linux-7.0.12/net/unix/af_unix.c linux-7.0.12-hdn/net/un
  	sk = unix_find_socket_byinode(inode);
  	if (!sk)
  		goto path_put;
-@@ -1260,6 +1315,11 @@
+@@ -1260,6 +1341,11 @@
  	if (!sk)
  		return ERR_PTR(-ECONNREFUSED);
  
@@ -9766,7 +9792,7 @@ diff -ruN --exclude .git linux-7.0.12/net/unix/af_unix.c linux-7.0.12-hdn/net/un
  	dentry = unix_sk(sk)->path.dentry;
  	if (dentry)
  		touch_atime(&unix_sk(sk)->path);
-@@ -1269,12 +1329,13 @@
+@@ -1269,12 +1355,13 @@
  
  static struct sock *unix_find_other(struct net *net,
  				    struct sockaddr_un *sunaddr,
@@ -9782,7 +9808,7 @@ diff -ruN --exclude .git linux-7.0.12/net/unix/af_unix.c linux-7.0.12-hdn/net/un
  	else
  		sk = unix_find_abstract(net, sunaddr, addr_len, type);
  
-@@ -1336,6 +1397,7 @@
+@@ -1336,6 +1423,7 @@
  	}
  
  	__unix_set_addr_hash(net, sk, addr, new_hash);
@@ -9790,7 +9816,7 @@ diff -ruN --exclude .git linux-7.0.12/net/unix/af_unix.c linux-7.0.12-hdn/net/un
  	unix_table_double_unlock(net, old_hash, new_hash);
  	err = 0;
  
-@@ -1376,7 +1438,9 @@
+@@ -1376,7 +1464,9 @@
  	 * All right, let's create it.
  	 */
  	idmap = mnt_idmap(parent.mnt);
@@ -9801,7 +9827,7 @@ diff -ruN --exclude .git linux-7.0.12/net/unix/af_unix.c linux-7.0.12-hdn/net/un
  	if (!err)
  		err = vfs_mknod(idmap, d_inode(parent.dentry), dentry, mode, 0, NULL);
  	if (err)
-@@ -1442,6 +1506,7 @@
+@@ -1442,6 +1532,7 @@
  		goto out_spin;
  
  	__unix_set_addr_hash(net, sk, addr, new_hash);
@@ -9809,7 +9835,7 @@ diff -ruN --exclude .git linux-7.0.12/net/unix/af_unix.c linux-7.0.12-hdn/net/un
  	unix_table_double_unlock(net, old_hash, new_hash);
  	mutex_unlock(&u->bindlock);
  	return 0;
-@@ -1530,7 +1595,8 @@
+@@ -1530,7 +1621,8 @@
  		}
  
  restart:
@@ -9819,7 +9845,7 @@ diff -ruN --exclude .git linux-7.0.12/net/unix/af_unix.c linux-7.0.12-hdn/net/un
  		if (IS_ERR(other)) {
  			err = PTR_ERR(other);
  			goto out;
-@@ -1670,7 +1736,8 @@
+@@ -1670,7 +1762,8 @@
  
  restart:
  	/*  Find listening sock. */
@@ -9829,7 +9855,7 @@ diff -ruN --exclude .git linux-7.0.12/net/unix/af_unix.c linux-7.0.12-hdn/net/un
  	if (IS_ERR(other)) {
  		err = PTR_ERR(other);
  		goto out_free_skb;
-@@ -1780,6 +1847,8 @@
+@@ -1780,6 +1873,8 @@
  
  	unix_state_unlock(sk);
  
@@ -9838,7 +9864,7 @@ diff -ruN --exclude .git linux-7.0.12/net/unix/af_unix.c linux-7.0.12-hdn/net/un
  	/* take ten and send info to listening sock */
  	spin_lock(&other->sk_receive_queue.lock);
  	__skb_queue_tail(&other->sk_receive_queue, skb);
-@@ -1846,6 +1915,9 @@
+@@ -1846,6 +1941,9 @@
  	arg->err = -EINVAL;
  	if (READ_ONCE(sk->sk_state) != TCP_LISTEN)
  		goto out;
@@ -9848,7 +9874,7 @@ diff -ruN --exclude .git linux-7.0.12/net/unix/af_unix.c linux-7.0.12-hdn/net/un
  
  	/* If socket state is TCP_LISTEN it cannot change (for now...),
  	 * so that no locks are necessary.
-@@ -2156,7 +2228,8 @@
+@@ -2156,7 +2254,8 @@
  	if (msg->msg_namelen) {
  lookup:
  		other = unix_find_other(sock_net(sk), msg->msg_name,
@@ -9858,7 +9884,18 @@ diff -ruN --exclude .git linux-7.0.12/net/unix/af_unix.c linux-7.0.12-hdn/net/un
  		if (IS_ERR(other)) {
  			err = PTR_ERR(other);
  			goto out_free;
-@@ -2672,6 +2745,11 @@
+@@ -2167,6 +2266,10 @@
+ 			err = -ENOTCONN;
+ 			goto out_free;
+ 		}
++
++		err = hdn_authorize_unix_dgram_send_peer(sk, other);
++		if (err)
++			goto out_sock_put;
+ 	}
+ 
+ 	if (sk_filter(other, skb) < 0) {
+@@ -2672,6 +2775,11 @@
  			      int flags)
  {
  	struct sock *sk = sock->sk;
@@ -9870,7 +9907,7 @@ diff -ruN --exclude .git linux-7.0.12/net/unix/af_unix.c linux-7.0.12-hdn/net/un
  
  #ifdef CONFIG_BPF_SYSCALL
  	const struct proto *prot = READ_ONCE(sk->sk_prot);
-@@ -2688,6 +2766,10 @@
+@@ -2688,6 +2796,10 @@
  	struct sk_buff *skb;
  	int err;
  
@@ -18480,7 +18517,7 @@ diff -ruN --exclude .git linux-7.0.12/tools/hardening/Makefile linux-7.0.12-hdn/
 +.PHONY: all clean install
 diff -ruN --exclude .git linux-7.0.12/tools/hardening/README.rst linux-7.0.12-hdn/tools/hardening/README.rst
 --- linux-7.0.12/tools/hardening/README.rst	1969-12-31 18:00:00.000000000 -0600
-+++ linux-7.0.12-hdn/tools/hardening/README.rst	2026-06-26 19:02:11.200408692 -0500
++++ linux-7.0.12-hdn/tools/hardening/README.rst	2026-06-26 19:15:26.120336889 -0500
 @@ -0,0 +1,1388 @@
 +.. SPDX-License-Identifier: GPL-2.0-only
 +
@@ -19055,8 +19092,8 @@ diff -ruN --exclude .git linux-7.0.12/tools/hardening/README.rst linux-7.0.12-hd
 +``deny-unix-bind`` match the parent directory identity.
 +``deny-unix-listen`` and ``deny-unix-accept`` match the bound filesystem
 +socket identity. ``deny-unix-send`` matches the destination filesystem socket
-+identity for pathname datagram sends. ``deny-unix-recv`` matches the bound
-+filesystem socket identity for datagram receives. ``deny-delete``,
++identity for pathname and connected datagram sends. ``deny-unix-recv`` matches
++the bound filesystem socket identity for datagram receives. ``deny-delete``,
 +``deny-unlink``, and ``deny-rmdir`` match the object being removed, while
 +``deny-link`` matches the hardlink source file identity. ``tree`` inputs must
 +resolve to directories and match that
@@ -19161,9 +19198,9 @@ diff -ruN --exclude .git linux-7.0.12/tools/hardening/README.rst linux-7.0.12-hd
 +	parent directory identity before the socket node is created. It enforces
 +	deny-unix-listen and deny-unix-accept for filesystem-backed AF_UNIX
 +	listening sockets by bound socket identity. It enforces deny-unix-send
-+	for filesystem-backed AF_UNIX datagram sends by destination socket
-+	identity, and deny-unix-recv for filesystem-backed AF_UNIX datagram
-+	receives by bound socket identity.
++	for filesystem-backed AF_UNIX pathname and connected datagram sends by
++	destination socket identity, and deny-unix-recv for filesystem-backed
++	AF_UNIX datagram receives by bound socket identity.
 +QEMU stages a
 +dedicated object policy and proves protected
 +read/write/delete/create/creat/mkdir/mknod/symlink/unlink/rmdir/exec/link/attr/chmod/chown/utime/xattr/setxattr/removexattr/access/stat/list/find/ioctl/lock/watch/receive/fcntl/chdir/mount/umount/truncate/rename/unix-connect/unix-bind/unix-listen/unix-accept/unix-send/unix-recv targets, protected
@@ -35692,8 +35729,8 @@ diff -ruN --exclude .git linux-7.0.12/tools/testing/selftests/hardening/hdn_elfn
 +}
 diff -ruN --exclude .git linux-7.0.12/tools/testing/selftests/hardening/hdn_smoke.c linux-7.0.12-hdn/tools/testing/selftests/hardening/hdn_smoke.c
 --- linux-7.0.12/tools/testing/selftests/hardening/hdn_smoke.c	1969-12-31 18:00:00.000000000 -0600
-+++ linux-7.0.12-hdn/tools/testing/selftests/hardening/hdn_smoke.c	2026-06-26 19:02:02.472409425 -0500
-@@ -0,0 +1,24210 @@
++++ linux-7.0.12-hdn/tools/testing/selftests/hardening/hdn_smoke.c	2026-06-26 19:10:15.420363554 -0500
+@@ -0,0 +1,24311 @@
 +// SPDX-License-Identifier: GPL-2.0-only
 +
 +#define _GNU_SOURCE
@@ -39746,6 +39783,53 @@ diff -ruN --exclude .git linux-7.0.12/tools/testing/selftests/hardening/hdn_smok
 +	return 0;
 +}
 +
++static int setup_object_unix_dgram_client(const char *path, int *client_fd)
++{
++	struct sockaddr_un addr;
++	socklen_t addrlen;
++	int fd;
++	int ret;
++
++	*client_fd = -1;
++	ret = unix_sockaddr_path(path, &addr, &addrlen);
++	if (ret)
++		return ret;
++
++	fd = socket(AF_UNIX, SOCK_DGRAM | SOCK_CLOEXEC, 0);
++	if (fd < 0)
++		return -errno;
++
++	if (connect(fd, (struct sockaddr *)&addr, addrlen)) {
++		ret = -errno;
++		close(fd);
++		return ret;
++	}
++
++	*client_fd = fd;
++	return 0;
++}
++
++static int setup_object_unix_connected_send_fixtures(int *protected_fd,
++						     int *unprotected_fd)
++{
++	int ret;
++
++	ret = setup_object_unix_dgram_client(HDN_OBJECT_UNIX_SEND_PROTECTED,
++					     protected_fd);
++	if (ret)
++		return ret;
++
++	ret = setup_object_unix_dgram_client(HDN_OBJECT_UNIX_SEND_UNPROTECTED,
++					     unprotected_fd);
++	if (ret) {
++		close(*protected_fd);
++		*protected_fd = -1;
++		return ret;
++	}
++
++	return 0;
++}
++
 +static int setup_object_unix_recv_fixtures(int *protected_fd,
 +					   int *unprotected_fd)
 +{
@@ -39995,6 +40079,36 @@ diff -ruN --exclude .git linux-7.0.12/tools/testing/selftests/hardening/hdn_smok
 +static int object_unix_send_unmatched_allowed(void)
 +{
 +	return object_unix_send_result(HDN_OBJECT_UNIX_SEND_UNPROTECTED, true);
++}
++
++static int object_unix_connected_send_result(int fd, bool expect_allowed)
++{
++	int saved_errno;
++	char byte = 'c';
++	int ret;
++
++	if (fd < 0)
++		return 2;
++
++	errno = 0;
++	ret = send(fd, &byte, sizeof(byte), MSG_DONTWAIT);
++	saved_errno = errno;
++
++	if (expect_allowed)
++		return ret == (int)sizeof(byte) ? 0 : 2;
++	if (ret == (int)sizeof(byte))
++		return 1;
++	return errno_is_denial(saved_errno) ? 0 : 2;
++}
++
++static int object_unix_connected_send_denied(int fd)
++{
++	return object_unix_connected_send_result(fd, false);
++}
++
++static int object_unix_connected_send_unmatched_allowed(int fd)
++{
++	return object_unix_connected_send_result(fd, true);
 +}
 +
 +static int object_unix_recv_result(int server_fd, const char *path,
@@ -53591,6 +53705,8 @@ diff -ruN --exclude .git linux-7.0.12/tools/testing/selftests/hardening/hdn_smok
 +	int object_unix_accept_unprotected_fd = -1;
 +	int object_unix_send_protected_fd = -1;
 +	int object_unix_send_unprotected_fd = -1;
++	int object_unix_connected_send_protected_fd = -1;
++	int object_unix_connected_send_unprotected_fd = -1;
 +	int object_unix_recv_protected_fd = -1;
 +	int object_unix_recv_unprotected_fd = -1;
 +	bool socket_policy_staged = false;
@@ -53943,6 +54059,8 @@ diff -ruN --exclude .git linux-7.0.12/tools/testing/selftests/hardening/hdn_smok
 +				ksft_test_result_skip("object unix-accept policy allows unmatched socket accept\n");
 +				ksft_test_result_skip("object unix-send policy denies protected datagram send\n");
 +				ksft_test_result_skip("object unix-send policy allows unmatched datagram send\n");
++				ksft_test_result_skip("object unix-send policy denies preconnected datagram send\n");
++				ksft_test_result_skip("object unix-send policy allows unmatched preconnected datagram send\n");
 +				ksft_test_result_skip("object unix-recv policy denies protected datagram receive\n");
 +				ksft_test_result_skip("object unix-recv policy allows unmatched datagram receive\n");
 +				ksft_test_result_skip("object-write policy denies protected FIFO write open\n");
@@ -56741,6 +56859,10 @@ diff -ruN --exclude .git linux-7.0.12/tools/testing/selftests/hardening/hdn_smok
 +			&object_unix_send_protected_fd,
 +			&object_unix_send_unprotected_fd);
 +	if (!ret)
++		ret = setup_object_unix_connected_send_fixtures(
++			&object_unix_connected_send_protected_fd,
++			&object_unix_connected_send_unprotected_fd);
++	if (!ret)
 +		ret = setup_object_unix_recv_fixtures(
 +			&object_unix_recv_protected_fd,
 +			&object_unix_recv_unprotected_fd);
@@ -56867,6 +56989,14 @@ diff -ruN --exclude .git linux-7.0.12/tools/testing/selftests/hardening/hdn_smok
 +		report_child_result(object_policy_committed ?
 +				    object_unix_send_unmatched_allowed() : 2,
 +				    "object unix-send policy allows unmatched datagram send");
++		report_child_result(object_policy_committed ?
++				    object_unix_connected_send_denied(
++					    object_unix_connected_send_protected_fd) : 2,
++				    "object unix-send policy denies preconnected datagram send");
++		report_child_result(object_policy_committed ?
++				    object_unix_connected_send_unmatched_allowed(
++					    object_unix_connected_send_unprotected_fd) : 2,
++				    "object unix-send policy allows unmatched preconnected datagram send");
 +		report_child_result(object_policy_committed ?
 +				    object_unix_recv_denied(
 +					    object_unix_recv_protected_fd) : 2,
@@ -57537,6 +57667,14 @@ diff -ruN --exclude .git linux-7.0.12/tools/testing/selftests/hardening/hdn_smok
 +	if (object_unix_send_unprotected_fd >= 0) {
 +		close(object_unix_send_unprotected_fd);
 +		object_unix_send_unprotected_fd = -1;
++	}
++	if (object_unix_connected_send_protected_fd >= 0) {
++		close(object_unix_connected_send_protected_fd);
++		object_unix_connected_send_protected_fd = -1;
++	}
++	if (object_unix_connected_send_unprotected_fd >= 0) {
++		close(object_unix_connected_send_unprotected_fd);
++		object_unix_connected_send_unprotected_fd = -1;
 +	}
 +	if (object_unix_recv_protected_fd >= 0) {
 +		close(object_unix_recv_protected_fd);
@@ -59519,7 +59657,7 @@ diff -ruN --exclude .git linux-7.0.12/tools/testing/selftests/hardening/hdn_smok
 +	if (access(HDN_STATUS, R_OK))
 +		ksft_exit_skip("hardening securityfs status not present\n");
 +
-+	ksft_set_plan(825);
++	ksft_set_plan(827);
 +	test_securityfs_status();
 +	test_symbol_test_module_load();
 +	test_securityfs_status_contains("abi_version: 81",
@@ -60252,7 +60390,7 @@ diff -ruN --exclude .git linux-7.0.12/tools/testing/selftests/hardening/role.pol
 +use-role 2 desktop-admin
 diff -ruN --exclude .git linux-7.0.12/tools/testing/selftests/hardening/run-qemu-smoke.sh linux-7.0.12-hdn/tools/testing/selftests/hardening/run-qemu-smoke.sh
 --- linux-7.0.12/tools/testing/selftests/hardening/run-qemu-smoke.sh	1969-12-31 18:00:00.000000000 -0600
-+++ linux-7.0.12-hdn/tools/testing/selftests/hardening/run-qemu-smoke.sh	2026-06-26 19:01:36.000412393 -0500
++++ linux-7.0.12-hdn/tools/testing/selftests/hardening/run-qemu-smoke.sh	2026-06-26 19:10:22.704363397 -0500
 @@ -0,0 +1,1060 @@
 +#!/bin/sh
 +# SPDX-License-Identifier: GPL-2.0
@@ -60287,7 +60425,7 @@ diff -ruN --exclude .git linux-7.0.12/tools/testing/selftests/hardening/run-qemu
 +QEMU_MEMORY=${QEMU_MEMORY:-1024M}
 +QEMU_SMP=${QEMU_SMP:-2}
 +QEMU_MACHINE=${QEMU_MACHINE:-q35,accel=tcg}
-+HDN_SMOKE_EXPECTED_PASS=${HDN_SMOKE_EXPECTED_PASS:-825}
++HDN_SMOKE_EXPECTED_PASS=${HDN_SMOKE_EXPECTED_PASS:-827}
 +WORK=${HDN_QEMU_WORK:-"${TMPDIR:-/tmp}/hdn-qemu-smoke.$$"}
 +LOG=${HDN_QEMU_LOG:-"$WORK/qemu.log"}
 +QMP=${HDN_QEMU_QMP:-"$WORK/qmp.sock"}
