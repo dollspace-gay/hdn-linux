@@ -951,6 +951,7 @@ can declare `object PROFILE deny-write path PATH`,
 	`object PROFILE deny-mount path PATH`, `object PROFILE deny-umount path PATH`,
 	`object PROFILE deny-truncate path PATH`,
 	`object PROFILE deny-rename path PATH`,
+	`object PROFILE deny-rename-target path PATH`,
 	`object PROFILE deny-unix-connect path PATH`,
 	`object PROFILE deny-unix-bind path PATH`,
 	`object PROFILE deny-unix-listen path PATH`,
@@ -961,7 +962,7 @@ can declare `object PROFILE deny-write path PATH`,
 	`object PROFILE OP inode MAJOR MINOR INO` rules for the same object
 	operations. Path and tree declarations are resolved to file
 	or directory identity when the signed policy is staged, and VFS
-	read/write/delete/create/creat/mkdir/mknod/symlink/unlink/rmdir/exec/link/attr/chmod/chown/utime/xattr/setxattr/removexattr/access/stat/list/find/ioctl/lock/watch/receive/fcntl/chdir/mount/umount/truncate/rename/unix-connect/unix-bind/unix-listen/unix-accept/unix-send/unix-recv paths check compiled identity under RCU.
+	read/write/delete/create/creat/mkdir/mknod/symlink/unlink/rmdir/exec/link/attr/chmod/chown/utime/xattr/setxattr/removexattr/access/stat/list/find/ioctl/lock/watch/receive/fcntl/chdir/mount/umount/truncate/rename/rename-target/unix-connect/unix-bind/unix-listen/unix-accept/unix-send/unix-recv paths check compiled identity under RCU.
 Tree declarations must resolve to directories and match that directory plus
 descendants by dentry ancestry. This
 slice covers recursive denial rules, recursive split create/delete operation
@@ -1013,7 +1014,9 @@ opened before policy commit. Pure lookup-style discovery is covered by
 	`deny-truncate` separately covers path truncation, descriptor truncation,
 	`O_TRUNC` opens, and `fallocate(2)` extent mutation without blocking
 	ordinary writes. `deny-rename` covers source-object rename attempts and
-	both source objects in `RENAME_EXCHANGE`. `deny-unix-connect` covers
+	both source objects in `RENAME_EXCHANGE`. `deny-rename-target` covers
+	incoming rename attempts by destination directory identity without
+	blocking ordinary creates in that directory. `deny-unix-connect` covers
 	filesystem-backed AF_UNIX pathname socket connect attempts, and
 	`deny-unix-bind` covers filesystem-backed AF_UNIX pathname socket bind
 	attempts by parent directory identity before the socket node is created.
