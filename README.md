@@ -114,16 +114,16 @@ The hardening smoke suite in the development tree is run under QEMU. Latest
 local result before this publication checkpoint:
 
 ```text
-QEMU hardening smoke: 835/835 pass
+QEMU hardening smoke: 837/837 pass
 ```
 
 Patch artifact at this checkpoint:
 
 ```text
 patch: patches/hdn-linux-7.0.12.patch
-lines: 61,943
-bytes: 1,825,074
-sha256: 6f30f28fc25aa9ecba60dc7d9f279c244edc7b8328383d22c9ac540b0c1ad49f
+lines: 61,999
+bytes: 1,826,404
+sha256: d6558a25eb6db3174db0a896df45171429fa17f855584294708da5315adada6e
 ```
 
 ## Development Rule
